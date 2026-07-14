@@ -9,6 +9,7 @@
 #include "GameFramework/Pawn.h"
 #include "Kismet/GameplayStatics.h"
 #include "TimerManager.h"
+#include "UObject/ConstructorHelpers.h"
 
 AImmortalMonsterSpawner::AImmortalMonsterSpawner()
 {
@@ -22,6 +23,13 @@ AImmortalMonsterSpawner::AImmortalMonsterSpawner()
 	SpawnArea->SetBoxExtent(FVector(800.0f, 20.0f, 20.0f));
 	SpawnArea->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	SpawnArea->SetHiddenInGame(true);
+
+	static ConstructorHelpers::FClassFinder<AImmortalMonsterCharacter> DogMonsterFinder(
+		TEXT("/Game/GAME/BP_DogMonster"));
+	if (DogMonsterFinder.Succeeded())
+	{
+		DefaultAlternateMonsterClass = DogMonsterFinder.Class;
+	}
 }
 
 void AImmortalMonsterSpawner::BeginPlay()
@@ -51,6 +59,11 @@ AImmortalMonsterCharacter* AImmortalMonsterSpawner::SpawnMonster()
 		return nullptr;
 	}
 
+	const TSubclassOf<AImmortalMonsterCharacter> EffectiveAlternateClass =
+		AlternateMonsterClass ? AlternateMonsterClass : DefaultAlternateMonsterClass;
+	const TSubclassOf<AImmortalMonsterCharacter> ClassToSpawn =
+		EffectiveAlternateClass && FMath::RandBool() ? EffectiveAlternateClass : MonsterClass;
+
 	FVector SpawnLocation;
 	if (!FindSpawnLocation(SpawnLocation))
 	{
@@ -62,7 +75,7 @@ AImmortalMonsterCharacter* AImmortalMonsterSpawner::SpawnMonster()
 	SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
 
 	AImmortalMonsterCharacter* Monster = GetWorld()->SpawnActor<AImmortalMonsterCharacter>(
-		MonsterClass,
+		ClassToSpawn,
 		SpawnLocation,
 		GetActorRotation(),
 		SpawnParams);

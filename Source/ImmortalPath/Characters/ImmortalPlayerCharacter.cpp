@@ -3,10 +3,14 @@
 #include "ImmortalPlayerCharacter.h"
 
 #include "../Combat/AutoAttackTarget.h"
+#include "Camera/CameraComponent.h"
 #include "DrawDebugHelpers.h"
+#include "Components/CapsuleComponent.h"
 #include "Engine/OverlapResult.h"
 #include "Engine/World.h"
+#include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/DamageType.h"
+#include "GameFramework/SpringArmComponent.h"
 #include "Kismet/GameplayStatics.h"
 #include "TimerManager.h"
 
@@ -19,11 +23,79 @@ AImmortalPlayerCharacter::AImmortalPlayerCharacter()
 void AImmortalPlayerCharacter::BeginPlay()
 {
 	Super::BeginPlay();
+	CurrentHealth = FMath::Max(MaxHealth, 1.0f);
+	bDead = false;
+	ConfigureCombatCamera();
 
 	if (bAutoAttackOnBeginPlay)
 	{
 		StartAutoAttack();
 	}
+}
+
+void AImmortalPlayerCharacter::ConfigureCombatCamera()
+{
+	if (!bConfigureCombatCamera)
+	{
+		return;
+	}
+
+	if (USpringArmComponent* SpringArm = FindComponentByClass<USpringArmComponent>())
+	{
+		// The existing 2D Blueprint faces the SpringArm down the Y axis, so its
+		// local Y is the horizontal screen axis. Moving the camera along that
+		// axis keeps the character left of centre without changing the lane.
+		FVector CameraOffset = SpringArm->SocketOffset;
+		CameraOffset.Y += CameraLeadDistance;
+		SpringArm->SocketOffset = CameraOffset;
+	}
+
+	if (UCameraComponent* Camera = FindComponentByClass<UCameraComponent>())
+	{
+		if (Camera->ProjectionMode == ECameraProjectionMode::Orthographic)
+		{
+			Camera->SetOrthoWidth(FMath::Max(CombatOrthoWidth, 100.0f));
+		}
+		else
+		{
+			Camera->SetFieldOfView(FMath::Clamp(CombatPerspectiveFOV, 5.0f, 170.0f));
+		}
+	}
+}
+
+float AImmortalPlayerCharacter::TakeDamage(
+	const float DamageAmount,
+	const FDamageEvent& DamageEvent,
+	AController* EventInstigator,
+	AActor* DamageCauser)
+{
+	if (bDead || DamageAmount <= 0.0f)
+	{
+		return 0.0f;
+	}
+
+	const float EngineAcceptedDamage = Super::TakeDamage(DamageAmount, DamageEvent, EventInstigator, DamageCauser);
+	const float RequestedDamage = EngineAcceptedDamage > 0.0f ? EngineAcceptedDamage : DamageAmount;
+	const float DamageApplied = FMath::Min(RequestedDamage, CurrentHealth);
+	CurrentHealth = FMath::Max(CurrentHealth - DamageApplied, 0.0f);
+	BP_OnPlayerDamaged(DamageApplied, CurrentHealth, DamageCauser);
+
+	if (CurrentHealth <= 0.0f)
+	{
+		bDead = true;
+		StopAutoAttack();
+		GetCharacterMovement()->StopMovementImmediately();
+		GetCharacterMovement()->DisableMovement();
+		GetCapsuleComponent()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		BP_OnPlayerDied(DamageCauser);
+	}
+
+	return DamageApplied;
+}
+
+float AImmortalPlayerCharacter::GetHealthPercent() const
+{
+	return MaxHealth > 0.0f ? CurrentHealth / MaxHealth : 0.0f;
 }
 
 void AImmortalPlayerCharacter::EndPlay(const EEndPlayReason::Type EndPlayReason)
@@ -58,7 +130,7 @@ void AImmortalPlayerCharacter::StopAutoAttack()
 
 void AImmortalPlayerCharacter::TryAutoAttack()
 {
-	if (bAttackPending || !GetWorld())
+	if (bDead || bAttackPending || !GetWorld())
 	{
 		return;
 	}

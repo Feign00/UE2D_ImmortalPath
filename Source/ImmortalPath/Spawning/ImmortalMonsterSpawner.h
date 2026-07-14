@@ -46,6 +46,10 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Immortal Path|Spawning")
 	TSubclassOf<AImmortalMonsterCharacter> MonsterClass;
 
+	/** Optional second monster type; when set, each spawn randomly picks one of the two classes. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Immortal Path|Spawning")
+	TSubclassOf<AImmortalMonsterCharacter> AlternateMonsterClass;
+
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Immortal Path|Spawning", meta = (ClampMin = "0"))
 	int32 InitialSpawnCount = 3;
 
@@ -87,6 +91,10 @@ private:
 
 	UPROPERTY(Transient)
 	TArray<TWeakObjectPtr<AImmortalMonsterCharacter>> SpawnedMonsters;
+
+	/** Cook-safe fallback used when the spawner Blueprint has no alternate class assigned. */
+	UPROPERTY(Transient)
+	TSubclassOf<AImmortalMonsterCharacter> DefaultAlternateMonsterClass;
 
 	FTimerHandle SpawnTimerHandle;
 };
