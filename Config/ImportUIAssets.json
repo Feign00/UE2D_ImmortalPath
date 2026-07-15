@@ -1,0 +1,39 @@
+{
+  "ImportGroups": [
+    {
+      "GroupName": "PlayerStatusUI",
+      "Filenames": [
+        "D:/UE2D/ImmortalPath/Content/GAME/Asset/ui/player_bar/background.png",
+        "D:/UE2D/ImmortalPath/Content/GAME/Asset/ui/player_bar/border.png",
+        "D:/UE2D/ImmortalPath/Content/GAME/Asset/ui/player_bar/health_fill.png",
+        "D:/UE2D/ImmortalPath/Content/GAME/Asset/ui/player_bar/mana_fill.png"
+      ],
+      "DestinationPath": "/Game/GAME/Asset/ui/player_bar",
+      "FactoryName": "TextureFactory",
+      "bReplaceExisting": true,
+      "bSkipReadOnly": true
+    },
+    {
+      "GroupName": "MonsterHealthUI",
+      "Filenames": [
+        "D:/UE2D/ImmortalPath/Content/GAME/Asset/ui/monster_bar/background.png",
+        "D:/UE2D/ImmortalPath/Content/GAME/Asset/ui/monster_bar/border.png",
+        "D:/UE2D/ImmortalPath/Content/GAME/Asset/ui/monster_bar/health_fill.png"
+      ],
+      "DestinationPath": "/Game/GAME/Asset/ui/monster_bar",
+      "FactoryName": "TextureFactory",
+      "bReplaceExisting": true,
+      "bSkipReadOnly": true
+    },
+    {
+      "GroupName": "EquipmentOrbUI",
+      "Filenames": [
+        "D:/UE2D/ImmortalPath/Content/GAME/Asset/ui/equipment_orb/equipment_orb.png"
+      ],
+      "DestinationPath": "/Game/GAME/Asset/ui/equipment_orb",
+      "FactoryName": "TextureFactory",
+      "bReplaceExisting": true,
+      "bSkipReadOnly": true
+    }
+  ]
+}

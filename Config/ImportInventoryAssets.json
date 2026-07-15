@@ -1,0 +1,55 @@
+{
+  "ImportGroups": [
+    {
+      "GroupName": "InventoryRoot",
+      "Filenames": [
+        "D:/UE2D/ImmortalPath/Content/GAME/Asset/ui/inventory/panel_background.png",
+        "D:/UE2D/ImmortalPath/Content/GAME/Asset/ui/inventory/close_button.png"
+      ],
+      "DestinationPath": "/Game/GAME/Asset/ui/inventory",
+      "FactoryName": "TextureFactory",
+      "bReplaceExisting": true,
+      "bSkipReadOnly": true
+    },
+    {
+      "GroupName": "InventorySlots",
+      "Filenames": [
+        "D:/UE2D/ImmortalPath/Content/GAME/Asset/ui/inventory/slots/normal.png",
+        "D:/UE2D/ImmortalPath/Content/GAME/Asset/ui/inventory/slots/selected.png",
+        "D:/UE2D/ImmortalPath/Content/GAME/Asset/ui/inventory/slots/equipped.png"
+      ],
+      "DestinationPath": "/Game/GAME/Asset/ui/inventory/slots",
+      "FactoryName": "TextureFactory",
+      "bReplaceExisting": true,
+      "bSkipReadOnly": true
+    },
+    {
+      "GroupName": "InventoryEquipmentIcons",
+      "Filenames": [
+        "D:/UE2D/ImmortalPath/Content/GAME/Asset/ui/inventory/equipment_icons/weapon.png",
+        "D:/UE2D/ImmortalPath/Content/GAME/Asset/ui/inventory/equipment_icons/head.png",
+        "D:/UE2D/ImmortalPath/Content/GAME/Asset/ui/inventory/equipment_icons/clothes.png",
+        "D:/UE2D/ImmortalPath/Content/GAME/Asset/ui/inventory/equipment_icons/boots.png",
+        "D:/UE2D/ImmortalPath/Content/GAME/Asset/ui/inventory/equipment_icons/accessory.png"
+      ],
+      "DestinationPath": "/Game/GAME/Asset/ui/inventory/equipment_icons",
+      "FactoryName": "TextureFactory",
+      "bReplaceExisting": true,
+      "bSkipReadOnly": true
+    },
+    {
+      "GroupName": "InventoryQualityFrames",
+      "Filenames": [
+        "D:/UE2D/ImmortalPath/Content/GAME/Asset/ui/inventory/quality_frames/white.png",
+        "D:/UE2D/ImmortalPath/Content/GAME/Asset/ui/inventory/quality_frames/green.png",
+        "D:/UE2D/ImmortalPath/Content/GAME/Asset/ui/inventory/quality_frames/blue.png",
+        "D:/UE2D/ImmortalPath/Content/GAME/Asset/ui/inventory/quality_frames/purple.png",
+        "D:/UE2D/ImmortalPath/Content/GAME/Asset/ui/inventory/quality_frames/gold.png"
+      ],
+      "DestinationPath": "/Game/GAME/Asset/ui/inventory/quality_frames",
+      "FactoryName": "TextureFactory",
+      "bReplaceExisting": true,
+      "bSkipReadOnly": true
+    }
+  ]
+}

@@ -2,7 +2,11 @@
 
 #include "ImmortalMonsterCharacter.h"
 
+#include "../Drops/ImmortalEquipmentDrop.h"
+#include "../UI/ImmortalMonsterHealthWidget.h"
+#include "ImmortalPlayerCharacter.h"
 #include "Components/CapsuleComponent.h"
+#include "Components/WidgetComponent.h"
 #include "GameFramework/DamageType.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/Pawn.h"
@@ -20,6 +24,16 @@ AImmortalMonsterCharacter::AImmortalMonsterCharacter()
 	GetCharacterMovement()->bOrientRotationToMovement = false;
 	GetCharacterMovement()->SetPlaneConstraintEnabled(true);
 	GetCharacterMovement()->SetPlaneConstraintNormal(FVector(0.0f, 1.0f, 0.0f));
+
+	HealthBarComponent = CreateDefaultSubobject<UWidgetComponent>(TEXT("MonsterHealthBar"));
+	HealthBarComponent->SetupAttachment(GetRootComponent());
+	HealthBarComponent->SetWidgetSpace(EWidgetSpace::Screen);
+	HealthBarComponent->SetDrawSize(FVector2D(256.0f, 32.0f));
+	HealthBarComponent->SetPivot(FVector2D(0.5f, 1.0f));
+	HealthBarComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	HealthBarComponent->SetWidgetClass(UImmortalMonsterHealthWidget::StaticClass());
+
+	EquipmentDropClass = AImmortalEquipmentDrop::StaticClass();
 }
 
 void AImmortalMonsterCharacter::BeginPlay()
@@ -29,6 +43,21 @@ void AImmortalMonsterCharacter::BeginPlay()
 	bDead = false;
 	NextAttackTime = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0f;
 	GetCharacterMovement()->MaxWalkSpeed = FMath::Max(MovementSpeed, 0.0f);
+	HealthBarComponent->SetRelativeLocation(FVector(0.0f, VisualDepthOffset, HealthBarHeight));
+	if (UImmortalMonsterHealthWidget* HealthWidget = Cast<UImmortalMonsterHealthWidget>(HealthBarComponent->GetUserWidgetObject()))
+	{
+		HealthWidget->InitializeForMonster(this);
+	}
+
+	if (UPaperFlipbookComponent* SpriteComponent = GetSprite())
+	{
+		FVector VisualLocation = SpriteComponent->GetRelativeLocation();
+		VisualLocation.Y += VisualDepthOffset;
+		SpriteComponent->SetRelativeLocation(VisualLocation);
+		SpriteComponent->SetRelativeScale3D(
+			SpriteComponent->GetRelativeScale3D() * FMath::Max(VisualScale, 0.1f));
+		SpriteComponent->SetTranslucentSortPriority(VisualSortPriority);
+	}
 
 	if (bAutoCombatOnBeginPlay)
 	{
@@ -68,7 +97,8 @@ float AImmortalMonsterCharacter::TakeDamage(
 
 	const float EngineAcceptedDamage = Super::TakeDamage(DamageAmount, DamageEvent, EventInstigator, DamageCauser);
 	const float RequestedDamage = EngineAcceptedDamage > 0.0f ? EngineAcceptedDamage : DamageAmount;
-	const float DamageApplied = FMath::Min(RequestedDamage, CurrentHealth);
+	const float ReducedDamage = FMath::Max(RequestedDamage - FMath::Max(Defense, 0.0f), 1.0f);
+	const float DamageApplied = FMath::Min(ReducedDamage, CurrentHealth);
 
 	CurrentHealth = FMath::Max(CurrentHealth - DamageApplied, 0.0f);
 	BP_OnMonsterDamaged(DamageApplied, CurrentHealth, DamageCauser);
@@ -159,7 +189,8 @@ void AImmortalMonsterCharacter::StartAttack()
 	}
 
 	bAttackInProgress = true;
-	NextAttackTime = GetWorld()->GetTimeSeconds() + FMath::Max(AttackInterval, 0.05f);
+	const float EffectiveAttackInterval = FMath::Max(AttackInterval, 0.05f) / FMath::Max(AttackSpeedMultiplier, 0.1f);
+	NextAttackTime = GetWorld()->GetTimeSeconds() + EffectiveAttackInterval;
 	GetCharacterMovement()->StopMovementImmediately();
 	PlayOneShotAnimation(AttackFlipbook);
 	BP_OnMonsterAttackStarted(Target);
@@ -197,8 +228,19 @@ void AImmortalMonsterCharacter::ResolveAttack()
 		const float HorizontalDistance = FMath::Abs(Target->GetActorLocation().X - GetActorLocation().X);
 		if (HorizontalDistance <= AttackRange + 20.0f)
 		{
-			DamageDealt = FMath::Max(AttackDamage, 0.0f);
-			UGameplayStatics::ApplyDamage(Target, DamageDealt, GetController(), this, UDamageType::StaticClass());
+			const bool bCriticalHit = FMath::FRand() < FMath::Clamp(CriticalChance, 0.0f, 1.0f);
+			const float CriticalMultiplier = bCriticalHit ? FMath::Max(CriticalDamageMultiplier, 1.0f) : 1.0f;
+			const float RequestedDamage = FMath::Max(AttackDamage, 0.0f) * CriticalMultiplier;
+			DamageDealt = UGameplayStatics::ApplyDamage(
+				Target,
+				RequestedDamage,
+				GetController(),
+				this,
+				UDamageType::StaticClass());
+			if (bCriticalHit && DamageDealt > 0.0f)
+			{
+				BP_OnMonsterCriticalHit(Target, DamageDealt);
+			}
 		}
 	}
 
@@ -288,7 +330,32 @@ void AImmortalMonsterCharacter::Die(AActor* DamageCauser)
 	PlayOneShotAnimation(DeathFlipbook);
 
 	OnMonsterDeath.Broadcast(this, DamageCauser);
+
+	AImmortalPlayerCharacter* RewardPlayer = Cast<AImmortalPlayerCharacter>(DamageCauser);
+	if (!RewardPlayer && DamageCauser)
+	{
+		RewardPlayer = Cast<AImmortalPlayerCharacter>(DamageCauser->GetOwner());
+	}
+	if (RewardPlayer)
+	{
+		RewardPlayer->ReceiveKillRewards(CultivationReward, GoldReward);
+	}
+	BP_OnMonsterRewardsGranted(CultivationReward, GoldReward, EquipmentDropChance, DamageCauser);
 	BP_OnMonsterDied(DamageCauser);
+
+	if (GetWorld() && EquipmentDropClass && FMath::FRand() < FMath::Clamp(EquipmentDropChance, 0.0f, 1.0f))
+	{
+		FActorSpawnParameters SpawnParameters;
+		SpawnParameters.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+		if (AImmortalEquipmentDrop* SpawnedDrop = GetWorld()->SpawnActor<AImmortalEquipmentDrop>(
+			EquipmentDropClass,
+			GetActorLocation() + FVector(0.0f, 0.0f, 45.0f),
+			FRotator::ZeroRotator,
+			SpawnParameters))
+		{
+			SpawnedDrop->GenerateEquipmentForLevel(FMath::Max(EquipmentItemLevel, 1));
+		}
+	}
 
 	if (bDestroyAfterDeath)
 	{
