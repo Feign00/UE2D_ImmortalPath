@@ -56,7 +56,7 @@ void UImmortalPlayerStatusWidget::NativeOnInitialized()
 
 	const FVector2D BarSize(512.0f, 64.0f);
 	USizeBox* RootBox = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass(), TEXT("PlayerStatusSize"));
-	RootBox->SetWidthOverride(620.0f);
+	RootBox->SetWidthOverride(820.0f);
 	RootBox->SetHeightOverride(BarSize.Y);
 	WidgetTree->RootWidget = RootBox;
 
@@ -122,6 +122,59 @@ void UImmortalPlayerStatusWidget::NativeOnInitialized()
 	LabelFont.Size = 16;
 	InventoryLabel->SetFont(LabelFont);
 	InventoryButton->AddChild(InventoryLabel);
+
+	UButton* AlchemyButton = WidgetTree->ConstructWidget<UButton>(UButton::StaticClass(), TEXT("AlchemyOpenButton"));
+	AlchemyButton->OnClicked.AddDynamic(this, &UImmortalPlayerStatusWidget::HandleAlchemyClicked);
+	const FSlateBrush AlchemyBrush = MakeStatusBrush(
+		TEXT("/Game/GAME/Asset/ui/inventory/slots/normal.normal"),
+		FVector2D(94.0f, 64.0f),
+		FLinearColor(0.12f, 0.08f, 0.15f, 0.95f));
+	FButtonStyle AlchemyStyle;
+	AlchemyStyle.SetNormal(AlchemyBrush);
+	AlchemyStyle.SetHovered(AlchemyBrush);
+	AlchemyStyle.SetPressed(AlchemyBrush);
+	AlchemyButton->SetStyle(AlchemyStyle);
+	if (UCanvasPanelSlot* ButtonSlot = Canvas->AddChildToCanvas(AlchemyButton))
+	{
+		ButtonSlot->SetPosition(FVector2D(620.0f, 0.0f));
+		ButtonSlot->SetSize(FVector2D(94.0f, 64.0f));
+	}
+
+	UTextBlock* AlchemyLabel = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("AlchemyButtonLabel"));
+	AlchemyLabel->SetText(FText::FromString(TEXT("炼丹 [L]")));
+	AlchemyLabel->SetJustification(ETextJustify::Center);
+	AlchemyLabel->SetColorAndOpacity(FSlateColor(FLinearColor(0.45f, 1.0f, 0.72f, 1.0f)));
+	AlchemyLabel->SetShadowOffset(FVector2D(1.0f, 1.0f));
+	FSlateFontInfo AlchemyFont = AlchemyLabel->GetFont();
+	AlchemyFont.Size = 16;
+	AlchemyLabel->SetFont(AlchemyFont);
+	AlchemyButton->AddChild(AlchemyLabel);
+
+	UButton* CraftingButton = WidgetTree->ConstructWidget<UButton>(UButton::StaticClass(), TEXT("CraftingOpenButton"));
+	CraftingButton->OnClicked.AddDynamic(this, &UImmortalPlayerStatusWidget::HandleCraftingClicked);
+	const FSlateBrush CraftingBrush = MakeStatusBrush(
+		TEXT("/Game/GAME/Asset/ui/inventory/slots/normal.normal"),
+		FVector2D(94.0f, 64.0f),
+		FLinearColor(0.16f, 0.10f, 0.05f, 0.95f));
+	FButtonStyle CraftingStyle;
+	CraftingStyle.SetNormal(CraftingBrush);
+	CraftingStyle.SetHovered(CraftingBrush);
+	CraftingStyle.SetPressed(CraftingBrush);
+	CraftingButton->SetStyle(CraftingStyle);
+	if (UCanvasPanelSlot* ButtonSlot = Canvas->AddChildToCanvas(CraftingButton))
+	{
+		ButtonSlot->SetPosition(FVector2D(720.0f, 0.0f));
+		ButtonSlot->SetSize(FVector2D(94.0f, 64.0f));
+	}
+	UTextBlock* CraftingLabel = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("CraftingButtonLabel"));
+	CraftingLabel->SetText(FText::FromString(TEXT("炼器 [K]")));
+	CraftingLabel->SetJustification(ETextJustify::Center);
+	CraftingLabel->SetColorAndOpacity(FSlateColor(FLinearColor(1.0f, 0.66f, 0.24f, 1.0f)));
+	CraftingLabel->SetShadowOffset(FVector2D(1.0f));
+	FSlateFontInfo CraftingFont = CraftingLabel->GetFont();
+	CraftingFont.Size = 16;
+	CraftingLabel->SetFont(CraftingFont);
+	CraftingButton->AddChild(CraftingLabel);
 }
 
 void UImmortalPlayerStatusWidget::NativeTick(const FGeometry& MyGeometry, const float InDeltaTime)
@@ -139,5 +192,21 @@ void UImmortalPlayerStatusWidget::HandleInventoryClicked()
 	if (Player.IsValid())
 	{
 		Player->ToggleInventory();
+	}
+}
+
+void UImmortalPlayerStatusWidget::HandleAlchemyClicked()
+{
+	if (Player.IsValid())
+	{
+		Player->ToggleAlchemy();
+	}
+}
+
+void UImmortalPlayerStatusWidget::HandleCraftingClicked()
+{
+	if (Player.IsValid())
+	{
+		Player->ToggleCrafting();
 	}
 }

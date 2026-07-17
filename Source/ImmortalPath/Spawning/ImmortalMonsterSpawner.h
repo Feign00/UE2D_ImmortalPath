@@ -35,6 +35,24 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Immortal Path|Spawning")
 	void StopSpawning();
 
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|Stage")
+	int32 GetCurrentStage() const { return CurrentStage; }
+
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|Stage")
+	int32 GetCurrentStageKills() const { return CurrentStageKills; }
+
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|Stage")
+	bool IsCurrentStageBossStage() const;
+
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|Stage")
+	bool IsQingyunMountainCompleted() const { return bQingyunMountainCompleted; }
+
+	UFUNCTION(BlueprintCallable, Category = "Immortal Path|Save")
+	bool SaveStageProgress();
+
+	UFUNCTION(BlueprintCallable, Category = "Immortal Path|Save")
+	bool LoadStageProgress();
+
 protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Immortal Path|Spawning")
 	TObjectPtr<USceneComponent> SceneRoot;
@@ -49,6 +67,10 @@ protected:
 	/** Optional second monster type; when set, each spawn randomly picks one of the two classes. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Immortal Path|Spawning")
 	TSubclassOf<AImmortalMonsterCharacter> AlternateMonsterClass;
+
+	/** Optional dedicated boss Blueprint. Falls back to Dog, then the normal monster class. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Immortal Path|Boss")
+	TSubclassOf<AImmortalMonsterCharacter> BossMonsterClass;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Immortal Path|Spawning", meta = (ClampMin = "0"))
 	int32 InitialSpawnCount = 3;
@@ -77,14 +99,52 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Immortal Path|Spawning", meta = (Units = "cm"))
 	float SpawnHeightOffset = 0.0f;
 
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Immortal Path|Stage", meta = (ClampMin = "1", ClampMax = "999"))
+	int32 CurrentStage = 1;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Immortal Path|Stage", meta = (ClampMin = "1", ClampMax = "999"))
+	int32 MaxStage = 999;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Immortal Path|Stage", meta = (ClampMin = "1"))
+	int32 KillsPerStage = 10;
+
+	/** Every Nth stage is a one-boss gate. Stage 999 is always the final boss. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Immortal Path|Boss", meta = (ClampMin = "2"))
+	int32 BossStageInterval = 10;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Immortal Path|Boss", meta = (ClampMin = "0"))
+	int32 PhaseTwoSummonCount = 1;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Immortal Path|Boss", meta = (ClampMin = "0"))
+	int32 PhaseThreeSummonCount = 2;
+
 	UFUNCTION(BlueprintImplementableEvent, Category = "Immortal Path|Spawning", meta = (DisplayName = "On Monster Spawned"))
 	void BP_OnMonsterSpawned(AImmortalMonsterCharacter* Monster);
+
+	UFUNCTION(BlueprintImplementableEvent, Category = "Immortal Path|Boss", meta = (DisplayName = "On Boss Spawned"))
+	void BP_OnBossSpawned(AImmortalMonsterCharacter* Boss, int32 Stage);
+
+	UFUNCTION(BlueprintImplementableEvent, Category = "Immortal Path|Boss", meta = (DisplayName = "On Boss Defeated"))
+	void BP_OnBossDefeated(int32 ClearedStage, int32 NextStage, bool bMapCompleted);
 
 private:
 	void SpawnUntilInitialCount();
 	void HandleSpawnTimer();
 	bool FindSpawnLocation(FVector& OutLocation) const;
 	void RemoveInvalidMonsters();
+	void UpdateStageHud() const;
+	AImmortalMonsterCharacter* SpawnConfiguredMonster(bool bSpawnBoss, bool bIgnoreAliveLimit, AActor* SpawnOwner = nullptr);
+	void SpawnBossMinions(AImmortalMonsterCharacter* Boss, int32 Count);
+	void AdvanceStage(AImmortalMonsterCharacter* DefeatedMonster);
+	void ClearOtherMonsters(AImmortalMonsterCharacter* Exception);
+	int32 GetRequiredKillsForCurrentStage() const;
+	void ShowBossMessage(const FText& Message, const FLinearColor& Color) const;
+
+	UFUNCTION()
+	void HandleMonsterDeath(AImmortalMonsterCharacter* Monster, AActor* DamageCauser);
+
+	UFUNCTION()
+	void HandleBossPhaseChanged(AImmortalMonsterCharacter* Boss, int32 NewPhase);
 
 	UFUNCTION()
 	void HandleSpawnedMonsterDestroyed(AActor* DestroyedActor);
@@ -96,5 +156,14 @@ private:
 	UPROPERTY(Transient)
 	TSubclassOf<AImmortalMonsterCharacter> DefaultAlternateMonsterClass;
 
+	UPROPERTY(Transient)
+	TSubclassOf<AImmortalMonsterCharacter> DefaultBossMonsterClass;
+
 	FTimerHandle SpawnTimerHandle;
+
+	UPROPERTY(VisibleInstanceOnly, Category = "Immortal Path|Stage")
+	int32 CurrentStageKills = 0;
+
+	UPROPERTY(VisibleInstanceOnly, Category = "Immortal Path|Stage")
+	bool bQingyunMountainCompleted = false;
 };

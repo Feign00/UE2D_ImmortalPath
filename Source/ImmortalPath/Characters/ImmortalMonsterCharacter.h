@@ -11,6 +11,8 @@ class AController;
 class APawn;
 class UDamageType;
 class AImmortalEquipmentDrop;
+class AImmortalMaterialDrop;
+class AImmortalSpiritStoneDrop;
 class UPaperFlipbook;
 class UWidgetComponent;
 
@@ -18,6 +20,11 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(
 	FMonsterDeathSignature,
 	AImmortalMonsterCharacter*, Monster,
 	AActor*, DamageCauser);
+
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(
+	FBossPhaseChangedSignature,
+	AImmortalMonsterCharacter*, Boss,
+	int32, NewPhase);
 
 /** C++ base class shared by normal, elite and boss monster Blueprints. */
 UCLASS(Blueprintable)
@@ -64,9 +71,26 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Immortal Path|Monster|Rewards")
 	float GetEquipmentDropChance() const { return EquipmentDropChance; }
 
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|Monster|Boss")
+	bool IsBoss() const { return bIsBoss; }
+
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|Monster|Boss")
+	int32 GetBossPhase() const { return CurrentBossPhase; }
+
+	/** Applies Qingyun Mountain stage scaling and drop level to an already spawned monster. */
+	UFUNCTION(BlueprintCallable, Category = "Immortal Path|Monster|Stage")
+	void ConfigureForStage(int32 Stage);
+
+	/** Promotes this already spawned monster into the current map's stage boss. */
+	UFUNCTION(BlueprintCallable, Category = "Immortal Path|Monster|Boss")
+	void ConfigureAsBoss(int32 Stage);
+
 	/** Sent once when this monster reaches zero health. */
 	UPROPERTY(BlueprintAssignable, Category = "Immortal Path|Monster")
 	FMonsterDeathSignature OnMonsterDeath;
+
+	UPROPERTY(BlueprintAssignable, Category = "Immortal Path|Monster|Boss")
+	FBossPhaseChangedSignature OnBossPhaseChanged;
 
 protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Immortal Path|Monster", meta = (ClampMin = "1.0"))
@@ -160,6 +184,59 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Immortal Path|Monster|Rewards", meta = (ClampMin = "1"))
 	int32 EquipmentItemLevel = 1;
 
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Immortal Path|Monster|Rewards")
+	TSubclassOf<AImmortalSpiritStoneDrop> SpiritStoneDropClass;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Immortal Path|Monster|Rewards", meta = (ClampMin = "0.0", ClampMax = "1.0"))
+	float SpiritStoneDropChance = 0.75f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Immortal Path|Monster|Rewards", meta = (ClampMin = "1"))
+	int32 SpiritStoneMinAmount = 1;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Immortal Path|Monster|Rewards", meta = (ClampMin = "1"))
+	int32 SpiritStoneMaxAmount = 3;
+
+	/** Chance to create a stage-aware stackable material entity at death. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Immortal Path|Monster|Rewards", meta = (ClampMin = "0.0", ClampMax = "1.0"))
+	float MaterialDropChance = 0.45f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Immortal Path|Monster|Rewards")
+	TSubclassOf<AImmortalMaterialDrop> MaterialDropClass;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Immortal Path|Monster|Boss", meta = (ClampMin = "1.0"))
+	float BossHealthMultiplier = 8.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Immortal Path|Monster|Boss", meta = (ClampMin = "1.0"))
+	float BossAttackMultiplier = 1.35f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Immortal Path|Monster|Boss", meta = (ClampMin = "0.0"))
+	float BossDefenseBonus = 2.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Immortal Path|Monster|Boss", meta = (ClampMin = "1.0"))
+	float BossVisualScaleMultiplier = 1.35f;
+
+	/** Every Nth boss attack becomes a longer-range heavy skill. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Immortal Path|Monster|Boss", meta = (ClampMin = "2"))
+	int32 BossSkillEveryAttacks = 4;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Immortal Path|Monster|Boss", meta = (ClampMin = "1.0"))
+	float BossSkillDamageMultiplier = 1.75f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Immortal Path|Monster|Boss", meta = (ClampMin = "0.0", Units = "cm"))
+	float BossSkillBonusRange = 180.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Immortal Path|Monster|Boss", meta = (ClampMin = "1"))
+	int32 BossGuaranteedEquipmentDrops = 3;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Immortal Path|Monster|Boss", meta = (ClampMin = "0"))
+	int32 BossEquipmentLevelBonus = 2;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Immortal Path|Monster|Boss", meta = (ClampMin = "1"))
+	int32 BossSpiritStoneMultiplier = 5;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Immortal Path|Monster|Boss", meta = (ClampMin = "1"))
+	int32 BossGuaranteedMaterialDrops = 3;
+
 	/** Height of the screen-space health bar above the monster capsule. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Immortal Path|Monster|UI", meta = (Units = "cm"))
 	float HealthBarHeight = 135.0f;
@@ -185,6 +262,12 @@ protected:
 	UFUNCTION(BlueprintImplementableEvent, Category = "Immortal Path|Monster|Rewards", meta = (DisplayName = "On Monster Rewards Granted"))
 	void BP_OnMonsterRewardsGranted(int32 CultivationGranted, int32 GoldGranted, float DropChance, AActor* DamageCauser);
 
+	UFUNCTION(BlueprintImplementableEvent, Category = "Immortal Path|Monster|Boss", meta = (DisplayName = "On Boss Phase Changed"))
+	void BP_OnBossPhaseChanged(int32 NewPhase);
+
+	UFUNCTION(BlueprintImplementableEvent, Category = "Immortal Path|Monster|Boss", meta = (DisplayName = "On Boss Skill Started"))
+	void BP_OnBossSkillStarted(AActor* Target);
+
 private:
 	void AcquireCombatTarget();
 	void UpdateAutoCombat(float DeltaSeconds);
@@ -192,6 +275,8 @@ private:
 	void ResolveAttack();
 	void FinishAttack();
 	void FinishHurtReaction();
+	void UpdateBossPhase();
+	void EnterBossPhase(int32 NewPhase);
 	void UpdateFacing(float HorizontalDirection);
 	void PlayMoveAnimation();
 	void PlayOneShotAnimation(UPaperFlipbook* Flipbook);
@@ -213,7 +298,16 @@ private:
 	float NextAttackTime = 0.0f;
 	bool bAttackInProgress = false;
 	bool bHurtReacting = false;
+	bool bIsBoss = false;
+	bool bBossSkillAttack = false;
+	int32 BossAttackCounter = 0;
+	int32 CurrentBossPhase = 0;
 
 	UPROPERTY(VisibleAnywhere, Category = "Immortal Path|Monster|UI")
 	TObjectPtr<UWidgetComponent> HealthBarComponent;
+
+	float StageBaseMaxHealth = 0.0f;
+	float StageBaseAttackDamage = 0.0f;
+	float StageBaseDefense = 0.0f;
+	int32 CurrentConfiguredStage = 1;
 };

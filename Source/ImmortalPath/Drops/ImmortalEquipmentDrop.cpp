@@ -50,6 +50,15 @@ void AImmortalEquipmentDrop::GenerateEquipmentForLevel(const int32 ItemLevel)
 	RefreshQualityVisual();
 }
 
+void AImmortalEquipmentDrop::GenerateEquipmentForLevelWithMinimumQuality(
+	const int32 ItemLevel,
+	const EImmortalEquipmentQuality MinimumQuality)
+{
+	EquipmentItem = UImmortalEquipmentLibrary::GenerateRandomEquipmentWithMinimumQuality(
+		FMath::Max(ItemLevel, 1), MinimumQuality);
+	RefreshQualityVisual();
+}
+
 void AImmortalEquipmentDrop::RefreshQualityVisual()
 {
 	if (OrbVisual)

@@ -25,6 +25,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Immortal Path|Drop")
 	void GenerateEquipmentForLevel(int32 ItemLevel);
 
+	UFUNCTION(BlueprintCallable, Category = "Immortal Path|Drop")
+	void GenerateEquipmentForLevelWithMinimumQuality(int32 ItemLevel, EImmortalEquipmentQuality MinimumQuality);
+
 	UFUNCTION(BlueprintPure, Category = "Immortal Path|Drop")
 	FImmortalEquipmentItem GetEquipmentItem() const { return EquipmentItem; }
 

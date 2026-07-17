@@ -3,6 +3,9 @@
 #include "ImmortalMonsterCharacter.h"
 
 #include "../Drops/ImmortalEquipmentDrop.h"
+#include "../Drops/ImmortalMaterialDrop.h"
+#include "../Drops/ImmortalSpiritStoneDrop.h"
+#include "../Items/ImmortalMaterialTypes.h"
 #include "../UI/ImmortalMonsterHealthWidget.h"
 #include "ImmortalPlayerCharacter.h"
 #include "Components/CapsuleComponent.h"
@@ -21,6 +24,9 @@ AImmortalMonsterCharacter::AImmortalMonsterCharacter()
 	Tags.AddUnique(TEXT("Monster"));
 
 	GetCharacterMovement()->MaxWalkSpeed = MovementSpeed;
+	// Spawner-created idle monsters intentionally do not need an AIController.
+	// CharacterMovement otherwise discards their AddMovementInput requests.
+	GetCharacterMovement()->bRunPhysicsWithNoController = true;
 	GetCharacterMovement()->bOrientRotationToMovement = false;
 	GetCharacterMovement()->SetPlaneConstraintEnabled(true);
 	GetCharacterMovement()->SetPlaneConstraintNormal(FVector(0.0f, 1.0f, 0.0f));
@@ -34,12 +40,17 @@ AImmortalMonsterCharacter::AImmortalMonsterCharacter()
 	HealthBarComponent->SetWidgetClass(UImmortalMonsterHealthWidget::StaticClass());
 
 	EquipmentDropClass = AImmortalEquipmentDrop::StaticClass();
+	MaterialDropClass = AImmortalMaterialDrop::StaticClass();
+	SpiritStoneDropClass = AImmortalSpiritStoneDrop::StaticClass();
 }
 
 void AImmortalMonsterCharacter::BeginPlay()
 {
 	Super::BeginPlay();
 	CurrentHealth = FMath::Max(MaxHealth, 1.0f);
+	StageBaseMaxHealth = FMath::Max(MaxHealth, 1.0f);
+	StageBaseAttackDamage = FMath::Max(AttackDamage, 0.0f);
+	StageBaseDefense = FMath::Max(Defense, 0.0f);
 	bDead = false;
 	NextAttackTime = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0f;
 	GetCharacterMovement()->MaxWalkSpeed = FMath::Max(MovementSpeed, 0.0f);
@@ -101,6 +112,10 @@ float AImmortalMonsterCharacter::TakeDamage(
 	const float DamageApplied = FMath::Min(ReducedDamage, CurrentHealth);
 
 	CurrentHealth = FMath::Max(CurrentHealth - DamageApplied, 0.0f);
+	if (CurrentHealth > 0.0f)
+	{
+		UpdateBossPhase();
+	}
 	BP_OnMonsterDamaged(DamageApplied, CurrentHealth, DamageCauser);
 
 	if (CurrentHealth <= 0.0f)
@@ -140,6 +155,74 @@ FVector AImmortalMonsterCharacter::GetAutoAttackTargetLocation_Implementation() 
 float AImmortalMonsterCharacter::GetHealthPercent() const
 {
 	return MaxHealth > 0.0f ? CurrentHealth / MaxHealth : 0.0f;
+}
+
+void AImmortalMonsterCharacter::ConfigureForStage(const int32 Stage)
+{
+	const int32 SafeStage = FMath::Clamp(Stage, 1, 999);
+	CurrentConfiguredStage = SafeStage;
+	if (StageBaseMaxHealth <= 0.0f)
+	{
+		StageBaseMaxHealth = FMath::Max(MaxHealth, 1.0f);
+		StageBaseAttackDamage = FMath::Max(AttackDamage, 0.0f);
+		StageBaseDefense = FMath::Max(Defense, 0.0f);
+	}
+
+	const float StageIndex = static_cast<float>(SafeStage - 1);
+	const float HealthScale = 1.0f + StageIndex * 0.08f + FMath::Pow(StageIndex, 1.35f) * 0.002f;
+	const float AttackScale = 1.0f + StageIndex * 0.035f;
+	MaxHealth = StageBaseMaxHealth * HealthScale;
+	CurrentHealth = MaxHealth;
+	AttackDamage = StageBaseAttackDamage * AttackScale;
+	Defense = StageBaseDefense + FMath::FloorToFloat(StageIndex / 20.0f);
+	EquipmentItemLevel = 1 + (SafeStage - 1) / 5;
+	EquipmentDropChance = FMath::Clamp(0.30f + StageIndex * 0.0003f, 0.30f, 0.60f);
+	SpiritStoneMinAmount = 1 + (SafeStage - 1) / 50;
+	SpiritStoneMaxAmount = SpiritStoneMinAmount + 2 + SafeStage / 100;
+	MaterialDropChance = FMath::Clamp(0.40f + StageIndex * 0.00025f, 0.40f, 0.65f);
+	CultivationReward = 0;
+	GoldReward = 0;
+}
+
+void AImmortalMonsterCharacter::ConfigureAsBoss(const int32 Stage)
+{
+	if (bIsBoss)
+	{
+		return;
+	}
+
+	ConfigureForStage(Stage);
+	bIsBoss = true;
+	CurrentBossPhase = 1;
+	Tags.AddUnique(TEXT("Boss"));
+
+	MaxHealth *= FMath::Max(BossHealthMultiplier, 1.0f);
+	CurrentHealth = MaxHealth;
+	AttackDamage *= FMath::Max(BossAttackMultiplier, 1.0f);
+	Defense += FMath::Max(BossDefenseBonus, 0.0f);
+	AttackSpeedMultiplier *= 1.05f;
+	MovementSpeed *= 0.9f;
+	GetCharacterMovement()->MaxWalkSpeed = FMath::Max(MovementSpeed, 0.0f);
+	EquipmentDropChance = 1.0f;
+	SpiritStoneDropChance = 1.0f;
+	MaterialDropChance = 1.0f;
+
+	if (UPaperFlipbookComponent* SpriteComponent = GetSprite())
+	{
+		SpriteComponent->SetRelativeScale3D(
+			SpriteComponent->GetRelativeScale3D() * FMath::Max(BossVisualScaleMultiplier, 1.0f));
+		SpriteComponent->SetTranslucentSortPriority(VisualSortPriority + 2);
+	}
+	if (HealthBarComponent)
+	{
+		HealthBarComponent->SetDrawSize(FVector2D(384.0f, 44.0f));
+		HealthBarComponent->SetRelativeLocation(FVector(0.0f, VisualDepthOffset, HealthBarHeight + 35.0f));
+	}
+
+	BP_OnBossPhaseChanged(CurrentBossPhase);
+	UE_LOG(LogTemp, Display,
+		TEXT("Qingyun Mountain boss configured: stage %d | health %.0f | attack %.1f | defense %.1f"),
+		FMath::Clamp(Stage, 1, 999), MaxHealth, AttackDamage, Defense);
 }
 
 void AImmortalMonsterCharacter::AcquireCombatTarget()
@@ -189,6 +272,17 @@ void AImmortalMonsterCharacter::StartAttack()
 	}
 
 	bAttackInProgress = true;
+	bBossSkillAttack = false;
+	if (bIsBoss)
+	{
+		++BossAttackCounter;
+		bBossSkillAttack = BossAttackCounter % FMath::Max(BossSkillEveryAttacks, 2) == 0;
+		if (bBossSkillAttack)
+		{
+			BP_OnBossSkillStarted(Target);
+			UE_LOG(LogTemp, Display, TEXT("Qingyun Mountain boss started heavy skill in phase %d"), CurrentBossPhase);
+		}
+	}
 	const float EffectiveAttackInterval = FMath::Max(AttackInterval, 0.05f) / FMath::Max(AttackSpeedMultiplier, 0.1f);
 	NextAttackTime = GetWorld()->GetTimeSeconds() + EffectiveAttackInterval;
 	GetCharacterMovement()->StopMovementImmediately();
@@ -226,11 +320,13 @@ void AImmortalMonsterCharacter::ResolveAttack()
 	if (!bDead && bAttackInProgress && IsValid(Target) && !Target->IsActorBeingDestroyed())
 	{
 		const float HorizontalDistance = FMath::Abs(Target->GetActorLocation().X - GetActorLocation().X);
-		if (HorizontalDistance <= AttackRange + 20.0f)
+		const float EffectiveRange = AttackRange + 20.0f + (bBossSkillAttack ? FMath::Max(BossSkillBonusRange, 0.0f) : 0.0f);
+		if (HorizontalDistance <= EffectiveRange)
 		{
 			const bool bCriticalHit = FMath::FRand() < FMath::Clamp(CriticalChance, 0.0f, 1.0f);
 			const float CriticalMultiplier = bCriticalHit ? FMath::Max(CriticalDamageMultiplier, 1.0f) : 1.0f;
-			const float RequestedDamage = FMath::Max(AttackDamage, 0.0f) * CriticalMultiplier;
+			const float SkillMultiplier = bBossSkillAttack ? FMath::Max(BossSkillDamageMultiplier, 1.0f) : 1.0f;
+			const float RequestedDamage = FMath::Max(AttackDamage, 0.0f) * CriticalMultiplier * SkillMultiplier;
 			DamageDealt = UGameplayStatics::ApplyDamage(
 				Target,
 				RequestedDamage,
@@ -250,6 +346,7 @@ void AImmortalMonsterCharacter::ResolveAttack()
 void AImmortalMonsterCharacter::FinishAttack()
 {
 	bAttackInProgress = false;
+	bBossSkillAttack = false;
 	if (!bDead)
 	{
 		PlayMoveAnimation();
@@ -263,6 +360,50 @@ void AImmortalMonsterCharacter::FinishHurtReaction()
 	{
 		PlayMoveAnimation();
 	}
+}
+
+void AImmortalMonsterCharacter::UpdateBossPhase()
+{
+	if (!bIsBoss || bDead || MaxHealth <= 0.0f)
+	{
+		return;
+	}
+
+	const float HealthPercent = GetHealthPercent();
+	const int32 TargetPhase = HealthPercent <= 0.33f ? 3 : (HealthPercent <= 0.66f ? 2 : 1);
+	while (CurrentBossPhase < TargetPhase)
+	{
+		EnterBossPhase(CurrentBossPhase + 1);
+	}
+}
+
+void AImmortalMonsterCharacter::EnterBossPhase(const int32 NewPhase)
+{
+	if (!bIsBoss || NewPhase <= CurrentBossPhase || NewPhase > 3)
+	{
+		return;
+	}
+
+	CurrentBossPhase = NewPhase;
+	if (CurrentBossPhase == 2)
+	{
+		AttackDamage *= 1.18f;
+		AttackSpeedMultiplier *= 1.12f;
+		MovementSpeed *= 1.05f;
+	}
+	else
+	{
+		AttackDamage *= 1.25f;
+		AttackSpeedMultiplier *= 1.18f;
+		MovementSpeed *= 1.08f;
+		CriticalChance = FMath::Clamp(CriticalChance + 0.08f, 0.0f, 1.0f);
+	}
+	GetCharacterMovement()->MaxWalkSpeed = FMath::Max(MovementSpeed, 0.0f);
+
+	BP_OnBossPhaseChanged(CurrentBossPhase);
+	OnBossPhaseChanged.Broadcast(this, CurrentBossPhase);
+	UE_LOG(LogTemp, Display, TEXT("Qingyun Mountain boss entered phase %d at %.1f%% health"),
+		CurrentBossPhase, GetHealthPercent() * 100.0f);
 }
 
 void AImmortalMonsterCharacter::UpdateFacing(const float HorizontalDirection)
@@ -331,30 +472,78 @@ void AImmortalMonsterCharacter::Die(AActor* DamageCauser)
 
 	OnMonsterDeath.Broadcast(this, DamageCauser);
 
-	AImmortalPlayerCharacter* RewardPlayer = Cast<AImmortalPlayerCharacter>(DamageCauser);
-	if (!RewardPlayer && DamageCauser)
-	{
-		RewardPlayer = Cast<AImmortalPlayerCharacter>(DamageCauser->GetOwner());
-	}
-	if (RewardPlayer)
-	{
-		RewardPlayer->ReceiveKillRewards(CultivationReward, GoldReward);
-	}
-	BP_OnMonsterRewardsGranted(CultivationReward, GoldReward, EquipmentDropChance, DamageCauser);
+	BP_OnMonsterRewardsGranted(0, 0, bIsBoss ? 1.0f : EquipmentDropChance, DamageCauser);
 	BP_OnMonsterDied(DamageCauser);
 
-	if (GetWorld() && EquipmentDropClass && FMath::FRand() < FMath::Clamp(EquipmentDropChance, 0.0f, 1.0f))
+	const int32 EquipmentDropCount = bIsBoss
+		? FMath::Max(BossGuaranteedEquipmentDrops, 1)
+		: (FMath::FRand() < FMath::Clamp(EquipmentDropChance, 0.0f, 1.0f) ? 1 : 0);
+	for (int32 DropIndex = 0; GetWorld() && EquipmentDropClass && DropIndex < EquipmentDropCount; ++DropIndex)
 	{
 		FActorSpawnParameters SpawnParameters;
 		SpawnParameters.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
 		if (AImmortalEquipmentDrop* SpawnedDrop = GetWorld()->SpawnActor<AImmortalEquipmentDrop>(
 			EquipmentDropClass,
-			GetActorLocation() + FVector(0.0f, 0.0f, 45.0f),
+			GetActorLocation() + FVector((DropIndex - EquipmentDropCount / 2) * 45.0f, 0.0f, 45.0f + DropIndex * 8.0f),
 			FRotator::ZeroRotator,
 			SpawnParameters))
 		{
-			SpawnedDrop->GenerateEquipmentForLevel(FMath::Max(EquipmentItemLevel, 1));
+			if (bIsBoss)
+			{
+				SpawnedDrop->GenerateEquipmentForLevelWithMinimumQuality(
+					FMath::Max(EquipmentItemLevel + BossEquipmentLevelBonus, 1),
+					EImmortalEquipmentQuality::Rare);
+			}
+			else
+			{
+				SpawnedDrop->GenerateEquipmentForLevel(FMath::Max(EquipmentItemLevel, 1));
+			}
 		}
+	}
+
+	if (GetWorld() && SpiritStoneDropClass && (bIsBoss || FMath::FRand() < FMath::Clamp(SpiritStoneDropChance, 0.0f, 1.0f)))
+	{
+		FActorSpawnParameters SpawnParameters;
+		SpawnParameters.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+		if (AImmortalSpiritStoneDrop* StoneDrop = GetWorld()->SpawnActor<AImmortalSpiritStoneDrop>(
+			SpiritStoneDropClass,
+			GetActorLocation() + FVector(35.0f, 0.0f, 38.0f),
+			FRotator::ZeroRotator,
+			SpawnParameters))
+		{
+			const int32 BaseAmount = FMath::RandRange(
+				FMath::Max(SpiritStoneMinAmount, 1), FMath::Max(SpiritStoneMaxAmount, SpiritStoneMinAmount));
+			StoneDrop->SetAmount(BaseAmount * (bIsBoss ? FMath::Max(BossSpiritStoneMultiplier, 1) : 1));
+		}
+	}
+
+	const int32 MaterialDropCount = bIsBoss
+		? FMath::Max(BossGuaranteedMaterialDrops, 1)
+		: (FMath::FRand() < FMath::Clamp(MaterialDropChance, 0.0f, 1.0f) ? 1 : 0);
+	for (int32 DropIndex = 0; GetWorld() && MaterialDropClass && DropIndex < MaterialDropCount; ++DropIndex)
+	{
+		const FImmortalMaterialStack Material = UImmortalMaterialLibrary::GenerateStageDrop(
+			CurrentConfiguredStage, bIsBoss, DropIndex);
+		if (!Material.IsValid())
+		{
+			continue;
+		}
+		FActorSpawnParameters SpawnParameters;
+		SpawnParameters.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+		if (AImmortalMaterialDrop* MaterialDrop = GetWorld()->SpawnActor<AImmortalMaterialDrop>(
+			MaterialDropClass,
+			GetActorLocation() + FVector(-45.0f + DropIndex * 45.0f, 0.0f, 70.0f + DropIndex * 7.0f),
+			FRotator::ZeroRotator,
+			SpawnParameters))
+		{
+			MaterialDrop->SetMaterialDrop(Material.MaterialId, Material.Quantity);
+		}
+	}
+
+	if (bIsBoss)
+	{
+		UE_LOG(LogTemp, Display, TEXT("Qingyun Mountain boss rewards spawned: %d rare+ equipment, spirit stones and %d material entities"),
+			EquipmentDropCount, MaterialDropCount);
 	}
 
 	if (bDestroyAfterDeath)

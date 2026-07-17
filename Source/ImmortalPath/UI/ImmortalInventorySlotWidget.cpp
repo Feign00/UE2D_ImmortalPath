@@ -80,6 +80,19 @@ void UImmortalInventorySlotWidget::NativeOnInitialized()
 		IconSlot->SetPadding(FMargin(16.0f));
 	}
 
+	MaterialGlyphText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("InventoryMaterialGlyph"));
+	MaterialGlyphText->SetJustification(ETextJustify::Center);
+	MaterialGlyphText->SetShadowOffset(FVector2D::ZeroVector);
+	FSlateFontInfo MaterialFont = MaterialGlyphText->GetFont();
+	MaterialFont.Size = 34;
+	MaterialGlyphText->SetFont(MaterialFont);
+	if (UOverlaySlot* MaterialSlot = Layers->AddChildToOverlay(MaterialGlyphText))
+	{
+		MaterialSlot->SetHorizontalAlignment(HAlign_Fill);
+		MaterialSlot->SetVerticalAlignment(VAlign_Center);
+		MaterialSlot->SetPadding(FMargin(12.0f, 5.0f, 12.0f, 22.0f));
+	}
+
 	QualityFrame = WidgetTree->ConstructWidget<UImage>(UImage::StaticClass(), TEXT("InventoryQualityFrame"));
 	Layers->AddChildToOverlay(QualityFrame);
 
@@ -110,6 +123,8 @@ void UImmortalInventorySlotWidget::InitializeSlot(
 {
 	OwnerInventory = InOwner;
 	Item = InItem;
+	bMaterialItem = false;
+	bPillItem = false;
 	bHasItem = bInHasItem;
 	bEquipped = bInEquipped;
 	bSelected = bInSelected;
@@ -117,9 +132,41 @@ void UImmortalInventorySlotWidget::InitializeSlot(
 	RefreshAppearance();
 }
 
+void UImmortalInventorySlotWidget::InitializeMaterialSlot(
+	UImmortalInventoryWidget* InOwner,
+	const FImmortalMaterialStack& InStack,
+	const bool bInSelected)
+{
+	OwnerInventory = InOwner;
+	MaterialStack = InStack;
+	bMaterialItem = true;
+	bPillItem = false;
+	bHasItem = InStack.IsValid();
+	bEquipped = false;
+	bSelected = bInSelected;
+	PlaceholderSlot = EImmortalEquipmentSlot::MAX;
+	RefreshAppearance();
+}
+
+void UImmortalInventorySlotWidget::InitializePillSlot(
+	UImmortalInventoryWidget* InOwner,
+	const FImmortalPillStack& InStack,
+	const bool bInSelected)
+{
+	OwnerInventory = InOwner;
+	PillStack = InStack;
+	bPillItem = true;
+	bMaterialItem = false;
+	bHasItem = InStack.IsValid();
+	bEquipped = false;
+	bSelected = bInSelected;
+	PlaceholderSlot = EImmortalEquipmentSlot::MAX;
+	RefreshAppearance();
+}
+
 void UImmortalInventorySlotWidget::RefreshAppearance()
 {
-	if (!SlotButton || !ItemIcon || !QualityFrame || !LevelText)
+	if (!SlotButton || !ItemIcon || !QualityFrame || !LevelText || !MaterialGlyphText)
 	{
 		return;
 	}
@@ -137,6 +184,54 @@ void UImmortalInventorySlotWidget::RefreshAppearance()
 	ButtonStyle.SetDisabled(StateBrush);
 	SlotButton->SetStyle(ButtonStyle);
 
+	if (bPillItem)
+	{
+		ItemIcon->SetVisibility(ESlateVisibility::Collapsed);
+		QualityFrame->SetVisibility(ESlateVisibility::Collapsed);
+		FImmortalPillDefinition Definition;
+		if (bHasItem && UImmortalAlchemyLibrary::GetPillDefinition(PillStack.PillId, Definition))
+		{
+			const FLinearColor QualityColor = UImmortalAlchemyLibrary::GetQualityColor(PillStack.Quality);
+			MaterialGlyphText->SetText(Definition.IconGlyph);
+			MaterialGlyphText->SetColorAndOpacity(FSlateColor(QualityColor));
+			MaterialGlyphText->SetShadowColorAndOpacity(QualityColor.CopyWithNewOpacity(0.65f));
+			MaterialGlyphText->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+			LevelText->SetText(FText::FromString(FString::Printf(TEXT("×%d"), PillStack.Quantity)));
+			LevelText->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+		}
+		else
+		{
+			MaterialGlyphText->SetVisibility(ESlateVisibility::Collapsed);
+			LevelText->SetVisibility(ESlateVisibility::Collapsed);
+		}
+		SlotButton->SetIsEnabled(bHasItem);
+		return;
+	}
+
+	if (bMaterialItem)
+	{
+		ItemIcon->SetVisibility(ESlateVisibility::Collapsed);
+		QualityFrame->SetVisibility(ESlateVisibility::Collapsed);
+		FImmortalMaterialDefinition Definition;
+		if (bHasItem && UImmortalMaterialLibrary::GetMaterialDefinition(MaterialStack.MaterialId, Definition))
+		{
+			MaterialGlyphText->SetText(Definition.IconGlyph.IsEmpty() ? FText::FromString(TEXT("◆")) : Definition.IconGlyph);
+			MaterialGlyphText->SetColorAndOpacity(FSlateColor(Definition.DisplayColor));
+			MaterialGlyphText->SetShadowColorAndOpacity(Definition.DisplayColor.CopyWithNewOpacity(0.65f));
+			MaterialGlyphText->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+			LevelText->SetText(FText::FromString(FString::Printf(TEXT("×%d"), MaterialStack.Quantity)));
+			LevelText->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+		}
+		else
+		{
+			MaterialGlyphText->SetVisibility(ESlateVisibility::Collapsed);
+			LevelText->SetVisibility(ESlateVisibility::Collapsed);
+		}
+		SlotButton->SetIsEnabled(bHasItem);
+		return;
+	}
+
+	MaterialGlyphText->SetVisibility(ESlateVisibility::Collapsed);
 	const EImmortalEquipmentSlot VisibleSlot = bHasItem ? Item.Slot : PlaceholderSlot;
 	if (VisibleSlot != EImmortalEquipmentSlot::MAX)
 	{
@@ -169,6 +264,17 @@ void UImmortalInventorySlotWidget::HandleClicked()
 {
 	if (bHasItem && OwnerInventory.IsValid())
 	{
-		OwnerInventory->HandleSlotSelected(Item.ItemId);
+		if (bPillItem)
+		{
+			OwnerInventory->HandlePillSelected(PillStack.PillId, PillStack.Quality);
+		}
+		else if (bMaterialItem)
+		{
+			OwnerInventory->HandleMaterialSelected(MaterialStack.MaterialId);
+		}
+		else
+		{
+			OwnerInventory->HandleSlotSelected(Item.ItemId);
+		}
 	}
 }

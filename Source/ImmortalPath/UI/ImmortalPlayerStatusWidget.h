@@ -26,6 +26,12 @@ private:
 	UFUNCTION()
 	void HandleInventoryClicked();
 
+	UFUNCTION()
+	void HandleAlchemyClicked();
+
+	UFUNCTION()
+	void HandleCraftingClicked();
+
 	UPROPERTY(Transient)
 	TWeakObjectPtr<AImmortalPlayerCharacter> Player;
 
