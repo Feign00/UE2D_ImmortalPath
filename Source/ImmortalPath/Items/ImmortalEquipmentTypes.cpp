@@ -33,6 +33,17 @@ namespace
 		return Value * FMath::FRandRange(0.85f, 1.15f);
 	}
 
+	EImmortalEquipmentDiscipline RollDiscipline()
+	{
+		// Universal equipment remains common enough that selecting a path never
+		// stalls the idle loop, while aligned loot creates a real build filter.
+		const float Roll = FMath::FRand();
+		if (Roll < 0.35f) return EImmortalEquipmentDiscipline::Universal;
+		return static_cast<EImmortalEquipmentDiscipline>(FMath::RandRange(
+			static_cast<int32>(EImmortalEquipmentDiscipline::Body),
+			static_cast<int32>(EImmortalEquipmentDiscipline::Thunder)));
+	}
+
 	void RebuildEquipmentTotals(FImmortalEquipmentItem& Item)
 	{
 		const float EnhancementMultiplier = 1.0f + 0.08f * FMath::Clamp(Item.EnhancementLevel, 0, 15);
@@ -90,7 +101,8 @@ namespace
 	void UpdateForgedEquipmentName(FImmortalEquipmentItem& Item)
 	{
 		Item.DisplayName = FName(*FString::Printf(
-			TEXT("%s %s +%d"),
+			TEXT("[%s] %s %s +%d"),
+			*UImmortalEquipmentLibrary::GetDisciplineText(Item.Discipline).ToString(),
 			*UImmortalEquipmentLibrary::GetQualityText(Item.Quality).ToString(),
 			*UImmortalEquipmentLibrary::GetSlotText(Item.Slot).ToString(),
 			Item.EnhancementLevel));
@@ -99,13 +111,15 @@ namespace
 	FImmortalEquipmentItem GenerateEquipmentForSlot(
 		const int32 ItemLevel,
 		const EImmortalEquipmentSlot Slot,
-		const EImmortalEquipmentQuality Quality)
+		const EImmortalEquipmentQuality Quality,
+		const EImmortalEquipmentDiscipline Discipline)
 	{
 		FImmortalEquipmentItem Item;
 		Item.ItemId = FGuid::NewGuid();
 		Item.ItemLevel = FMath::Max(ItemLevel, 1);
 		Item.Slot = Slot;
 		Item.Quality = Quality;
+		Item.Discipline = Discipline;
 
 		const float Budget = static_cast<float>(Item.ItemLevel) * GetQualityMultiplier(Item.Quality);
 		switch (Item.Slot)
@@ -145,7 +159,8 @@ namespace
 		return GenerateEquipmentForSlot(
 			ItemLevel,
 			static_cast<EImmortalEquipmentSlot>(FMath::RandRange(0, static_cast<int32>(EImmortalEquipmentSlot::MAX) - 1)),
-			RollQuality(MinimumQuality));
+			RollQuality(MinimumQuality),
+			RollDiscipline());
 	}
 }
 
@@ -164,12 +179,14 @@ FImmortalEquipmentItem UImmortalEquipmentLibrary::GenerateRandomEquipmentWithMin
 FImmortalEquipmentItem UImmortalEquipmentLibrary::GenerateCraftedEquipment(
 	const int32 ItemLevel,
 	const EImmortalEquipmentSlot Slot,
-	const EImmortalEquipmentQuality Quality)
+	const EImmortalEquipmentQuality Quality,
+	const EImmortalEquipmentDiscipline Discipline)
 {
 	return GenerateEquipmentForSlot(
 		ItemLevel,
 		Slot == EImmortalEquipmentSlot::MAX ? EImmortalEquipmentSlot::Weapon : Slot,
-		Quality);
+		Quality,
+		Discipline);
 }
 
 void UImmortalEquipmentLibrary::NormalizeForgingState(FImmortalEquipmentItem& Item)
@@ -178,6 +195,11 @@ void UImmortalEquipmentLibrary::NormalizeForgingState(FImmortalEquipmentItem& It
 	Item.ItemLevel = FMath::Max(Item.ItemLevel, 1);
 	Item.EnhancementLevel = FMath::Clamp(Item.EnhancementLevel, 0, 15);
 	Item.RefinementCount = FMath::Max(Item.RefinementCount, 0);
+	if (static_cast<int32>(Item.Discipline) < static_cast<int32>(EImmortalEquipmentDiscipline::Universal)
+		|| static_cast<int32>(Item.Discipline) >= static_cast<int32>(EImmortalEquipmentDiscipline::MAX))
+	{
+		Item.Discipline = EImmortalEquipmentDiscipline::Universal;
+	}
 	const bool bMissingBaseStats = Item.BaseAttackBonus <= 0.0f
 		&& Item.BaseDefenseBonus <= 0.0f
 		&& Item.BaseHealthBonus <= 0.0f
@@ -285,5 +307,18 @@ FText UImmortalEquipmentLibrary::GetSlotText(const EImmortalEquipmentSlot Slot)
 	case EImmortalEquipmentSlot::Boots: return FText::FromString(TEXT("鞋子"));
 	case EImmortalEquipmentSlot::Accessory: return FText::FromString(TEXT("饰品"));
 	default: return FText::FromString(TEXT("武器"));
+	}
+}
+
+FText UImmortalEquipmentLibrary::GetDisciplineText(const EImmortalEquipmentDiscipline Discipline)
+{
+	switch (Discipline)
+	{
+	case EImmortalEquipmentDiscipline::Body: return FText::FromString(TEXT("体修"));
+	case EImmortalEquipmentDiscipline::Dharma: return FText::FromString(TEXT("法修"));
+	case EImmortalEquipmentDiscipline::Sword: return FText::FromString(TEXT("剑修"));
+	case EImmortalEquipmentDiscipline::Poison: return FText::FromString(TEXT("毒修"));
+	case EImmortalEquipmentDiscipline::Thunder: return FText::FromString(TEXT("雷修"));
+	default: return FText::FromString(TEXT("通用"));
 	}
 }

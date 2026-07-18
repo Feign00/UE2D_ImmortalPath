@@ -93,6 +93,21 @@ void UImmortalCultivationComponent::AddCultivation(const int32 Amount)
 	BroadcastProgress();
 }
 
+bool UImmortalCultivationComponent::CanSpendCultivation(const int32 Amount) const
+{
+	return Amount > 0 && !HasReachedAscension() && CurrentCultivation >= Amount;
+}
+
+bool UImmortalCultivationComponent::TrySpendCultivation(const int32 Amount)
+{
+	if (!CanSpendCultivation(Amount)) return false;
+	CurrentCultivation -= Amount;
+	BroadcastProgress();
+	UE_LOG(LogTemp, Display, TEXT("Cultivation spent: %d | remaining %d/%d | realm %s"),
+		Amount, CurrentCultivation, GetRequiredCultivation(), *GetFullRealmName().ToString());
+	return true;
+}
+
 int32 UImmortalCultivationComponent::GetRequiredCultivation() const
 {
 	if (HasReachedAscension())
@@ -113,7 +128,10 @@ float UImmortalCultivationComponent::GetCultivationPerSecond() const
 
 float UImmortalCultivationComponent::GetCultivationPerSecondWithoutAlchemyBoost() const
 {
-	return FMath::Max(BaseCultivationPerSecond, 0.0f) * FMath::Max(RuntimeRateMultiplier, 0.0f);
+	return FMath::Max(BaseCultivationPerSecond, 0.0f)
+		* FMath::Max(RuntimeRateMultiplier, 0.0f)
+		* FMath::Max(TechniqueRateMultiplier, 0.0f)
+		* FMath::Max(CharacterPathRateMultiplier, 0.0f);
 }
 
 bool UImmortalCultivationComponent::HasReachedAscension() const
@@ -181,6 +199,31 @@ void UImmortalCultivationComponent::SetAlchemyRateMultiplier(const float Multipl
 	{
 		StartCultivating();
 	}
+	BroadcastProgress();
+}
+
+void UImmortalCultivationComponent::SetTechniqueRateMultiplier(const float Multiplier)
+{
+	TechniqueRateMultiplier = FMath::Max(Multiplier, 0.0f);
+	if (GetCultivationPerSecond() <= 0.0f)
+	{
+		StopCultivating();
+	}
+	else
+	{
+		StartCultivating();
+	}
+	BroadcastProgress();
+}
+
+void UImmortalCultivationComponent::SetCharacterPathRateMultiplier(const float Multiplier)
+{
+	CharacterPathRateMultiplier = FMath::Max(Multiplier, 0.0f);
+	if (GetCultivationPerSecond() <= 0.0f)
+	{
+		StopCultivating();
+	}
+	else StartCultivating();
 	BroadcastProgress();
 }
 

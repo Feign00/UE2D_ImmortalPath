@@ -423,7 +423,7 @@ void UImmortalInventoryWidget::RefreshDetails()
 		ItemDetailsText->SetText(FText::FromString(FString::Printf(TEXT("当前持有 %d 枚\n%s\n药效：%s"),
 			Quantity,
 			*Definition.Description.ToString(),
-			*UImmortalAlchemyLibrary::GetEffectText(Definition, SelectedPillQuality).ToString())));
+			*Player->GetEffectivePillEffectText(SelectedPillId, SelectedPillQuality).ToString())));
 		ComparisonText->SetText(FText::FromString(TEXT("可在炼丹炉 [L] 中服用")));
 		ComparisonText->SetColorAndOpacity(FSlateColor(FLinearColor(0.45f, 0.95f, 0.62f, 1.0f)));
 		return;
@@ -468,8 +468,9 @@ void UImmortalInventoryWidget::RefreshDetails()
 	ItemNameText->SetColorAndOpacity(FSlateColor(UImmortalEquipmentLibrary::GetQualityColor(Item->Quality)));
 	const float ItemPower = UImmortalEquipmentLibrary::CalculateEquipmentPower(*Item);
 	ItemDetailsText->SetText(FText::FromString(FString::Printf(
-		TEXT("%s 等级%d · 强化+%d · 洗炼%d\n攻击 %.1f  防御 %.1f  生命 %.1f\n攻速 %.1f%%  暴击 %.1f%%  词条%d  战力 %.1f"),
-		*UImmortalEquipmentLibrary::GetSlotText(Item->Slot).ToString(), Item->ItemLevel,
+		TEXT("%s · %s契合 · 等级%d · 强化+%d · 洗炼%d\n攻击 %.1f  防御 %.1f  生命 %.1f\n攻速 %.1f%%  暴击 %.1f%%  词条%d  战力 %.1f"),
+		*UImmortalEquipmentLibrary::GetSlotText(Item->Slot).ToString(),
+		*UImmortalEquipmentLibrary::GetDisciplineText(Item->Discipline).ToString(), Item->ItemLevel,
 		Item->EnhancementLevel, Item->RefinementCount,
 		Item->AttackBonus, Item->DefenseBonus, Item->HealthBonus,
 		Item->AttackSpeedBonus * 100.0f, Item->CriticalChanceBonus * 100.0f, Item->Affixes.Num(), ItemPower)));

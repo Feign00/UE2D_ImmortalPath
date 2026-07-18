@@ -59,6 +59,13 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Immortal Path|Cultivation")
 	void AddCultivation(int32 Amount);
 
+	/** Spends only progress in the current minor stage; realms never regress. */
+	UFUNCTION(BlueprintCallable, Category = "Immortal Path|Cultivation")
+	bool TrySpendCultivation(int32 Amount);
+
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|Cultivation")
+	bool CanSpendCultivation(int32 Amount) const;
+
 	UFUNCTION(BlueprintPure, Category = "Immortal Path|Cultivation")
 	EImmortalCultivationRealm GetCurrentRealm() const { return CurrentRealm; }
 
@@ -106,8 +113,20 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Immortal Path|Cultivation")
 	void SetAlchemyRateMultiplier(float Multiplier);
 
+	UFUNCTION(BlueprintCallable, Category = "Immortal Path|Cultivation")
+	void SetTechniqueRateMultiplier(float Multiplier);
+
+	UFUNCTION(BlueprintCallable, Category = "Immortal Path|Cultivation")
+	void SetCharacterPathRateMultiplier(float Multiplier);
+
 	UFUNCTION(BlueprintPure, Category = "Immortal Path|Cultivation")
 	float GetAlchemyRateMultiplier() const { return AlchemyRateMultiplier; }
+
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|Cultivation")
+	float GetTechniqueRateMultiplier() const { return TechniqueRateMultiplier; }
+
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|Cultivation")
+	float GetCharacterPathRateMultiplier() const { return CharacterPathRateMultiplier; }
 
 	UPROPERTY(BlueprintAssignable, Category = "Immortal Path|Cultivation")
 	FCultivationProgressChangedSignature OnCultivationProgressChanged;
@@ -152,6 +171,8 @@ private:
 
 	float RuntimeRateMultiplier = 1.0f;
 	float AlchemyRateMultiplier = 1.0f;
+	float TechniqueRateMultiplier = 1.0f;
+	float CharacterPathRateMultiplier = 1.0f;
 	double FractionalCultivation = 0.0;
 	FTimerHandle CultivationTimerHandle;
 };

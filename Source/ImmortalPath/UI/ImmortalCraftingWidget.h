@@ -35,6 +35,7 @@ private:
 	UFUNCTION() void HandleCraftClicked();
 	UFUNCTION() void HandleEnhanceClicked();
 	UFUNCTION() void HandleRefineClicked();
+	UFUNCTION() void HandleArtifactFurnaceClicked();
 	UFUNCTION() void HandleCloseClicked();
 
 	UPROPERTY(Transient) TWeakObjectPtr<AImmortalPlayerCharacter> Player;
@@ -62,4 +63,3 @@ private:
 	int32 LastSpiritStones = INDEX_NONE;
 	int32 LastStage = INDEX_NONE;
 };
-

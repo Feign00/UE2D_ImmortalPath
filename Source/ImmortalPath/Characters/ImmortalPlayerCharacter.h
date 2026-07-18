@@ -4,11 +4,15 @@
 
 #include "CoreMinimal.h"
 #include "../Alchemy/ImmortalAlchemyTypes.h"
+#include "../Artifacts/ImmortalArtifactTypes.h"
 #include "../Crafting/ImmortalCraftingTypes.h"
 #include "../Items/ImmortalEquipmentTypes.h"
 #include "../Items/ImmortalMaterialTypes.h"
 #include "../Progression/ImmortalCultivationComponent.h"
+#include "../Progression/ImmortalCharacterPathTypes.h"
 #include "../Progression/ImmortalOfflineRewardTypes.h"
+#include "../Shop/ImmortalShopTypes.h"
+#include "../Techniques/ImmortalTechniqueTypes.h"
 #include "PaperCharacter.h"
 #include "ImmortalPlayerCharacter.generated.h"
 
@@ -17,9 +21,13 @@ class UCameraComponent;
 class UDamageType;
 class UImmortalCombatFeedbackWidget;
 class UImmortalAlchemyWidget;
+class UImmortalArtifactWidget;
 class UImmortalCraftingWidget;
 class UImmortalInventoryWidget;
 class UImmortalPlayerStatusWidget;
+class UImmortalTechniqueWidget;
+class UImmortalCharacterBuildWidget;
+class UImmortalShopWidget;
 class UInputComponent;
 class USpringArmComponent;
 class UUserWidget;
@@ -91,10 +99,10 @@ public:
 	float GetTotalDefense() const;
 
 	UFUNCTION(BlueprintPure, Category = "Immortal Path|Combat")
-	float GetTotalAttackSpeedMultiplier() const { return AttackSpeedMultiplier + EquippedAttackSpeedBonus; }
+	float GetTotalAttackSpeedMultiplier() const { return AttackSpeedMultiplier + EquippedAttackSpeedBonus + ArtifactAttackSpeedBonus + TechniqueAttackSpeedBonus + CharacterPathAttackSpeedBonus; }
 
 	UFUNCTION(BlueprintPure, Category = "Immortal Path|Combat")
-	float GetTotalCriticalChance() const { return FMath::Clamp(CriticalChance + EquippedCriticalChanceBonus, 0.0f, 1.0f); }
+	float GetTotalCriticalChance() const { return FMath::Clamp(CriticalChance + EquippedCriticalChanceBonus + ArtifactCriticalChanceBonus + TechniqueCriticalChanceBonus + CharacterPathCriticalChanceBonus, 0.0f, 1.0f); }
 
 	UFUNCTION(BlueprintPure, Category = "Immortal Path|Progression")
 	float GetCombatPower() const;
@@ -208,6 +216,12 @@ public:
 	bool UsePill(FName PillId, EImmortalPillQuality Quality);
 
 	UFUNCTION(BlueprintPure, Category = "Immortal Path|Alchemy")
+	float GetPillEffectMultiplier() const;
+
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|Alchemy")
+	FText GetEffectivePillEffectText(FName PillId, EImmortalPillQuality Quality) const;
+
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|Alchemy")
 	float GetAlchemyBoostMultiplier() const { return AlchemyCultivationBoostMultiplier; }
 
 	UFUNCTION(BlueprintPure, Category = "Immortal Path|Alchemy")
@@ -240,6 +254,149 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Immortal Path|Crafting")
 	FImmortalCraftingResult RefineEquipment(FGuid ItemId);
 
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|Artifact")
+	TArray<FImmortalArtifactItem> GetArtifactInventory() const { return ArtifactInventory; }
+
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|Artifact")
+	int32 GetArtifactInventoryRevision() const { return ArtifactInventoryRevision; }
+
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|Artifact")
+	bool GetEquippedArtifact(FImmortalArtifactItem& OutArtifact) const;
+
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|Artifact")
+	bool IsArtifactUnlocked(FName ArtifactId) const;
+
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|Artifact")
+	bool CanCraftArtifact(FName ArtifactId) const;
+
+	UFUNCTION(BlueprintCallable, Category = "Immortal Path|Artifact")
+	FImmortalArtifactOperationResult CraftArtifact(FName ArtifactId);
+
+	UFUNCTION(BlueprintCallable, Category = "Immortal Path|Artifact")
+	FImmortalArtifactOperationResult EquipArtifact(FGuid InstanceId);
+
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|Artifact")
+	bool CanUpgradeArtifact(FGuid InstanceId) const;
+
+	UFUNCTION(BlueprintCallable, Category = "Immortal Path|Artifact")
+	FImmortalArtifactOperationResult UpgradeArtifact(FGuid InstanceId);
+
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|Artifact")
+	bool CanStarUpArtifact(FGuid InstanceId) const;
+
+	UFUNCTION(BlueprintCallable, Category = "Immortal Path|Artifact")
+	FImmortalArtifactOperationResult StarUpArtifact(FGuid InstanceId);
+
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|Artifact")
+	float GetArtifactShield() const { return ArtifactShield; }
+
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|Technique")
+	TArray<FImmortalTechniqueProgress> GetTechniqueLibrary() const { return TechniqueLibrary; }
+
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|Technique")
+	TArray<FName> GetEquippedTechniqueIds() const { return EquippedTechniqueIds; }
+
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|Technique")
+	int32 GetTechniqueRevision() const { return TechniqueRevision; }
+
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|Technique")
+	int32 GetTechniqueInsightPoints() const { return TechniqueInsightPoints; }
+
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|Technique")
+	float GetTechniqueShield() const { return TechniqueShield; }
+
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|Technique")
+	bool GetTechniqueProgress(FName TechniqueId, FImmortalTechniqueProgress& OutProgress) const;
+
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|Technique")
+	bool IsTechniqueLearned(FName TechniqueId) const;
+
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|Technique")
+	bool IsTechniqueUnlocked(FName TechniqueId) const;
+
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|Technique")
+	bool IsTechniqueEquipped(FName TechniqueId, int32& OutSlotIndex) const;
+
+	UFUNCTION(BlueprintCallable, Category = "Immortal Path|Technique")
+	FImmortalTechniqueOperationResult LearnTechnique(FName TechniqueId);
+
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|Technique")
+	bool CanUpgradeTechnique(FName TechniqueId) const;
+
+	UFUNCTION(BlueprintCallable, Category = "Immortal Path|Technique")
+	FImmortalTechniqueOperationResult UpgradeTechnique(FName TechniqueId);
+
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|Technique")
+	bool CanBreakthroughTechnique(FName TechniqueId) const;
+
+	UFUNCTION(BlueprintCallable, Category = "Immortal Path|Technique")
+	FImmortalTechniqueOperationResult BreakthroughTechnique(FName TechniqueId);
+
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|Technique")
+	bool CanAllocateTechniquePoint(FName TechniqueId, EImmortalTechniquePointBranch Branch) const;
+
+	UFUNCTION(BlueprintCallable, Category = "Immortal Path|Technique")
+	FImmortalTechniqueOperationResult AllocateTechniquePoint(FName TechniqueId, EImmortalTechniquePointBranch Branch);
+
+	UFUNCTION(BlueprintCallable, Category = "Immortal Path|Technique")
+	FImmortalTechniqueOperationResult EquipTechnique(FName TechniqueId, int32 SlotIndex);
+
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|Character Build")
+	FImmortalSpiritRootState GetSpiritRootState() const { return SpiritRootState; }
+
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|Character Build")
+	FImmortalCultivationPathState GetCultivationPathState() const { return CultivationPathState; }
+
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|Character Build")
+	int32 GetCharacterBuildRevision() const { return CharacterBuildRevision; }
+
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|Character Build")
+	float GetElementDamageMultiplier(EImmortalElementType Element) const;
+
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|Character Build")
+	bool IsEquipmentCompatibleWithPath(const FImmortalEquipmentItem& Item) const;
+
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|Character Build")
+	bool CanSelectCultivationPath(EImmortalCultivationPath NewPath) const;
+
+	UFUNCTION(BlueprintCallable, Category = "Immortal Path|Character Build")
+	FImmortalCharacterPathOperationResult SelectCultivationPath(EImmortalCultivationPath NewPath);
+
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|Shop")
+	FImmortalShopState GetShopState() const { return ShopState; }
+
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|Shop")
+	int32 GetShopRevision() const { return ShopRevision; }
+
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|Shop")
+	int64 GetShopSecondsUntilRefresh() const;
+
+	/** Applies the free daily refresh when the configured calendar day advances. */
+	UFUNCTION(BlueprintCallable, Category = "Immortal Path|Shop")
+	bool EnsureDailyShopRefresh();
+
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|Shop")
+	bool CanBuyShopListing(FGuid ListingId) const;
+
+	UFUNCTION(BlueprintCallable, Category = "Immortal Path|Shop")
+	FImmortalShopTransactionResult BuyShopListing(FGuid ListingId);
+
+	/** Paid same-day reroll. The first costs 100 stones and subsequent rerolls increase by 100. */
+	UFUNCTION(BlueprintCallable, Category = "Immortal Path|Shop")
+	FImmortalShopTransactionResult RefreshShopInventory();
+
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|Shop")
+	int32 GetEquipmentShopSellPrice(FGuid ItemId) const;
+
+	UFUNCTION(BlueprintCallable, Category = "Immortal Path|Shop")
+	FImmortalShopTransactionResult SellEquipmentToShop(FGuid ItemId);
+
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|Shop")
+	int32 GetMaterialShopSellPrice(FName MaterialId, int32 Amount = 1) const;
+
+	UFUNCTION(BlueprintCallable, Category = "Immortal Path|Shop")
+	FImmortalShopTransactionResult SellMaterialToShop(FName MaterialId, int32 Amount = 1);
+
 	UFUNCTION(BlueprintPure, Category = "Immortal Path|Equipment")
 	bool GetEquippedItemForSlot(EImmortalEquipmentSlot Slot, FImmortalEquipmentItem& OutItem) const;
 
@@ -266,6 +423,34 @@ public:
 
 	UFUNCTION(BlueprintPure, Category = "Immortal Path|UI")
 	bool IsCraftingOpen() const { return bCraftingOpen; }
+
+	/** Opens or closes the independent artifact screen. Bound to the F key. */
+	UFUNCTION(BlueprintCallable, Category = "Immortal Path|UI")
+	void ToggleArtifacts();
+
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|UI")
+	bool IsArtifactScreenOpen() const { return bArtifactOpen; }
+
+	/** Opens or closes the independent technique screen. Bound to the G key. */
+	UFUNCTION(BlueprintCallable, Category = "Immortal Path|UI")
+	void ToggleTechniques();
+
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|UI")
+	bool IsTechniqueScreenOpen() const { return bTechniqueOpen; }
+
+	/** Opens or closes the combined spirit-root and cultivation-path screen. Bound to H. */
+	UFUNCTION(BlueprintCallable, Category = "Immortal Path|UI")
+	void ToggleCharacterBuild();
+
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|UI")
+	bool IsCharacterBuildScreenOpen() const { return bCharacterBuildOpen; }
+
+	/** Opens or closes the Treasure Pavilion. Bound to B. */
+	UFUNCTION(BlueprintCallable, Category = "Immortal Path|UI")
+	void ToggleShop();
+
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|UI")
+	bool IsShopOpen() const { return bShopOpen; }
 
 	/** Writes attributes, spirit stones, backpack and equipped items to the main slot. */
 	UFUNCTION(BlueprintCallable, Category = "Immortal Path|Save")
@@ -401,6 +586,10 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Immortal Path|Equipment")
 	bool bAutoEquipNewItems = true;
 
+	/** Fixed calendar offset used for daily shop refreshes. 480 means China Standard Time (UTC+8). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Immortal Path|Shop", meta = (ClampMin = "-720", ClampMax = "840"))
+	int32 ShopUtcOffsetMinutes = 480;
+
 	/** Called when an attack begins. Override this in Player BP to play the attack flipbook. */
 	UFUNCTION(BlueprintImplementableEvent, Category = "Immortal Path|Combat", meta = (DisplayName = "On Auto Attack Started"))
 	void BP_OnAutoAttackStarted(AActor* Target);
@@ -460,6 +649,30 @@ protected:
 	UFUNCTION(BlueprintImplementableEvent, Category = "Immortal Path|Crafting", meta = (DisplayName = "On Crafting Completed"))
 	void BP_OnCraftingCompleted(const FImmortalCraftingResult& Result);
 
+	UFUNCTION(BlueprintImplementableEvent, Category = "Immortal Path|Artifact", meta = (DisplayName = "On Artifact Changed"))
+	void BP_OnArtifactChanged(const FImmortalArtifactItem& Artifact, bool bEquipped);
+
+	UFUNCTION(BlueprintImplementableEvent, Category = "Immortal Path|Artifact", meta = (DisplayName = "On Artifact Skill Triggered"))
+	void BP_OnArtifactSkillTriggered(FName ArtifactId, EImmortalArtifactActiveEffect Effect, AActor* Target, float Magnitude);
+
+	UFUNCTION(BlueprintImplementableEvent, Category = "Immortal Path|Technique", meta = (DisplayName = "On Technique Changed"))
+	void BP_OnTechniqueChanged(const FImmortalTechniqueProgress& Technique, bool bEquipped);
+
+	UFUNCTION(BlueprintImplementableEvent, Category = "Immortal Path|Technique", meta = (DisplayName = "On Technique Skill Triggered"))
+	void BP_OnTechniqueSkillTriggered(FName TechniqueId, EImmortalTechniqueActiveEffect Effect, bool bUltimate, AActor* Target, float AppliedValue);
+
+	UFUNCTION(BlueprintImplementableEvent, Category = "Immortal Path|Character Build", meta = (DisplayName = "On Spirit Root Awakened"))
+	void BP_OnSpiritRootAwakened(const FImmortalSpiritRootState& SpiritRoot);
+
+	UFUNCTION(BlueprintImplementableEvent, Category = "Immortal Path|Character Build", meta = (DisplayName = "On Cultivation Path Changed"))
+	void BP_OnCultivationPathChanged(const FImmortalCultivationPathState& PathState);
+
+	UFUNCTION(BlueprintImplementableEvent, Category = "Immortal Path|Character Build", meta = (DisplayName = "On Cultivation Path Skill Triggered"))
+	void BP_OnCultivationPathSkillTriggered(EImmortalCultivationPath Path, EImmortalPathSkillEffect Effect, AActor* Target, float AppliedValue);
+
+	UFUNCTION(BlueprintImplementableEvent, Category = "Immortal Path|Shop", meta = (DisplayName = "On Shop Transaction"))
+	void BP_OnShopTransaction(const FImmortalShopTransactionResult& Result);
+
 	UFUNCTION(BlueprintImplementableEvent, Category = "Immortal Path|Equipment", meta = (DisplayName = "On Equipment Changed"))
 	void BP_OnEquipmentChanged(EImmortalEquipmentSlot Slot, const FImmortalEquipmentItem& Item, bool bAutoEquipped, float NewCombatPower);
 
@@ -473,16 +686,31 @@ private:
 	void ResolvePendingAttack();
 	void AutoRevive();
 	void RecalculateEquipmentBonuses();
+	void RecalculateArtifactBonuses();
+	void RecalculateTechniqueBonuses();
+	void RecalculateCharacterPathBonuses();
+	void TryTriggerEquippedArtifact(AActor* PrimaryTarget);
+	void TryTriggerEquippedTechniques(AActor* PrimaryTarget);
+	void TryTriggerCultivationPathSkill(AActor* PrimaryTarget);
+	float ExecuteTechniqueSkill(const FImmortalTechniqueProgress& Technique, AActor* PrimaryTarget, bool bUltimate);
+	float ExecuteCultivationPathSkill(const FImmortalCultivationPathDefinition& Definition, AActor* PrimaryTarget);
+	bool ReconcileEquipmentForPath(EImmortalCultivationPath NewPath, bool bApplyChanges);
+	void AwakenSpiritRootIfNeeded();
 	bool AddItemToInventory(const FImmortalEquipmentItem& Item);
 	int32 AddMaterialInternal(FName MaterialId, int32 Amount);
 	int32 AddPillInternal(FName PillId, EImmortalPillQuality Quality, int32 Amount);
 	FImmortalAlchemyCraftResult CraftPillInternal(FName RecipeId, TOptional<float> ForcedRoll);
 	FImmortalEquipmentItem* FindMutableEquipmentItem(FGuid ItemId, bool& bOutEquipped);
+	FImmortalArtifactItem* FindMutableArtifact(FGuid InstanceId);
+	FImmortalTechniqueProgress* FindMutableTechnique(FName TechniqueId);
 	void ApplyAlchemyCultivationBoost(float Multiplier, float DurationSeconds);
 	void ClearAlchemyCultivationBoost();
 	void RestoreAlchemyCultivationBoost(float Multiplier, float RemainingSeconds);
 	void ConfigureModalWidget(UUserWidget* Widget, bool bOpen);
+	void CloseAllModalWidgetsExcept(const UUserWidget* ExceptWidget);
 	bool ProcessEquipmentItem(const FImmortalEquipmentItem& Item, bool bShowFeedback, bool bSaveAfter);
+	bool RefreshShopForDay(int32 DayKey, int32 QingyunStage, bool bResetManualRefreshes);
+	void CheckDailyShopRefresh();
 	void RefreshCultivationHud() const;
 	void AutosaveCultivationProgress();
 	void ApplyOfflineRewards(UImmortalPathSaveGame* SaveGame);
@@ -507,6 +735,7 @@ private:
 	FTimerHandle CultivationAutosaveTimerHandle;
 	FTimerHandle CultivationBreakthroughSaveTimerHandle;
 	FTimerHandle AlchemyBoostTimerHandle;
+	FTimerHandle ShopDailyRefreshTimerHandle;
 	bool bAttackPending = false;
 	float InvulnerableUntilTime = 0.0f;
 	FVector InitialSpawnLocation = FVector::ZeroVector;
@@ -558,6 +787,64 @@ private:
 	float AlchemyCultivationBoostMultiplier = 1.0f;
 	float AlchemyBoostEndWorldTime = 0.0f;
 
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Immortal Path|Artifact", meta = (AllowPrivateAccess = "true"))
+	TArray<FImmortalArtifactItem> ArtifactInventory;
+
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Immortal Path|Artifact", meta = (AllowPrivateAccess = "true"))
+	FGuid EquippedArtifactInstanceId;
+
+	int32 ArtifactInventoryRevision = 0;
+	int32 ArtifactAttackCounter = 0;
+	float ArtifactShield = 0.0f;
+	float ArtifactAttackMultiplier = 1.0f;
+	float ArtifactDefenseMultiplier = 1.0f;
+	float ArtifactHealthMultiplier = 1.0f;
+	float ArtifactAttackSpeedBonus = 0.0f;
+	float ArtifactCriticalChanceBonus = 0.0f;
+
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Immortal Path|Technique", meta = (AllowPrivateAccess = "true"))
+	TArray<FImmortalTechniqueProgress> TechniqueLibrary;
+
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Immortal Path|Technique", meta = (AllowPrivateAccess = "true"))
+	TArray<FName> EquippedTechniqueIds;
+
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Immortal Path|Technique", meta = (AllowPrivateAccess = "true"))
+	int32 TechniqueInsightPoints = 0;
+
+	int32 TechniqueRevision = 0;
+	TMap<FName, int32> TechniqueAttackCounters;
+	TMap<FName, int32> TechniqueActiveCounters;
+	float TechniqueShield = 0.0f;
+	float TechniqueAttackMultiplier = 1.0f;
+	float TechniqueDefenseMultiplier = 1.0f;
+	float TechniqueHealthMultiplier = 1.0f;
+	float TechniqueAttackSpeedBonus = 0.0f;
+	float TechniqueCriticalChanceBonus = 0.0f;
+	float TechniqueCultivationRateMultiplier = 1.0f;
+
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Immortal Path|Character Build", meta = (AllowPrivateAccess = "true"))
+	FImmortalSpiritRootState SpiritRootState;
+
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Immortal Path|Character Build", meta = (AllowPrivateAccess = "true"))
+	FImmortalCultivationPathState CultivationPathState;
+
+	int32 CharacterBuildRevision = 0;
+	int32 CultivationPathAttackCounter = 0;
+	float CultivationPathShield = 0.0f;
+	float CharacterPathAttackMultiplier = 1.0f;
+	float CharacterPathDefenseMultiplier = 1.0f;
+	float CharacterPathHealthMultiplier = 1.0f;
+	float CharacterPathManaMultiplier = 1.0f;
+	float CharacterPathAttackSpeedBonus = 0.0f;
+	float CharacterPathCriticalChanceBonus = 0.0f;
+	float CharacterPathDamageReduction = 0.0f;
+	float CharacterPathCultivationRateMultiplier = 1.0f;
+
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Immortal Path|Shop", meta = (AllowPrivateAccess = "true"))
+	FImmortalShopState ShopState;
+
+	int32 ShopRevision = 0;
+
 	UPROPERTY(Transient)
 	float EquippedAttackBonus = 0.0f;
 
@@ -586,11 +873,27 @@ private:
 	TObjectPtr<UImmortalCraftingWidget> PlayerCraftingWidget;
 
 	UPROPERTY(Transient)
+	TObjectPtr<UImmortalArtifactWidget> PlayerArtifactWidget;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UImmortalTechniqueWidget> PlayerTechniqueWidget;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UImmortalCharacterBuildWidget> PlayerCharacterBuildWidget;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UImmortalShopWidget> PlayerShopWidget;
+
+	UPROPERTY(Transient)
 	TObjectPtr<UImmortalCombatFeedbackWidget> CombatFeedbackWidget;
 
 	bool bInventoryOpen = false;
 	bool bAlchemyOpen = false;
 	bool bCraftingOpen = false;
+	bool bArtifactOpen = false;
+	bool bTechniqueOpen = false;
+	bool bCharacterBuildOpen = false;
+	bool bShopOpen = false;
 
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Immortal Path|Attributes", meta = (AllowPrivateAccess = "true"))
 	bool bDead = false;

@@ -86,6 +86,15 @@ void UImmortalCraftingWidget::NativeOnInitialized()
 	Title->SetText(FText::FromString(TEXT("青云炼器炉")));
 	StyleCraftingText(Title, 28, FLinearColor(1.0f, 0.72f, 0.25f));
 	SetCraftingCanvasLayout(Canvas->AddChildToCanvas(Title), FVector2D(34.0f, 18.0f), FVector2D(240.0f, 42.0f));
+	UButton* ArtifactFurnaceButton = WidgetTree->ConstructWidget<UButton>(UButton::StaticClass(), TEXT("OpenArtifactFurnace"));
+	ArtifactFurnaceButton->OnClicked.AddDynamic(this, &UImmortalCraftingWidget::HandleArtifactFurnaceClicked);
+	ArtifactFurnaceButton->SetStyle(MakeCraftingButtonStyle(FVector2D(145.0f, 40.0f), FLinearColor(0.48f, 0.25f, 0.68f)));
+	SetCraftingCanvasLayout(Canvas->AddChildToCanvas(ArtifactFurnaceButton), FVector2D(282.0f, 16.0f), FVector2D(145.0f, 40.0f));
+	UTextBlock* ArtifactFurnaceText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("OpenArtifactFurnaceText"));
+	ArtifactFurnaceText->SetText(FText::FromString(TEXT("法宝炉 [F]")));
+	ArtifactFurnaceText->SetJustification(ETextJustify::Center);
+	StyleCraftingText(ArtifactFurnaceText, 16, FLinearColor(0.94f, 0.76f, 1.0f));
+	ArtifactFurnaceButton->AddChild(ArtifactFurnaceText);
 	CurrencyText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("CraftingCurrency"));
 	StyleCraftingText(CurrencyText, 17, FLinearColor(0.65f, 0.95f, 1.0f));
 	SetCraftingCanvasLayout(Canvas->AddChildToCanvas(CurrencyText), FVector2D(565.0f, 27.0f), FVector2D(240.0f, 30.0f));
@@ -293,8 +302,9 @@ void UImmortalCraftingWidget::RefreshEquipmentDetails()
 		bEquipped ? TEXT("[已装备] ") : TEXT(""), *Item.DisplayName.ToString(), Item.EnhancementLevel)));
 	ItemNameText->SetColorAndOpacity(FSlateColor(UImmortalEquipmentLibrary::GetQualityColor(Item.Quality)));
 	ItemStatsText->SetText(FText::FromString(FString::Printf(
-		TEXT("等级 %d · 战力 %.1f · 洗炼 %d 次\n攻击 %.1f  防御 %.1f  生命 %.1f\n攻速 %.1f%%  暴击 %.1f%%"),
-		Item.ItemLevel, UImmortalEquipmentLibrary::CalculateEquipmentPower(Item), Item.RefinementCount,
+		TEXT("等级 %d · %s契合 · 战力 %.1f · 洗炼 %d 次\n攻击 %.1f  防御 %.1f  生命 %.1f\n攻速 %.1f%%  暴击 %.1f%%"),
+		Item.ItemLevel, *UImmortalEquipmentLibrary::GetDisciplineText(Item.Discipline).ToString(),
+		UImmortalEquipmentLibrary::CalculateEquipmentPower(Item), Item.RefinementCount,
 		Item.AttackBonus, Item.DefenseBonus, Item.HealthBonus,
 		Item.AttackSpeedBonus * 100.0f, Item.CriticalChanceBonus * 100.0f)));
 	FString Affixes = TEXT("词条：");
@@ -350,8 +360,12 @@ void UImmortalCraftingWidget::HandleRefineClicked()
 	RefreshFromPlayer();
 }
 
+void UImmortalCraftingWidget::HandleArtifactFurnaceClicked()
+{
+	if (Player.IsValid()) Player->ToggleArtifacts();
+}
+
 void UImmortalCraftingWidget::HandleCloseClicked()
 {
 	if (Player.IsValid()) Player->ToggleCrafting();
 }
-

@@ -87,10 +87,13 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Immortal Path|Materials")
 	static int32 AddMaterialStack(UPARAM(ref) TArray<FImmortalMaterialStack>& Inventory, FName MaterialId, int32 Amount);
 
+	/** Transactional removal used by selling and future recipes. No stack changes when the full amount is unavailable. */
+	UFUNCTION(BlueprintCallable, Category = "Immortal Path|Materials")
+	static bool RemoveMaterialStack(UPARAM(ref) TArray<FImmortalMaterialStack>& Inventory, FName MaterialId, int32 Amount);
+
 	/** Removes invalid entries and merges duplicate IDs after loading old or manually edited saves. */
 	static void NormalizeInventory(TArray<FImmortalMaterialStack>& Inventory);
 
 	/** Generates one valid physical/offline drop for the supplied Qingyun Mountain stage. */
 	static FImmortalMaterialStack GenerateStageDrop(int32 QingyunStage, bool bBossDrop, int32 DropIndex = 0);
 };
-

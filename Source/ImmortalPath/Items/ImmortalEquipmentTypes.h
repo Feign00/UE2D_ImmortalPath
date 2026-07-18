@@ -37,6 +37,19 @@ enum class EImmortalEquipmentAffixType : uint8
 	CriticalChance UMETA(DisplayName = "Critical Chance")
 };
 
+/** Cultivation discipline required to activate/equip an item. Universal items work for every path. */
+UENUM(BlueprintType)
+enum class EImmortalEquipmentDiscipline : uint8
+{
+	Universal UMETA(DisplayName = "Universal"),
+	Body UMETA(DisplayName = "Body Cultivation"),
+	Dharma UMETA(DisplayName = "Dharma Cultivation"),
+	Sword UMETA(DisplayName = "Sword Cultivation"),
+	Poison UMETA(DisplayName = "Poison Cultivation"),
+	Thunder UMETA(DisplayName = "Thunder Cultivation"),
+	MAX UMETA(Hidden)
+};
+
 USTRUCT(BlueprintType)
 struct IMMORTALPATH_API FImmortalEquipmentAffix
 {
@@ -58,6 +71,7 @@ struct IMMORTALPATH_API FImmortalEquipmentItem
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, SaveGame, Category = "Equipment") FName DisplayName = NAME_None;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, SaveGame, Category = "Equipment") EImmortalEquipmentSlot Slot = EImmortalEquipmentSlot::Weapon;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, SaveGame, Category = "Equipment") EImmortalEquipmentQuality Quality = EImmortalEquipmentQuality::Common;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, SaveGame, Category = "Equipment") EImmortalEquipmentDiscipline Discipline = EImmortalEquipmentDiscipline::Universal;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, SaveGame, Category = "Equipment", meta = (ClampMin = "1")) int32 ItemLevel = 1;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, SaveGame, Category = "Equipment", meta = (ClampMin = "0", ClampMax = "15")) int32 EnhancementLevel = 0;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, SaveGame, Category = "Equipment", meta = (ClampMin = "0")) int32 RefinementCount = 0;
@@ -101,7 +115,8 @@ public:
 	static FImmortalEquipmentItem GenerateCraftedEquipment(
 		int32 ItemLevel,
 		EImmortalEquipmentSlot Slot,
-		EImmortalEquipmentQuality Quality);
+		EImmortalEquipmentQuality Quality,
+		EImmortalEquipmentDiscipline Discipline = EImmortalEquipmentDiscipline::Universal);
 
 	/** Migrates legacy totals into base stats, validates affixes, then rebuilds cached totals. */
 	static void NormalizeForgingState(FImmortalEquipmentItem& Item);
@@ -128,4 +143,7 @@ public:
 
 	UFUNCTION(BlueprintPure, Category = "Immortal Path|Equipment")
 	static FText GetSlotText(EImmortalEquipmentSlot Slot);
+
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|Equipment")
+	static FText GetDisciplineText(EImmortalEquipmentDiscipline Discipline);
 };

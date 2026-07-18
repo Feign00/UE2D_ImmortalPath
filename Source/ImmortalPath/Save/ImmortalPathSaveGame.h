@@ -4,8 +4,12 @@
 
 #include "CoreMinimal.h"
 #include "../Alchemy/ImmortalAlchemyTypes.h"
+#include "../Artifacts/ImmortalArtifactTypes.h"
 #include "../Items/ImmortalEquipmentTypes.h"
 #include "../Items/ImmortalMaterialTypes.h"
+#include "../Techniques/ImmortalTechniqueTypes.h"
+#include "../Progression/ImmortalCharacterPathTypes.h"
+#include "../Shop/ImmortalShopTypes.h"
 #include "GameFramework/SaveGame.h"
 #include "ImmortalPathSaveGame.generated.h"
 
@@ -16,7 +20,7 @@ class IMMORTALPATH_API UImmortalPathSaveGame : public USaveGame
 	GENERATED_BODY()
 
 public:
-	static constexpr int32 CurrentSaveVersion = 7;
+	static constexpr int32 CurrentSaveVersion = 11;
 
 	UImmortalPathSaveGame();
 
@@ -81,6 +85,30 @@ public:
 
 	UPROPERTY(SaveGame)
 	TArray<FImmortalPillStack> PillInventory;
+
+	UPROPERTY(SaveGame)
+	TArray<FImmortalArtifactItem> ArtifactInventory;
+
+	UPROPERTY(SaveGame)
+	FGuid EquippedArtifactInstanceId;
+
+	UPROPERTY(SaveGame)
+	TArray<FImmortalTechniqueProgress> TechniqueLibrary;
+
+	UPROPERTY(SaveGame)
+	TArray<FName> EquippedTechniqueIds;
+
+	UPROPERTY(SaveGame)
+	int32 TechniqueInsightPoints = 0;
+
+	UPROPERTY(SaveGame)
+	FImmortalSpiritRootState SpiritRootState;
+
+	UPROPERTY(SaveGame)
+	FImmortalCultivationPathState CultivationPathState;
+
+	UPROPERTY(SaveGame)
+	FImmortalShopState ShopState;
 
 	/** Online-only悟道丹 buff pauses while the game is closed and resumes from this duration. */
 	UPROPERTY(SaveGame)

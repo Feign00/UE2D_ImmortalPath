@@ -56,7 +56,7 @@ void UImmortalPlayerStatusWidget::NativeOnInitialized()
 
 	const FVector2D BarSize(512.0f, 64.0f);
 	USizeBox* RootBox = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass(), TEXT("PlayerStatusSize"));
-	RootBox->SetWidthOverride(820.0f);
+	RootBox->SetWidthOverride(1220.0f);
 	RootBox->SetHeightOverride(BarSize.Y);
 	WidgetTree->RootWidget = RootBox;
 
@@ -175,6 +175,110 @@ void UImmortalPlayerStatusWidget::NativeOnInitialized()
 	CraftingFont.Size = 16;
 	CraftingLabel->SetFont(CraftingFont);
 	CraftingButton->AddChild(CraftingLabel);
+
+	UButton* ArtifactButton = WidgetTree->ConstructWidget<UButton>(UButton::StaticClass(), TEXT("ArtifactOpenButton"));
+	ArtifactButton->OnClicked.AddDynamic(this, &UImmortalPlayerStatusWidget::HandleArtifactClicked);
+	const FSlateBrush ArtifactBrush = MakeStatusBrush(
+		TEXT("/Game/GAME/Asset/ui/inventory/slots/normal.normal"),
+		FVector2D(94.0f, 64.0f),
+		FLinearColor(0.16f, 0.07f, 0.22f, 0.95f));
+	FButtonStyle ArtifactStyle;
+	ArtifactStyle.SetNormal(ArtifactBrush);
+	ArtifactStyle.SetHovered(ArtifactBrush);
+	ArtifactStyle.SetPressed(ArtifactBrush);
+	ArtifactButton->SetStyle(ArtifactStyle);
+	if (UCanvasPanelSlot* ButtonSlot = Canvas->AddChildToCanvas(ArtifactButton))
+	{
+		ButtonSlot->SetPosition(FVector2D(820.0f, 0.0f));
+		ButtonSlot->SetSize(FVector2D(94.0f, 64.0f));
+	}
+	UTextBlock* ArtifactLabel = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("ArtifactButtonLabel"));
+	ArtifactLabel->SetText(FText::FromString(TEXT("法宝 [F]")));
+	ArtifactLabel->SetJustification(ETextJustify::Center);
+	ArtifactLabel->SetColorAndOpacity(FSlateColor(FLinearColor(0.86f, 0.58f, 1.0f, 1.0f)));
+	ArtifactLabel->SetShadowOffset(FVector2D(1.0f));
+	FSlateFontInfo ArtifactFont = ArtifactLabel->GetFont();
+	ArtifactFont.Size = 16;
+	ArtifactLabel->SetFont(ArtifactFont);
+	ArtifactButton->AddChild(ArtifactLabel);
+
+	UButton* TechniqueButton = WidgetTree->ConstructWidget<UButton>(UButton::StaticClass(), TEXT("TechniqueOpenButton"));
+	TechniqueButton->OnClicked.AddDynamic(this, &UImmortalPlayerStatusWidget::HandleTechniqueClicked);
+	const FSlateBrush TechniqueBrush = MakeStatusBrush(
+		TEXT("/Game/GAME/Asset/ui/inventory/slots/normal.normal"),
+		FVector2D(94.0f, 64.0f),
+		FLinearColor(0.05f, 0.17f, 0.23f, 0.95f));
+	FButtonStyle TechniqueStyle;
+	TechniqueStyle.SetNormal(TechniqueBrush);
+	TechniqueStyle.SetHovered(TechniqueBrush);
+	TechniqueStyle.SetPressed(TechniqueBrush);
+	TechniqueButton->SetStyle(TechniqueStyle);
+	if (UCanvasPanelSlot* ButtonSlot = Canvas->AddChildToCanvas(TechniqueButton))
+	{
+		ButtonSlot->SetPosition(FVector2D(920.0f, 0.0f));
+		ButtonSlot->SetSize(FVector2D(94.0f, 64.0f));
+	}
+	UTextBlock* TechniqueLabel = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("TechniqueButtonLabel"));
+	TechniqueLabel->SetText(FText::FromString(TEXT("功法 [G]")));
+	TechniqueLabel->SetJustification(ETextJustify::Center);
+	TechniqueLabel->SetColorAndOpacity(FSlateColor(FLinearColor(0.48f, 0.9f, 1.0f, 1.0f)));
+	TechniqueLabel->SetShadowOffset(FVector2D(1.0f));
+	FSlateFontInfo TechniqueFont = TechniqueLabel->GetFont();
+	TechniqueFont.Size = 16;
+	TechniqueLabel->SetFont(TechniqueFont);
+	TechniqueButton->AddChild(TechniqueLabel);
+
+	UButton* BuildButton = WidgetTree->ConstructWidget<UButton>(UButton::StaticClass(), TEXT("CharacterBuildOpenButton"));
+	BuildButton->OnClicked.AddDynamic(this, &UImmortalPlayerStatusWidget::HandleCharacterBuildClicked);
+	const FSlateBrush BuildBrush = MakeStatusBrush(
+		TEXT("/Game/GAME/Asset/ui/inventory/slots/normal.normal"),
+		FVector2D(94.0f, 64.0f),
+		FLinearColor(0.06f, 0.20f, 0.12f, 0.95f));
+	FButtonStyle BuildStyle;
+	BuildStyle.SetNormal(BuildBrush);
+	BuildStyle.SetHovered(BuildBrush);
+	BuildStyle.SetPressed(BuildBrush);
+	BuildButton->SetStyle(BuildStyle);
+	if (UCanvasPanelSlot* ButtonSlot = Canvas->AddChildToCanvas(BuildButton))
+	{
+		ButtonSlot->SetPosition(FVector2D(1020.0f, 0.0f));
+		ButtonSlot->SetSize(FVector2D(94.0f, 64.0f));
+	}
+	UTextBlock* BuildLabel = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("CharacterBuildButtonLabel"));
+	BuildLabel->SetText(FText::FromString(TEXT("问道 [H]")));
+	BuildLabel->SetJustification(ETextJustify::Center);
+	BuildLabel->SetColorAndOpacity(FSlateColor(FLinearColor(0.52f, 1.0f, 0.68f, 1.0f)));
+	BuildLabel->SetShadowOffset(FVector2D(1.0f));
+	FSlateFontInfo BuildFont = BuildLabel->GetFont();
+	BuildFont.Size = 16;
+	BuildLabel->SetFont(BuildFont);
+	BuildButton->AddChild(BuildLabel);
+
+	UButton* ShopButton = WidgetTree->ConstructWidget<UButton>(UButton::StaticClass(), TEXT("ShopOpenButton"));
+	ShopButton->OnClicked.AddDynamic(this, &UImmortalPlayerStatusWidget::HandleShopClicked);
+	const FSlateBrush ShopBrush = MakeStatusBrush(
+		TEXT("/Game/GAME/Asset/ui/inventory/slots/normal.normal"),
+		FVector2D(94.0f, 64.0f),
+		FLinearColor(0.24f, 0.16f, 0.05f, 0.95f));
+	FButtonStyle ShopStyle;
+	ShopStyle.SetNormal(ShopBrush);
+	ShopStyle.SetHovered(ShopBrush);
+	ShopStyle.SetPressed(ShopBrush);
+	ShopButton->SetStyle(ShopStyle);
+	if (UCanvasPanelSlot* ButtonSlot = Canvas->AddChildToCanvas(ShopButton))
+	{
+		ButtonSlot->SetPosition(FVector2D(1120.0f, 0.0f));
+		ButtonSlot->SetSize(FVector2D(94.0f, 64.0f));
+	}
+	UTextBlock* ShopLabel = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("ShopButtonLabel"));
+	ShopLabel->SetText(FText::FromString(TEXT("百宝 [B]")));
+	ShopLabel->SetJustification(ETextJustify::Center);
+	ShopLabel->SetColorAndOpacity(FSlateColor(FLinearColor(1.0f, 0.82f, 0.34f, 1.0f)));
+	ShopLabel->SetShadowOffset(FVector2D(1.0f));
+	FSlateFontInfo ShopFont = ShopLabel->GetFont();
+	ShopFont.Size = 16;
+	ShopLabel->SetFont(ShopFont);
+	ShopButton->AddChild(ShopLabel);
 }
 
 void UImmortalPlayerStatusWidget::NativeTick(const FGeometry& MyGeometry, const float InDeltaTime)
@@ -208,5 +312,37 @@ void UImmortalPlayerStatusWidget::HandleCraftingClicked()
 	if (Player.IsValid())
 	{
 		Player->ToggleCrafting();
+	}
+}
+
+void UImmortalPlayerStatusWidget::HandleArtifactClicked()
+{
+	if (Player.IsValid())
+	{
+		Player->ToggleArtifacts();
+	}
+}
+
+void UImmortalPlayerStatusWidget::HandleTechniqueClicked()
+{
+	if (Player.IsValid())
+	{
+		Player->ToggleTechniques();
+	}
+}
+
+void UImmortalPlayerStatusWidget::HandleCharacterBuildClicked()
+{
+	if (Player.IsValid())
+	{
+		Player->ToggleCharacterBuild();
+	}
+}
+
+void UImmortalPlayerStatusWidget::HandleShopClicked()
+{
+	if (Player.IsValid())
+	{
+		Player->ToggleShop();
 	}
 }

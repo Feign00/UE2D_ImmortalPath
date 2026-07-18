@@ -164,6 +164,29 @@ int32 UImmortalMaterialLibrary::AddMaterialStack(
 	return Existing->Quantity - Previous;
 }
 
+bool UImmortalMaterialLibrary::RemoveMaterialStack(
+	TArray<FImmortalMaterialStack>& Inventory,
+	const FName MaterialId,
+	const int32 Amount)
+{
+	if (Amount <= 0 || GetMaterialQuantity(Inventory, MaterialId) < Amount)
+	{
+		return false;
+	}
+	int32 Remaining = Amount;
+	for (int32 Index = Inventory.Num() - 1; Index >= 0 && Remaining > 0; --Index)
+	{
+		FImmortalMaterialStack& Stack = Inventory[Index];
+		if (Stack.MaterialId != MaterialId || Stack.Quantity <= 0) continue;
+		const int32 Removed = FMath::Min(Stack.Quantity, Remaining);
+		Stack.Quantity -= Removed;
+		Remaining -= Removed;
+		if (Stack.Quantity <= 0) Inventory.RemoveAt(Index);
+	}
+	NormalizeInventory(Inventory);
+	return Remaining == 0;
+}
+
 void UImmortalMaterialLibrary::NormalizeInventory(TArray<FImmortalMaterialStack>& Inventory)
 {
 	TArray<FImmortalMaterialStack> Normalized;

@@ -42,6 +42,12 @@ UImmortalPathSaveGame* UImmortalPathSaveGame::LoadOrCreate(const UObject* WorldC
 
 bool UImmortalPathSaveGame::SaveToDisk()
 {
+	if (SaveVersion > CurrentSaveVersion)
+	{
+		UE_LOG(LogTemp, Error, TEXT("Refusing to overwrite newer save version %d with current version %d"),
+			SaveVersion, CurrentSaveVersion);
+		return false;
+	}
 	SaveVersion = CurrentSaveVersion;
 	LastSavedUtcTicks = FDateTime::UtcNow().GetTicks();
 	const bool bSaved = UGameplayStatics::SaveGameToSlot(this, GetSlotName(), SaveUserIndex);

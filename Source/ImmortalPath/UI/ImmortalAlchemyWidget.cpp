@@ -298,8 +298,8 @@ void UImmortalAlchemyWidget::RefreshRecipeDetails()
 		TEXT("成丹率 %.0f%%    极品率 %.0f%%"), Definition.BaseSuccessChance * 100.0f, Definition.ExceptionalChance * 100.0f)));
 	RecipeEffectText->SetText(FText::FromString(FString::Printf(
 		TEXT("普通：%s\n极品：%s"),
-		*UImmortalAlchemyLibrary::GetEffectText(Definition, EImmortalPillQuality::Ordinary).ToString(),
-		*UImmortalAlchemyLibrary::GetEffectText(Definition, EImmortalPillQuality::Exceptional).ToString())));
+		*Player->GetEffectivePillEffectText(SelectedRecipeId, EImmortalPillQuality::Ordinary).ToString(),
+		*Player->GetEffectivePillEffectText(SelectedRecipeId, EImmortalPillQuality::Exceptional).ToString())));
 	const bool bUnlocked = Player->IsAlchemyRecipeUnlocked(SelectedRecipeId);
 	CraftButton->SetIsEnabled(bUnlocked && Player->CanCraftPill(SelectedRecipeId));
 	CraftButtonText->SetText(FText::FromString(!bUnlocked ? TEXT("境界未解锁")
@@ -324,7 +324,7 @@ void UImmortalAlchemyWidget::RefreshPillDetails()
 	PillNameText->SetColorAndOpacity(FSlateColor(UImmortalAlchemyLibrary::GetQualityColor(SelectedPillQuality)));
 	PillEffectText->SetText(FText::FromString(FString::Printf(TEXT("%s\n\n%s"),
 		*Definition.Description.ToString(),
-		*UImmortalAlchemyLibrary::GetEffectText(Definition, SelectedPillQuality).ToString())));
+		*Player->GetEffectivePillEffectText(SelectedPillId, SelectedPillQuality).ToString())));
 	UseButton->SetIsEnabled(Player->CanUsePill(SelectedPillId, SelectedPillQuality));
 }
 
