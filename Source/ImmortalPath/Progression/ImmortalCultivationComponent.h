@@ -106,9 +106,13 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Immortal Path|Cultivation|Attributes")
 	float GetDefenseBonus() const;
 
-	/** Runtime multiplier used by future spiritual roots, techniques and cave upgrades. */
+	/** Runtime-only multiplier used by development overrides and other external systems. */
 	UFUNCTION(BlueprintCallable, Category = "Immortal Path|Cultivation")
 	void SetRuntimeRateMultiplier(float Multiplier);
+
+	/** Persistent cave multiplier. Kept separate from runtime/development overrides. */
+	UFUNCTION(BlueprintCallable, Category = "Immortal Path|Cultivation")
+	void SetCaveRateMultiplier(float Multiplier);
 
 	UFUNCTION(BlueprintCallable, Category = "Immortal Path|Cultivation")
 	void SetAlchemyRateMultiplier(float Multiplier);
@@ -119,14 +123,24 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Immortal Path|Cultivation")
 	void SetCharacterPathRateMultiplier(float Multiplier);
 
+	/** Permanent equipment and set bonus. It affects passive online/offline cultivation, never kill rewards. */
+	UFUNCTION(BlueprintCallable, Category = "Immortal Path|Cultivation")
+	void SetEquipmentRateMultiplier(float Multiplier);
+
 	UFUNCTION(BlueprintPure, Category = "Immortal Path|Cultivation")
 	float GetAlchemyRateMultiplier() const { return AlchemyRateMultiplier; }
+
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|Cultivation")
+	float GetCaveRateMultiplier() const { return CaveRateMultiplier; }
 
 	UFUNCTION(BlueprintPure, Category = "Immortal Path|Cultivation")
 	float GetTechniqueRateMultiplier() const { return TechniqueRateMultiplier; }
 
 	UFUNCTION(BlueprintPure, Category = "Immortal Path|Cultivation")
 	float GetCharacterPathRateMultiplier() const { return CharacterPathRateMultiplier; }
+
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|Cultivation")
+	float GetEquipmentRateMultiplier() const { return EquipmentRateMultiplier; }
 
 	UPROPERTY(BlueprintAssignable, Category = "Immortal Path|Cultivation")
 	FCultivationProgressChangedSignature OnCultivationProgressChanged;
@@ -170,9 +184,11 @@ private:
 	int32 CurrentCultivation = 0;
 
 	float RuntimeRateMultiplier = 1.0f;
+	float CaveRateMultiplier = 1.0f;
 	float AlchemyRateMultiplier = 1.0f;
 	float TechniqueRateMultiplier = 1.0f;
 	float CharacterPathRateMultiplier = 1.0f;
+	float EquipmentRateMultiplier = 1.0f;
 	double FractionalCultivation = 0.0;
 	FTimerHandle CultivationTimerHandle;
 };

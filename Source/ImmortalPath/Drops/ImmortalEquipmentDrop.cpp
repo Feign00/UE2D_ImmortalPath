@@ -128,7 +128,19 @@ void AImmortalEquipmentDrop::Collect(AImmortalPlayerCharacter* Player)
 	{
 		GenerateEquipmentForLevel(1);
 	}
-	Player->ReceiveEquipmentItem(EquipmentItem);
-	BP_OnEquipmentCollected(Player);
-	Destroy();
+	if (Player->ReceiveEquipmentItem(EquipmentItem))
+	{
+		BP_OnEquipmentCollected(Player);
+		Destroy();
+		return;
+	}
+	// Capacity rejection keeps the original visible lifetime. A disk failure is
+	// transient and must never consume the successfully rolled item, so retain the
+	// orb until a later retry can commit the acquisition.
+	if (Player->DidLastEquipmentReceiveFailPersistence())
+	{
+		SetLifeSpan(0.0f);
+	}
+	bCollected = false;
+	SpawnTime = GetWorld() ? GetWorld()->GetTimeSeconds() : SpawnTime;
 }

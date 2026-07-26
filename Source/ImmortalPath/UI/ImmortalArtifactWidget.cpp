@@ -185,7 +185,8 @@ void UImmortalArtifactWidget::NativeTick(const FGeometry& MyGeometry, const floa
 		&& (LastArtifactRevision != Player->GetArtifactInventoryRevision()
 			|| LastMaterialRevision != Player->GetMaterialInventoryRevision()
 			|| LastSpiritStones != Player->GetGold()
-			|| LastStage != Player->GetQingyunStage()))
+			|| LastStage != Player->GetQingyunStage()
+			|| LastCaveRevision != Player->GetCaveRevision()))
 	{
 		RefreshFromPlayer();
 	}
@@ -198,6 +199,7 @@ void UImmortalArtifactWidget::RefreshFromPlayer()
 	LastMaterialRevision = Player->GetMaterialInventoryRevision();
 	LastSpiritStones = Player->GetGold();
 	LastStage = Player->GetQingyunStage();
+	LastCaveRevision = Player->GetCaveRevision();
 	CurrencyText->SetText(FText::FromString(FString::Printf(TEXT("灵石 %d · 青云山第 %d 关 · 法宝 %d"),
 		LastSpiritStones, LastStage, Player->GetArtifactInventory().Num())));
 	const TArray<FName> Definitions = UImmortalArtifactLibrary::GetKnownArtifactIds();
@@ -271,8 +273,10 @@ void UImmortalArtifactWidget::RefreshDetails()
 		DescriptionText->SetText(Definition.Description);
 		ActiveText->SetText(FText::FromString(TEXT("主动：") + UImmortalArtifactLibrary::GetActiveEffectText(Preview).ToString()));
 		PassiveText->SetText(FText::FromString(TEXT("被动：") + UImmortalArtifactLibrary::GetPassiveEffectText(Preview).ToString()));
-		CostText->SetText(FText::FromString(TEXT("炼制消耗\n")
-			+ UImmortalCraftingLibrary::FormatCost(Definition.CraftingCost, Player->GetMaterialInventory(), Player->GetGold()).ToString()));
+		const FImmortalCraftingCost EffectiveCraftingCost = Player->ApplyCaveForgeDiscount(Definition.CraftingCost);
+		CostText->SetText(FText::FromString(TEXT("炼制消耗（器室折扣已计入）\n")
+			+ UImmortalCraftingLibrary::FormatCost(
+				EffectiveCraftingCost, Player->GetMaterialInventory(), Player->GetGold()).ToString()));
 		CraftButton->SetVisibility(ESlateVisibility::Visible);
 		CraftButton->SetIsEnabled(Player->CanCraftArtifact(SelectedDefinitionId));
 		EquipButton->SetVisibility(ESlateVisibility::Collapsed);
@@ -301,10 +305,14 @@ void UImmortalArtifactWidget::RefreshDetails()
 	PassiveText->SetText(FText::FromString(TEXT("被动：") + UImmortalArtifactLibrary::GetPassiveEffectText(Selected).ToString()));
 	const FText UpgradeCost = Selected.Level >= 50
 		? FText::FromString(TEXT("已满级"))
-		: UImmortalCraftingLibrary::FormatCost(UImmortalArtifactLibrary::GetUpgradeCost(Selected), Player->GetMaterialInventory(), Player->GetGold());
+		: UImmortalCraftingLibrary::FormatCost(
+			Player->ApplyCaveForgeDiscount(UImmortalArtifactLibrary::GetUpgradeCost(Selected)),
+			Player->GetMaterialInventory(), Player->GetGold());
 	const FText StarCost = Selected.Stars >= 5
 		? FText::FromString(TEXT("已满星"))
-		: UImmortalCraftingLibrary::FormatCost(UImmortalArtifactLibrary::GetStarUpCost(Selected), Player->GetMaterialInventory(), Player->GetGold());
+		: UImmortalCraftingLibrary::FormatCost(
+			Player->ApplyCaveForgeDiscount(UImmortalArtifactLibrary::GetStarUpCost(Selected)),
+			Player->GetMaterialInventory(), Player->GetGold());
 	CostText->SetText(FText::FromString(FString::Printf(TEXT("蕴养：%s\n升星：%s"), *UpgradeCost.ToString(), *StarCost.ToString())));
 	CraftButton->SetVisibility(ESlateVisibility::Collapsed);
 	EquipButton->SetVisibility(ESlateVisibility::Visible);
@@ -372,4 +380,3 @@ void UImmortalArtifactWidget::HandleCloseClicked()
 {
 	if (Player.IsValid()) Player->ToggleArtifacts();
 }
-

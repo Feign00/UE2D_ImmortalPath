@@ -117,7 +117,8 @@ public:
 		int32 DayKey,
 		int32 RefreshSerial = 0);
 
-	static void NormalizeState(FImmortalShopState& State);
+	/** Repairs persisted stock and reports whether any canonical data changed. */
+	static bool NormalizeState(FImmortalShopState& State);
 
 	UFUNCTION(BlueprintPure, Category = "Immortal Path|Shop|Pricing")
 	static int32 GetEquipmentBuyPrice(const FImmortalEquipmentItem& Item);
@@ -149,4 +150,3 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Immortal Path|Shop|Display")
 	static FLinearColor GetListingColor(const FImmortalShopListing& Listing);
 };
-

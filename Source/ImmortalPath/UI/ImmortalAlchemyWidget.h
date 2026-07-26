@@ -96,5 +96,5 @@ private:
 	int32 LastPillRevision = INDEX_NONE;
 	int32 LastRealmIndex = INDEX_NONE;
 	int32 LastMinorStage = INDEX_NONE;
+	int32 LastCaveRevision = INDEX_NONE;
 };
-

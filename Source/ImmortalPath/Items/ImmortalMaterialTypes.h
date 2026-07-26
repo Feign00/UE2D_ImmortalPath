@@ -96,4 +96,7 @@ public:
 
 	/** Generates one valid physical/offline drop for the supplied Qingyun Mountain stage. */
 	static FImmortalMaterialStack GenerateStageDrop(int32 QingyunStage, bool bBossDrop, int32 DropIndex = 0);
+
+	/** Generates from the active map's independent material pool. Falls back to Qingyun rules for unknown IDs. */
+	static FImmortalMaterialStack GenerateMapDrop(FName MapId, int32 LocalStage, bool bBossDrop, int32 DropIndex = 0);
 };

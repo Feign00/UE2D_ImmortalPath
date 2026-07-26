@@ -42,7 +42,16 @@ private:
 	void HandleCharacterBuildClicked();
 
 	UFUNCTION()
+	void HandleCaveClicked();
+
+	UFUNCTION()
 	void HandleShopClicked();
+
+	UFUNCTION()
+	void HandleMapClicked();
+
+	UFUNCTION()
+	void HandleSectClicked();
 
 	UPROPERTY(Transient)
 	TWeakObjectPtr<AImmortalPlayerCharacter> Player;

@@ -182,7 +182,8 @@ void UImmortalAlchemyWidget::NativeTick(const FGeometry& MyGeometry, const float
 	if (LastMaterialRevision != Player->GetMaterialInventoryRevision()
 		|| LastPillRevision != Player->GetPillInventoryRevision()
 		|| LastRealmIndex != RealmIndex
-		|| LastMinorStage != MinorStage)
+		|| LastMinorStage != MinorStage
+		|| LastCaveRevision != Player->GetCaveRevision())
 	{
 		RefreshFromPlayer();
 	}
@@ -202,6 +203,7 @@ void UImmortalAlchemyWidget::RefreshFromPlayer()
 	LastPillRevision = Player->GetPillInventoryRevision();
 	LastRealmIndex = static_cast<int32>(Player->GetCultivationRealm());
 	LastMinorStage = Player->GetCultivationMinorStage();
+	LastCaveRevision = Player->GetCaveRevision();
 
 	TArray<FName> RecipeIds = UImmortalAlchemyLibrary::GetKnownRecipeIds();
 	RecipeIds.Sort([](const FName Left, const FName Right)
@@ -258,7 +260,13 @@ void UImmortalAlchemyWidget::RebuildRecipes()
 	{
 		UImmortalAlchemyRecipeSlotWidget* RecipeSlotWidget = CreateWidget<UImmortalAlchemyRecipeSlotWidget>(
 			GetOwningPlayer(), UImmortalAlchemyRecipeSlotWidget::StaticClass());
-		RecipeSlotWidget->InitializeRecipe(this, RecipeId, Player->IsAlchemyRecipeUnlocked(RecipeId), RecipeId == SelectedRecipeId);
+		RecipeSlotWidget->InitializeRecipe(
+			this,
+			RecipeId,
+			Player->IsAlchemyRecipeUnlocked(RecipeId),
+			RecipeId == SelectedRecipeId,
+			Player->GetCaveAlchemySuccessBonus(),
+			Player->GetCaveAlchemyExceptionalBonus());
 		RecipeList->AddChild(RecipeSlotWidget);
 	}
 }
@@ -294,8 +302,14 @@ void UImmortalAlchemyWidget::RefreshRecipeDetails()
 			Owned >= Cost.Quantity ? TEXT("✓") : TEXT("✗"), *Material.DisplayName.ToString(), Owned, Cost.Quantity);
 	}
 	IngredientText->SetText(FText::FromString(Ingredients));
+	const float ActualSuccessChance = FMath::Clamp(
+		Definition.BaseSuccessChance + Player->GetCaveAlchemySuccessBonus(), 0.0f, 1.0f);
+	const float ActualExceptionalChance = FMath::Clamp(
+		Definition.ExceptionalChance + Player->GetCaveAlchemyExceptionalBonus(), 0.0f, ActualSuccessChance);
 	ChanceText->SetText(FText::FromString(FString::Printf(
-		TEXT("成丹率 %.0f%%    极品率 %.0f%%"), Definition.BaseSuccessChance * 100.0f, Definition.ExceptionalChance * 100.0f)));
+		TEXT("成丹率 %.0f%%    极品率 %.0f%%（丹房加成已计入）"),
+		ActualSuccessChance * 100.0f,
+		ActualExceptionalChance * 100.0f)));
 	RecipeEffectText->SetText(FText::FromString(FString::Printf(
 		TEXT("普通：%s\n极品：%s"),
 		*Player->GetEffectivePillEffectText(SelectedRecipeId, EImmortalPillQuality::Ordinary).ToString(),

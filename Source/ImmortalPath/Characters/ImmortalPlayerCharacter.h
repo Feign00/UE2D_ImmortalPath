@@ -5,12 +5,17 @@
 #include "CoreMinimal.h"
 #include "../Alchemy/ImmortalAlchemyTypes.h"
 #include "../Artifacts/ImmortalArtifactTypes.h"
+#include "../Cave/ImmortalCaveTypes.h"
 #include "../Crafting/ImmortalCraftingTypes.h"
+#include "../Farming/ImmortalFarmingTypes.h"
 #include "../Items/ImmortalEquipmentTypes.h"
 #include "../Items/ImmortalMaterialTypes.h"
+#include "../Inventory/ImmortalInventoryTypes.h"
+#include "../Maps/ImmortalMapTypes.h"
 #include "../Progression/ImmortalCultivationComponent.h"
 #include "../Progression/ImmortalCharacterPathTypes.h"
 #include "../Progression/ImmortalOfflineRewardTypes.h"
+#include "../Sects/ImmortalSectTypes.h"
 #include "../Shop/ImmortalShopTypes.h"
 #include "../Techniques/ImmortalTechniqueTypes.h"
 #include "PaperCharacter.h"
@@ -20,6 +25,7 @@ class AController;
 class UCameraComponent;
 class UDamageType;
 class UImmortalCombatFeedbackWidget;
+class AImmortalMonsterSpawner;
 class UImmortalAlchemyWidget;
 class UImmortalArtifactWidget;
 class UImmortalCraftingWidget;
@@ -27,7 +33,11 @@ class UImmortalInventoryWidget;
 class UImmortalPlayerStatusWidget;
 class UImmortalTechniqueWidget;
 class UImmortalCharacterBuildWidget;
+class UImmortalCaveWidget;
+class UImmortalFarmingWidget;
+class UImmortalSectWidget;
 class UImmortalShopWidget;
+class UImmortalMapWidget;
 class UInputComponent;
 class USpringArmComponent;
 class UUserWidget;
@@ -104,6 +114,19 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Immortal Path|Combat")
 	float GetTotalCriticalChance() const { return FMath::Clamp(CriticalChance + EquippedCriticalChanceBonus + ArtifactCriticalChanceBonus + TechniqueCriticalChanceBonus + CharacterPathCriticalChanceBonus, 0.0f, 1.0f); }
 
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|Combat")
+	float GetTotalCriticalDamageMultiplier() const { return FMath::Max(CriticalDamageMultiplier + EquippedCriticalDamageBonus, 1.0f); }
+
+	/** Multiplier applied only to ordinary equipment-drop probability. Boss guaranteed counts remain fixed. */
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|Equipment")
+	float GetEquipmentDropChanceMultiplier() const { return FMath::Clamp(1.0f + EquippedLootFindBonus, 0.0f, 5.0f); }
+
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|Equipment")
+	FImmortalEquipmentSetBonuses GetActiveEquipmentSetBonuses() const { return ActiveEquipmentSetBonuses; }
+
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|Equipment")
+	FText GetEquipmentSetSummaryText() const;
+
 	UFUNCTION(BlueprintPure, Category = "Immortal Path|Progression")
 	float GetCombatPower() const;
 
@@ -138,7 +161,110 @@ public:
 	int32 GetEquipmentDropCount() const { return EquipmentDropCount; }
 
 	UFUNCTION(BlueprintPure, Category = "Immortal Path|Progression")
-	int32 GetQingyunStage() const { return DisplayedStage; }
+	int32 GetQingyunStage() const;
+
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|Maps")
+	FImmortalMapSystemState GetMapSystemState() const;
+
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|Maps")
+	int32 GetMapRevision() const;
+
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|Maps")
+	FName GetActiveMapId() const;
+
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|Maps")
+	int32 GetActiveMapStage() const;
+
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|Maps")
+	bool IsMapUnlocked(FName MapId) const;
+
+	UFUNCTION(BlueprintCallable, Category = "Immortal Path|Maps")
+	FImmortalMapTravelResult TravelToMap(FName MapId);
+
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|Cave")
+	FImmortalCaveState GetCaveState() const { return CaveState; }
+
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|Cave")
+	int32 GetCaveRevision() const { return CaveState.Revision; }
+
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|Cave")
+	FImmortalCaveProductionSnapshot GetCaveProductionSnapshot() const;
+
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|Cave")
+	float GetCaveCultivationMultiplier() const;
+
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|Cave")
+	float GetCaveAlchemySuccessBonus() const;
+
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|Cave")
+	float GetCaveAlchemyExceptionalBonus() const;
+
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|Cave")
+	FImmortalCraftingCost ApplyCaveForgeDiscount(const FImmortalCraftingCost& Cost) const;
+
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|Cave")
+	bool CanUpgradeCaveBuilding(EImmortalCaveBuildingType BuildingType) const;
+
+	UFUNCTION(BlueprintCallable, Category = "Immortal Path|Cave")
+	FImmortalCaveUpgradeResult UpgradeCaveBuilding(EImmortalCaveBuildingType BuildingType);
+
+	UFUNCTION(BlueprintCallable, Category = "Immortal Path|Cave")
+	FImmortalCaveCollectionResult CollectCaveResources();
+
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|Farming")
+	FImmortalFarmingState GetFarmingState() const { return FarmingState; }
+
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|Farming")
+	int32 GetFarmingRevision() const { return FarmingState.Revision; }
+
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|Farming")
+	int32 GetSpiritFieldLevel() const;
+
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|Farming")
+	FImmortalFarmingPlantResult EvaluatePlantCrop(int32 PlotIndex, FName CropId) const;
+
+	UFUNCTION(BlueprintCallable, Category = "Immortal Path|Farming")
+	FImmortalFarmingPlantResult PlantCrop(int32 PlotIndex, FName CropId);
+
+	UFUNCTION(BlueprintCallable, Category = "Immortal Path|Farming")
+	FImmortalFarmingBatchPlantResult PlantCropInAllEmptyPlots(FName CropId);
+
+	UFUNCTION(BlueprintCallable, Category = "Immortal Path|Farming")
+	FImmortalFarmingHarvestResult HarvestCrop(int32 PlotIndex);
+
+	UFUNCTION(BlueprintCallable, Category = "Immortal Path|Farming")
+	FImmortalFarmingBatchHarvestResult HarvestAllReadyCrops();
+
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|Sect")
+	FImmortalSectState GetSectState() const { return SectState; }
+
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|Sect")
+	int32 GetSectRevision() const { return SectState.Revision; }
+
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|Sect")
+	int32 GetSectContribution() const { return SectState.Contribution; }
+
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|Sect")
+	FImmortalSectJoinResult EvaluateJoinSect(FName SectId) const;
+
+	UFUNCTION(BlueprintCallable, Category = "Immortal Path|Sect")
+	FImmortalSectJoinResult JoinSect(FName SectId);
+
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|Sect")
+	FImmortalSectTaskClaimResult EvaluateSectTaskClaim(FName TaskId) const;
+
+	UFUNCTION(BlueprintCallable, Category = "Immortal Path|Sect")
+	FImmortalSectTaskClaimResult ClaimSectTask(FName TaskId);
+
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|Sect")
+	FImmortalSectExchangeResult EvaluateSectExchange(FName OfferId) const;
+
+	UFUNCTION(BlueprintCallable, Category = "Immortal Path|Sect")
+	FImmortalSectExchangeResult ExchangeSectOffer(FName OfferId);
+
+	/** Records one resolved combat event for the active sect's daily tasks. */
+	UFUNCTION(BlueprintCallable, Category = "Immortal Path|Sect")
+	void NotifySectCombatProgress(int32 MonsterKills, int32 StageClears, int32 BossKills);
 
 	/** Adds the rewards granted by a killed monster. */
 	UFUNCTION(BlueprintCallable, Category = "Immortal Path|Progression")
@@ -148,9 +274,12 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Immortal Path|Progression")
 	void ReceiveSpiritStones(int32 Amount, FVector PickupWorldLocation);
 
-	/** Updates the persistent Qingyun Mountain stage banner. */
+	/** Updates the persistent banner for the active logical adventure map. */
 	UFUNCTION(BlueprintCallable, Category = "Immortal Path|Progression")
 	void UpdateStageProgress(
+		FName MapId,
+		const FText& MapDisplayName,
+		int32 MaximumStage,
 		int32 Stage,
 		int32 Kills,
 		int32 RequiredKills,
@@ -169,6 +298,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Immortal Path|Equipment")
 	bool ReceiveEquipmentItem(const FImmortalEquipmentItem& Item);
 
+	/** Lets the world orb distinguish a transient disk failure from normal full-inventory rejection. */
+	bool DidLastEquipmentReceiveFailPersistence() const { return bLastEquipmentReceivePersistenceFailure; }
+
 	UFUNCTION(BlueprintPure, Category = "Immortal Path|Equipment")
 	TArray<FImmortalEquipmentItem> GetInventoryItems() const { return InventoryItems; }
 
@@ -177,6 +309,57 @@ public:
 
 	UFUNCTION(BlueprintPure, Category = "Immortal Path|Equipment")
 	int32 GetInventoryCapacity() const { return FMath::Max(InventoryCapacity, 1); }
+
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|Inventory")
+	bool IsEquipmentLocked(FGuid ItemId) const;
+
+	/** Explicit setter is idempotent and safer than a toggle for UI retries. */
+	UFUNCTION(BlueprintCallable, Category = "Immortal Path|Inventory")
+	FImmortalInventoryOperationResult SetEquipmentLocked(FGuid ItemId, bool bLocked);
+
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|Inventory")
+	bool IsArtifactLocked(FGuid InstanceId) const;
+
+	UFUNCTION(BlueprintCallable, Category = "Immortal Path|Inventory")
+	FImmortalInventoryOperationResult SetArtifactLocked(FGuid InstanceId, bool bLocked);
+
+	/** Deterministically organizes every serialized backpack category in one transaction. */
+	UFUNCTION(BlueprintCallable, Category = "Immortal Path|Inventory")
+	FImmortalInventoryOperationResult OrganizeInventory();
+
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|Inventory")
+	int32 GetBulkEquipmentCount(EImmortalEquipmentQuality MaximumQuality) const;
+
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|Inventory")
+	int32 GetBulkEquipmentSellValue(EImmortalEquipmentQuality MaximumQuality) const;
+
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|Inventory")
+	TArray<FImmortalMaterialStack> GetBulkEquipmentDismantleYield(EImmortalEquipmentQuality MaximumQuality) const;
+
+	/** Sells every unlocked backpack item at or below the selected quality as one atomic save. */
+	UFUNCTION(BlueprintCallable, Category = "Immortal Path|Inventory")
+	FImmortalInventoryOperationResult BatchSellEquipment(EImmortalEquipmentQuality MaximumQuality);
+
+	/** Dismantles one unlocked backpack item into deterministic crafting materials. */
+	UFUNCTION(BlueprintCallable, Category = "Immortal Path|Inventory")
+	FImmortalInventoryOperationResult DismantleEquipment(FGuid ItemId);
+
+	/** Dismantles every unlocked backpack item at or below the selected quality as one atomic save. */
+	UFUNCTION(BlueprintCallable, Category = "Immortal Path|Inventory")
+	FImmortalInventoryOperationResult BatchDismantleEquipment(EImmortalEquipmentQuality MaximumQuality);
+
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|Inventory|Quest Items")
+	TArray<FImmortalQuestItemStack> GetQuestItemInventory() const { return QuestItemInventory; }
+
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|Inventory|Quest Items")
+	int32 GetQuestItemQuantity(FName QuestItemId) const;
+
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|Inventory|Quest Items")
+	int32 GetQuestItemInventoryRevision() const { return QuestItemInventoryRevision; }
+
+	/** Scripted quest reward hook. Task items never enter the sale or dismantle paths. */
+	UFUNCTION(BlueprintCallable, Category = "Immortal Path|Inventory|Quest Items")
+	int32 ReceiveQuestItem(FName QuestItemId, int32 Amount);
 
 	UFUNCTION(BlueprintPure, Category = "Immortal Path|Materials")
 	TArray<FImmortalMaterialStack> GetMaterialInventory() const { return MaterialInventory; }
@@ -452,6 +635,34 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Immortal Path|UI")
 	bool IsShopOpen() const { return bShopOpen; }
 
+	/** Opens or closes the eight-map adventure selector. Bound to M. */
+	UFUNCTION(BlueprintCallable, Category = "Immortal Path|UI")
+	void ToggleMapSelection();
+
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|UI")
+	bool IsMapSelectionOpen() const { return bMapSelectionOpen; }
+
+	/** Opens or closes the personal cave. Bound to C. */
+	UFUNCTION(BlueprintCallable, Category = "Immortal Path|UI")
+	void ToggleCave();
+
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|UI")
+	bool IsCaveOpen() const { return bCaveOpen; }
+
+	/** Opens the spirit-field screen from the cave. */
+	UFUNCTION(BlueprintCallable, Category = "Immortal Path|UI")
+	void ToggleFarming();
+
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|UI")
+	bool IsFarmingOpen() const { return bFarmingOpen; }
+
+	/** Opens or closes the sect screen. Bound to J. */
+	UFUNCTION(BlueprintCallable, Category = "Immortal Path|UI")
+	void ToggleSect();
+
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|UI")
+	bool IsSectOpen() const { return bSectOpen; }
+
 	/** Writes attributes, spirit stones, backpack and equipped items to the main slot. */
 	UFUNCTION(BlueprintCallable, Category = "Immortal Path|Save")
 	bool SaveProgress();
@@ -590,6 +801,10 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Immortal Path|Shop", meta = (ClampMin = "-720", ClampMax = "840"))
 	int32 ShopUtcOffsetMinutes = 480;
 
+	/** Fixed calendar offset used by sect daily tasks and exchange limits. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Immortal Path|Sect", meta = (ClampMin = "-720", ClampMax = "840"))
+	int32 SectUtcOffsetMinutes = 480;
+
 	/** Called when an attack begins. Override this in Player BP to play the attack flipbook. */
 	UFUNCTION(BlueprintImplementableEvent, Category = "Immortal Path|Combat", meta = (DisplayName = "On Auto Attack Started"))
 	void BP_OnAutoAttackStarted(AActor* Target);
@@ -634,6 +849,12 @@ protected:
 	UFUNCTION(BlueprintImplementableEvent, Category = "Immortal Path|Equipment", meta = (DisplayName = "On Inventory Changed"))
 	void BP_OnInventoryChanged(int32 InventoryCount, int32 Capacity);
 
+	UFUNCTION(BlueprintImplementableEvent, Category = "Immortal Path|Inventory", meta = (DisplayName = "On Inventory Operation"))
+	void BP_OnInventoryOperation(const FImmortalInventoryOperationResult& Result);
+
+	UFUNCTION(BlueprintImplementableEvent, Category = "Immortal Path|Inventory|Quest Items", meta = (DisplayName = "On Quest Item Inventory Changed"))
+	void BP_OnQuestItemInventoryChanged(FName QuestItemId, int32 NewQuantity, int32 AmountAdded);
+
 	UFUNCTION(BlueprintImplementableEvent, Category = "Immortal Path|Materials", meta = (DisplayName = "On Material Inventory Changed"))
 	void BP_OnMaterialInventoryChanged(FName MaterialId, int32 NewQuantity, int32 AmountAdded);
 
@@ -673,6 +894,9 @@ protected:
 	UFUNCTION(BlueprintImplementableEvent, Category = "Immortal Path|Shop", meta = (DisplayName = "On Shop Transaction"))
 	void BP_OnShopTransaction(const FImmortalShopTransactionResult& Result);
 
+	UFUNCTION(BlueprintImplementableEvent, Category = "Immortal Path|Sect", meta = (DisplayName = "On Sect State Changed"))
+	void BP_OnSectStateChanged(const FImmortalSectState& NewState);
+
 	UFUNCTION(BlueprintImplementableEvent, Category = "Immortal Path|Equipment", meta = (DisplayName = "On Equipment Changed"))
 	void BP_OnEquipmentChanged(EImmortalEquipmentSlot Slot, const FImmortalEquipmentItem& Item, bool bAutoEquipped, float NewCombatPower);
 
@@ -684,11 +908,17 @@ private:
 	bool IsTargetAttackable(const AActor* Target, bool bCheckRange) const;
 	FVector GetAutoAttackLocation(const AActor* Target) const;
 	void ResolvePendingAttack();
+	float ApplyOutgoingDamage(AActor* Target, float RequestedDamage);
 	void AutoRevive();
 	void RecalculateEquipmentBonuses();
 	void RecalculateArtifactBonuses();
 	void RecalculateTechniqueBonuses();
 	void RecalculateCharacterPathBonuses();
+	void RecalculateCaveBonuses();
+	bool EnsureSectDailyState(int64 CurrentUtcTicks = 0);
+	FImmortalCaveSettlementResult SettleCaveProduction(int64 CurrentUtcTicks = 0);
+	FImmortalFarmingSettlementResult SettleFarmingGrowth(int64 CurrentUtcTicks = 0);
+	void HandleCaveProductionTick();
 	void TryTriggerEquippedArtifact(AActor* PrimaryTarget);
 	void TryTriggerEquippedTechniques(AActor* PrimaryTarget);
 	void TryTriggerCultivationPathSkill(AActor* PrimaryTarget);
@@ -697,7 +927,14 @@ private:
 	bool ReconcileEquipmentForPath(EImmortalCultivationPath NewPath, bool bApplyChanges);
 	void AwakenSpiritRootIfNeeded();
 	bool AddItemToInventory(const FImmortalEquipmentItem& Item);
+	int32 FindWeakestReplaceableInventoryItem() const;
 	int32 AddMaterialInternal(FName MaterialId, int32 Amount);
+	void PublishMaterialInventoryDiff(const TArray<FImmortalMaterialStack>& PreviousInventory);
+	int32 AddQuestItemInternal(FName QuestItemId, int32 Amount);
+	FImmortalInventoryOperationResult DismantleEquipmentInternal(
+		FGuid ItemId,
+		EImmortalEquipmentQuality MaximumQuality,
+		bool bBatch);
 	int32 AddPillInternal(FName PillId, EImmortalPillQuality Quality, int32 Amount);
 	FImmortalAlchemyCraftResult CraftPillInternal(FName RecipeId, TOptional<float> ForcedRoll);
 	FImmortalEquipmentItem* FindMutableEquipmentItem(FGuid ItemId, bool& bOutEquipped);
@@ -708,12 +945,17 @@ private:
 	void RestoreAlchemyCultivationBoost(float Multiplier, float RemainingSeconds);
 	void ConfigureModalWidget(UUserWidget* Widget, bool bOpen);
 	void CloseAllModalWidgetsExcept(const UUserWidget* ExceptWidget);
-	bool ProcessEquipmentItem(const FImmortalEquipmentItem& Item, bool bShowFeedback, bool bSaveAfter);
+	bool ProcessEquipmentItem(
+		const FImmortalEquipmentItem& Item,
+		bool bShowFeedback,
+		bool bSaveAfter,
+		bool bNotifyChanges = true);
 	bool RefreshShopForDay(int32 DayKey, int32 QingyunStage, bool bResetManualRefreshes);
 	void CheckDailyShopRefresh();
 	void RefreshCultivationHud() const;
 	void AutosaveCultivationProgress();
 	void ApplyOfflineRewards(UImmortalPathSaveGame* SaveGame);
+	AImmortalMonsterSpawner* FindMapSpawner() const;
 
 	UFUNCTION()
 	void HandleCultivationProgressChanged(int32 NewCultivation, int32 RequiredCultivation, FText FullRealmName);
@@ -736,10 +978,19 @@ private:
 	FTimerHandle CultivationBreakthroughSaveTimerHandle;
 	FTimerHandle AlchemyBoostTimerHandle;
 	FTimerHandle ShopDailyRefreshTimerHandle;
+	FTimerHandle CaveProductionTimerHandle;
 	bool bAttackPending = false;
 	float InvulnerableUntilTime = 0.0f;
 	FVector InitialSpawnLocation = FVector::ZeroVector;
+	mutable TWeakObjectPtr<AImmortalMonsterSpawner> CachedMapSpawner;
+	FImmortalMapSystemState CachedMapSystemState;
+	FImmortalCaveState CaveState;
+	FImmortalFarmingState FarmingState;
+	FImmortalSectState SectState;
 	int32 DisplayedStage = 1;
+	FName DisplayedMapId = TEXT("QingyunMountain");
+	FText DisplayedMapName;
+	int32 DisplayedMapMaximumStage = 999;
 	int32 DisplayedStageKills = 0;
 	int32 DisplayedStageRequiredKills = 10;
 	bool bDisplayedBossStage = false;
@@ -794,6 +1045,11 @@ private:
 	FGuid EquippedArtifactInstanceId;
 
 	int32 ArtifactInventoryRevision = 0;
+
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Immortal Path|Inventory|Quest Items", meta = (AllowPrivateAccess = "true"))
+	TArray<FImmortalQuestItemStack> QuestItemInventory;
+
+	int32 QuestItemInventoryRevision = 0;
 	int32 ArtifactAttackCounter = 0;
 	float ArtifactShield = 0.0f;
 	float ArtifactAttackMultiplier = 1.0f;
@@ -861,6 +1117,51 @@ private:
 	float EquippedCriticalChanceBonus = 0.0f;
 
 	UPROPERTY(Transient)
+	float EquippedCriticalDamageBonus = 0.0f;
+
+	UPROPERTY(Transient)
+	float EquippedFireDamageBonus = 0.0f;
+
+	UPROPERTY(Transient)
+	float EquippedThunderDamageBonus = 0.0f;
+
+	UPROPERTY(Transient)
+	float EquippedIceDamageBonus = 0.0f;
+
+	UPROPERTY(Transient)
+	float EquippedLifeStealBonus = 0.0f;
+
+	UPROPERTY(Transient)
+	float EquippedCultivationGainBonus = 0.0f;
+
+	UPROPERTY(Transient)
+	float EquippedLootFindBonus = 0.0f;
+
+	UPROPERTY(Transient)
+	float EquippedBossDamageBonus = 0.0f;
+
+	UPROPERTY(Transient)
+	float EquipmentAttackMultiplier = 1.0f;
+
+	UPROPERTY(Transient)
+	float EquipmentDefenseMultiplier = 1.0f;
+
+	UPROPERTY(Transient)
+	float EquipmentHealthMultiplier = 1.0f;
+
+	UPROPERTY(Transient)
+	float EquipmentFinalDamageBonus = 0.0f;
+
+	UPROPERTY(Transient)
+	float EquipmentDamageReduction = 0.0f;
+
+	UPROPERTY(Transient)
+	FImmortalEquipmentSetBonuses ActiveEquipmentSetBonuses;
+
+	UPROPERTY(Transient)
+	bool bLastEquipmentReceivePersistenceFailure = false;
+
+	UPROPERTY(Transient)
 	TObjectPtr<UImmortalPlayerStatusWidget> PlayerStatusWidget;
 
 	UPROPERTY(Transient)
@@ -885,6 +1186,18 @@ private:
 	TObjectPtr<UImmortalShopWidget> PlayerShopWidget;
 
 	UPROPERTY(Transient)
+	TObjectPtr<UImmortalMapWidget> PlayerMapWidget;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UImmortalCaveWidget> PlayerCaveWidget;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UImmortalFarmingWidget> PlayerFarmingWidget;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UImmortalSectWidget> PlayerSectWidget;
+
+	UPROPERTY(Transient)
 	TObjectPtr<UImmortalCombatFeedbackWidget> CombatFeedbackWidget;
 
 	bool bInventoryOpen = false;
@@ -894,6 +1207,10 @@ private:
 	bool bTechniqueOpen = false;
 	bool bCharacterBuildOpen = false;
 	bool bShopOpen = false;
+	bool bMapSelectionOpen = false;
+	bool bCaveOpen = false;
+	bool bFarmingOpen = false;
+	bool bSectOpen = false;
 
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Immortal Path|Attributes", meta = (AllowPrivateAccess = "true"))
 	bool bDead = false;

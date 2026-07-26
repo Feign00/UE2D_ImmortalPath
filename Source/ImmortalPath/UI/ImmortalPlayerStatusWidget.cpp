@@ -56,7 +56,7 @@ void UImmortalPlayerStatusWidget::NativeOnInitialized()
 
 	const FVector2D BarSize(512.0f, 64.0f);
 	USizeBox* RootBox = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass(), TEXT("PlayerStatusSize"));
-	RootBox->SetWidthOverride(1220.0f);
+	RootBox->SetWidthOverride(1520.0f);
 	RootBox->SetHeightOverride(BarSize.Y);
 	WidgetTree->RootWidget = RootBox;
 
@@ -254,6 +254,32 @@ void UImmortalPlayerStatusWidget::NativeOnInitialized()
 	BuildLabel->SetFont(BuildFont);
 	BuildButton->AddChild(BuildLabel);
 
+	UButton* CaveButton = WidgetTree->ConstructWidget<UButton>(UButton::StaticClass(), TEXT("CaveOpenButton"));
+	CaveButton->OnClicked.AddDynamic(this, &UImmortalPlayerStatusWidget::HandleCaveClicked);
+	const FSlateBrush CaveBrush = MakeStatusBrush(
+		TEXT("/Game/GAME/Asset/ui/inventory/slots/normal.normal"),
+		FVector2D(94.0f, 64.0f),
+		FLinearColor(0.10f, 0.18f, 0.12f, 0.95f));
+	FButtonStyle CaveStyle;
+	CaveStyle.SetNormal(CaveBrush);
+	CaveStyle.SetHovered(CaveBrush);
+	CaveStyle.SetPressed(CaveBrush);
+	CaveButton->SetStyle(CaveStyle);
+	if (UCanvasPanelSlot* ButtonSlot = Canvas->AddChildToCanvas(CaveButton))
+	{
+		ButtonSlot->SetPosition(FVector2D(1120.0f, 0.0f));
+		ButtonSlot->SetSize(FVector2D(94.0f, 64.0f));
+	}
+	UTextBlock* CaveLabel = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("CaveButtonLabel"));
+	CaveLabel->SetText(FText::FromString(TEXT("洞府 [C]")));
+	CaveLabel->SetJustification(ETextJustify::Center);
+	CaveLabel->SetColorAndOpacity(FSlateColor(FLinearColor(0.68f, 1.0f, 0.70f, 1.0f)));
+	CaveLabel->SetShadowOffset(FVector2D(1.0f));
+	FSlateFontInfo CaveFont = CaveLabel->GetFont();
+	CaveFont.Size = 16;
+	CaveLabel->SetFont(CaveFont);
+	CaveButton->AddChild(CaveLabel);
+
 	UButton* ShopButton = WidgetTree->ConstructWidget<UButton>(UButton::StaticClass(), TEXT("ShopOpenButton"));
 	ShopButton->OnClicked.AddDynamic(this, &UImmortalPlayerStatusWidget::HandleShopClicked);
 	const FSlateBrush ShopBrush = MakeStatusBrush(
@@ -267,7 +293,7 @@ void UImmortalPlayerStatusWidget::NativeOnInitialized()
 	ShopButton->SetStyle(ShopStyle);
 	if (UCanvasPanelSlot* ButtonSlot = Canvas->AddChildToCanvas(ShopButton))
 	{
-		ButtonSlot->SetPosition(FVector2D(1120.0f, 0.0f));
+		ButtonSlot->SetPosition(FVector2D(1220.0f, 0.0f));
 		ButtonSlot->SetSize(FVector2D(94.0f, 64.0f));
 	}
 	UTextBlock* ShopLabel = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("ShopButtonLabel"));
@@ -279,6 +305,58 @@ void UImmortalPlayerStatusWidget::NativeOnInitialized()
 	ShopFont.Size = 16;
 	ShopLabel->SetFont(ShopFont);
 	ShopButton->AddChild(ShopLabel);
+
+	UButton* MapButton = WidgetTree->ConstructWidget<UButton>(UButton::StaticClass(), TEXT("MapOpenButton"));
+	MapButton->OnClicked.AddDynamic(this, &UImmortalPlayerStatusWidget::HandleMapClicked);
+	const FSlateBrush MapBrush = MakeStatusBrush(
+		TEXT("/Game/GAME/Asset/ui/inventory/slots/normal.normal"),
+		FVector2D(94.0f, 64.0f),
+		FLinearColor(0.05f, 0.17f, 0.22f, 0.95f));
+	FButtonStyle MapStyle;
+	MapStyle.SetNormal(MapBrush);
+	MapStyle.SetHovered(MapBrush);
+	MapStyle.SetPressed(MapBrush);
+	MapButton->SetStyle(MapStyle);
+	if (UCanvasPanelSlot* ButtonSlot = Canvas->AddChildToCanvas(MapButton))
+	{
+		ButtonSlot->SetPosition(FVector2D(1320.0f, 0.0f));
+		ButtonSlot->SetSize(FVector2D(94.0f, 64.0f));
+	}
+	UTextBlock* MapLabel = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("MapButtonLabel"));
+	MapLabel->SetText(FText::FromString(TEXT("地图 [M]")));
+	MapLabel->SetJustification(ETextJustify::Center);
+	MapLabel->SetColorAndOpacity(FSlateColor(FLinearColor(0.56f, 0.94f, 1.0f, 1.0f)));
+	MapLabel->SetShadowOffset(FVector2D(1.0f));
+	FSlateFontInfo MapFont = MapLabel->GetFont();
+	MapFont.Size = 16;
+	MapLabel->SetFont(MapFont);
+	MapButton->AddChild(MapLabel);
+
+	UButton* SectButton = WidgetTree->ConstructWidget<UButton>(UButton::StaticClass(), TEXT("SectOpenButton"));
+	SectButton->OnClicked.AddDynamic(this, &UImmortalPlayerStatusWidget::HandleSectClicked);
+	const FSlateBrush SectBrush = MakeStatusBrush(
+		TEXT("/Game/GAME/Asset/ui/inventory/slots/normal.normal"),
+		FVector2D(94.0f, 64.0f),
+		FLinearColor(0.18f, 0.10f, 0.22f, 0.95f));
+	FButtonStyle SectStyle;
+	SectStyle.SetNormal(SectBrush);
+	SectStyle.SetHovered(SectBrush);
+	SectStyle.SetPressed(SectBrush);
+	SectButton->SetStyle(SectStyle);
+	if (UCanvasPanelSlot* ButtonSlot = Canvas->AddChildToCanvas(SectButton))
+	{
+		ButtonSlot->SetPosition(FVector2D(1420.0f, 0.0f));
+		ButtonSlot->SetSize(FVector2D(94.0f, 64.0f));
+	}
+	UTextBlock* SectLabel = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("SectButtonLabel"));
+	SectLabel->SetText(FText::FromString(TEXT("宗门 [J]")));
+	SectLabel->SetJustification(ETextJustify::Center);
+	SectLabel->SetColorAndOpacity(FSlateColor(FLinearColor(0.92f, 0.68f, 1.0f, 1.0f)));
+	SectLabel->SetShadowOffset(FVector2D(1.0f));
+	FSlateFontInfo SectFont = SectLabel->GetFont();
+	SectFont.Size = 16;
+	SectLabel->SetFont(SectFont);
+	SectButton->AddChild(SectLabel);
 }
 
 void UImmortalPlayerStatusWidget::NativeTick(const FGeometry& MyGeometry, const float InDeltaTime)
@@ -344,5 +422,29 @@ void UImmortalPlayerStatusWidget::HandleShopClicked()
 	if (Player.IsValid())
 	{
 		Player->ToggleShop();
+	}
+}
+
+void UImmortalPlayerStatusWidget::HandleCaveClicked()
+{
+	if (Player.IsValid())
+	{
+		Player->ToggleCave();
+	}
+}
+
+void UImmortalPlayerStatusWidget::HandleMapClicked()
+{
+	if (Player.IsValid())
+	{
+		Player->ToggleMapSelection();
+	}
+}
+
+void UImmortalPlayerStatusWidget::HandleSectClicked()
+{
+	if (Player.IsValid())
+	{
+		Player->ToggleSect();
 	}
 }

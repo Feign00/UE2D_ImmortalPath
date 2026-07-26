@@ -15,7 +15,9 @@
 
 namespace
 {
-	constexpr float SlotSize = 96.0f;
+	// Keep ten combat slots (nine equipment plus one artifact) and nine backpack columns inside their fixed TBH
+	// panels, including grid padding and the vertical scroll bar.
+	constexpr float SlotSize = 70.0f;
 
 	FSlateBrush MakeInventoryBrush(const TCHAR* AssetPath, const FVector2D Size, const FLinearColor Tint = FLinearColor::White)
 	{
@@ -36,7 +38,11 @@ namespace
 		{
 		case EImmortalEquipmentSlot::Head: return TEXT("/Game/GAME/Asset/ui/inventory/equipment_icons/head.head");
 		case EImmortalEquipmentSlot::Chest: return TEXT("/Game/GAME/Asset/ui/inventory/equipment_icons/clothes.clothes");
+		case EImmortalEquipmentSlot::Bracers:
+		case EImmortalEquipmentSlot::Belt: return TEXT("/Game/GAME/Asset/ui/inventory/equipment_icons/clothes.clothes");
 		case EImmortalEquipmentSlot::Boots: return TEXT("/Game/GAME/Asset/ui/inventory/equipment_icons/boots.boots");
+		case EImmortalEquipmentSlot::RingLeft:
+		case EImmortalEquipmentSlot::RingRight:
 		case EImmortalEquipmentSlot::Accessory: return TEXT("/Game/GAME/Asset/ui/inventory/equipment_icons/accessory.accessory");
 		default: return TEXT("/Game/GAME/Asset/ui/inventory/equipment_icons/weapon.weapon");
 		}
@@ -50,6 +56,8 @@ namespace
 		case EImmortalEquipmentQuality::Rare: return TEXT("/Game/GAME/Asset/ui/inventory/quality_frames/blue.blue");
 		case EImmortalEquipmentQuality::Epic: return TEXT("/Game/GAME/Asset/ui/inventory/quality_frames/purple.purple");
 		case EImmortalEquipmentQuality::Legendary: return TEXT("/Game/GAME/Asset/ui/inventory/quality_frames/gold.gold");
+		case EImmortalEquipmentQuality::Immortal:
+		case EImmortalEquipmentQuality::Divine: return TEXT("/Game/GAME/Asset/ui/inventory/quality_frames/white.white");
 		default: return TEXT("/Game/GAME/Asset/ui/inventory/quality_frames/white.white");
 		}
 	}
@@ -110,6 +118,20 @@ void UImmortalInventorySlotWidget::NativeOnInitialized()
 		TextSlot->SetPadding(FMargin(0.0f, 0.0f, 9.0f, 7.0f));
 	}
 
+	LockGlyphText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("InventoryLockGlyph"));
+	LockGlyphText->SetText(FText::FromString(TEXT("锁")));
+	LockGlyphText->SetColorAndOpacity(FSlateColor(FLinearColor(1.0f, 0.78f, 0.2f, 1.0f)));
+	LockGlyphText->SetShadowOffset(FVector2D(1.0f));
+	FSlateFontInfo LockFont = LockGlyphText->GetFont();
+	LockFont.Size = 12;
+	LockGlyphText->SetFont(LockFont);
+	if (UOverlaySlot* LockSlot = Layers->AddChildToOverlay(LockGlyphText))
+	{
+		LockSlot->SetHorizontalAlignment(HAlign_Left);
+		LockSlot->SetVerticalAlignment(VAlign_Top);
+		LockSlot->SetPadding(FMargin(6.0f, 4.0f, 0.0f, 0.0f));
+	}
+
 	RefreshAppearance();
 }
 
@@ -125,6 +147,8 @@ void UImmortalInventorySlotWidget::InitializeSlot(
 	Item = InItem;
 	bMaterialItem = false;
 	bPillItem = false;
+	bArtifactItem = false;
+	bQuestItem = false;
 	bHasItem = bInHasItem;
 	bEquipped = bInEquipped;
 	bSelected = bInSelected;
@@ -141,6 +165,8 @@ void UImmortalInventorySlotWidget::InitializeMaterialSlot(
 	MaterialStack = InStack;
 	bMaterialItem = true;
 	bPillItem = false;
+	bArtifactItem = false;
+	bQuestItem = false;
 	bHasItem = InStack.IsValid();
 	bEquipped = false;
 	bSelected = bInSelected;
@@ -157,6 +183,45 @@ void UImmortalInventorySlotWidget::InitializePillSlot(
 	PillStack = InStack;
 	bPillItem = true;
 	bMaterialItem = false;
+	bArtifactItem = false;
+	bQuestItem = false;
+	bHasItem = InStack.IsValid();
+	bEquipped = false;
+	bSelected = bInSelected;
+	PlaceholderSlot = EImmortalEquipmentSlot::MAX;
+	RefreshAppearance();
+}
+
+void UImmortalInventorySlotWidget::InitializeArtifactSlot(
+	UImmortalInventoryWidget* InOwner,
+	const FImmortalArtifactItem& InItem,
+	const bool bInEquipped,
+	const bool bInSelected)
+{
+	OwnerInventory = InOwner;
+	ArtifactItem = InItem;
+	bArtifactItem = true;
+	bQuestItem = false;
+	bPillItem = false;
+	bMaterialItem = false;
+	bHasItem = InItem.IsValid();
+	bEquipped = bInEquipped;
+	bSelected = bInSelected;
+	PlaceholderSlot = EImmortalEquipmentSlot::MAX;
+	RefreshAppearance();
+}
+
+void UImmortalInventorySlotWidget::InitializeQuestItemSlot(
+	UImmortalInventoryWidget* InOwner,
+	const FImmortalQuestItemStack& InStack,
+	const bool bInSelected)
+{
+	OwnerInventory = InOwner;
+	QuestItemStack = InStack;
+	bQuestItem = true;
+	bArtifactItem = false;
+	bPillItem = false;
+	bMaterialItem = false;
 	bHasItem = InStack.IsValid();
 	bEquipped = false;
 	bSelected = bInSelected;
@@ -166,7 +231,7 @@ void UImmortalInventorySlotWidget::InitializePillSlot(
 
 void UImmortalInventorySlotWidget::RefreshAppearance()
 {
-	if (!SlotButton || !ItemIcon || !QualityFrame || !LevelText || !MaterialGlyphText)
+	if (!SlotButton || !ItemIcon || !QualityFrame || !LevelText || !MaterialGlyphText || !LockGlyphText)
 	{
 		return;
 	}
@@ -183,6 +248,56 @@ void UImmortalInventorySlotWidget::RefreshAppearance()
 	ButtonStyle.SetPressed(StateBrush);
 	ButtonStyle.SetDisabled(StateBrush);
 	SlotButton->SetStyle(ButtonStyle);
+	LockGlyphText->SetVisibility(ESlateVisibility::Collapsed);
+
+	if (bQuestItem)
+	{
+		ItemIcon->SetVisibility(ESlateVisibility::Collapsed);
+		QualityFrame->SetVisibility(ESlateVisibility::Collapsed);
+		FImmortalQuestItemDefinition Definition;
+		if (bHasItem && UImmortalInventoryLibrary::GetQuestItemDefinition(QuestItemStack.QuestItemId, Definition))
+		{
+			MaterialGlyphText->SetText(Definition.IconGlyph.IsEmpty() ? FText::FromString(TEXT("任")) : Definition.IconGlyph);
+			MaterialGlyphText->SetColorAndOpacity(FSlateColor(Definition.DisplayColor));
+			MaterialGlyphText->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+			LevelText->SetText(FText::FromString(FString::Printf(TEXT("×%d"), QuestItemStack.Quantity)));
+			LevelText->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+		}
+		else
+		{
+			MaterialGlyphText->SetVisibility(ESlateVisibility::Collapsed);
+			LevelText->SetVisibility(ESlateVisibility::Collapsed);
+		}
+		SlotButton->SetIsEnabled(bHasItem);
+		return;
+	}
+
+	if (bArtifactItem)
+	{
+		ItemIcon->SetVisibility(ESlateVisibility::Collapsed);
+		QualityFrame->SetVisibility(ESlateVisibility::Collapsed);
+		FImmortalArtifactDefinition Definition;
+		if (bHasItem && UImmortalArtifactLibrary::GetArtifactDefinition(ArtifactItem.ArtifactId, Definition))
+		{
+			const FLinearColor Color = UImmortalArtifactLibrary::GetQualityColor(Definition.Quality);
+			MaterialGlyphText->SetText(Definition.IconGlyph.IsEmpty() ? FText::FromString(TEXT("宝")) : Definition.IconGlyph);
+			MaterialGlyphText->SetColorAndOpacity(FSlateColor(Color));
+			MaterialGlyphText->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+			LevelText->SetText(FText::FromString(FString::Printf(TEXT("Lv%d ★%d"), ArtifactItem.Level, ArtifactItem.Stars)));
+			LevelText->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+			LockGlyphText->SetVisibility(ArtifactItem.bLocked ? ESlateVisibility::SelfHitTestInvisible : ESlateVisibility::Collapsed);
+		}
+		else
+		{
+			MaterialGlyphText->SetText(FText::FromString(TEXT("法")));
+			MaterialGlyphText->SetColorAndOpacity(FSlateColor(FLinearColor(0.48f, 0.38f, 0.58f, 0.75f)));
+			MaterialGlyphText->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+			LevelText->SetText(FText::FromString(TEXT("法宝")));
+			LevelText->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+		}
+		SlotButton->SetIsEnabled(true);
+		return;
+	}
 
 	if (bPillItem)
 	{
@@ -238,6 +353,24 @@ void UImmortalInventorySlotWidget::RefreshAppearance()
 		const float Alpha = bHasItem ? 1.0f : 0.32f;
 		ItemIcon->SetBrush(MakeInventoryBrush(GetSlotTexturePath(VisibleSlot), FVector2D(64.0f), FLinearColor(1.0f, 1.0f, 1.0f, Alpha)));
 		ItemIcon->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+		FString SlotGlyph;
+		switch (VisibleSlot)
+		{
+		case EImmortalEquipmentSlot::Bracers: SlotGlyph = TEXT("腕"); break;
+		case EImmortalEquipmentSlot::Belt: SlotGlyph = TEXT("带"); break;
+		case EImmortalEquipmentSlot::RingLeft: SlotGlyph = TEXT("戒1"); break;
+		case EImmortalEquipmentSlot::RingRight: SlotGlyph = TEXT("戒2"); break;
+		default: break;
+		}
+		if (!SlotGlyph.IsEmpty())
+		{
+			FSlateFontInfo GlyphFont = MaterialGlyphText->GetFont();
+			GlyphFont.Size = 18;
+			MaterialGlyphText->SetFont(GlyphFont);
+			MaterialGlyphText->SetText(FText::FromString(SlotGlyph));
+			MaterialGlyphText->SetColorAndOpacity(FSlateColor(FLinearColor(0.92f, 0.86f, 0.72f, Alpha)));
+			MaterialGlyphText->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+		}
 	}
 	else
 	{
@@ -246,10 +379,13 @@ void UImmortalInventorySlotWidget::RefreshAppearance()
 
 	if (bHasItem)
 	{
-		QualityFrame->SetBrush(MakeInventoryBrush(GetQualityFramePath(Item.Quality), FVector2D(SlotSize)));
+		const FLinearColor FrameTint = Item.Quality >= EImmortalEquipmentQuality::Immortal
+			? UImmortalEquipmentLibrary::GetQualityColor(Item.Quality) : FLinearColor::White;
+		QualityFrame->SetBrush(MakeInventoryBrush(GetQualityFramePath(Item.Quality), FVector2D(SlotSize), FrameTint));
 		QualityFrame->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
 		LevelText->SetText(FText::AsNumber(Item.ItemLevel));
 		LevelText->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+		LockGlyphText->SetVisibility(Item.bLocked ? ESlateVisibility::SelfHitTestInvisible : ESlateVisibility::Collapsed);
 	}
 	else
 	{
@@ -262,7 +398,7 @@ void UImmortalInventorySlotWidget::RefreshAppearance()
 
 void UImmortalInventorySlotWidget::HandleClicked()
 {
-	if (bHasItem && OwnerInventory.IsValid())
+	if ((bHasItem || bArtifactItem) && OwnerInventory.IsValid())
 	{
 		if (bPillItem)
 		{
@@ -271,6 +407,14 @@ void UImmortalInventorySlotWidget::HandleClicked()
 		else if (bMaterialItem)
 		{
 			OwnerInventory->HandleMaterialSelected(MaterialStack.MaterialId);
+		}
+		else if (bArtifactItem)
+		{
+			OwnerInventory->HandleArtifactSelected(ArtifactItem.InstanceId);
+		}
+		else if (bQuestItem)
+		{
+			OwnerInventory->HandleQuestItemSelected(QuestItemStack.QuestItemId);
 		}
 		else
 		{

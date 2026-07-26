@@ -77,7 +77,7 @@ namespace
 			{EnlightenmentPillId, MakeDefinition(
 				TEXT("悟道丹"), TEXT("进入悟道状态，提高在线修炼速度；离线期间增益时间暂停。"), TEXT("悟"),
 				FLinearColor(0.72f, 0.36f, 1.0f),
-				{Ingredient(TEXT("SpiritGrass"), 4), Ingredient(TEXT("SpiritLiquid"), 3), Ingredient(TEXT("DemonCore"), 2)},
+				{Ingredient(TEXT("SpiritGrass"), 4), Ingredient(TEXT("SpiritLiquid"), 3), Ingredient(TEXT("DemonCore"), 2), Ingredient(TEXT("ImmortalFruit"), 1)},
 				0.65f, 0.08f, 1, 1, EImmortalPillEffect::CultivationRateBoost, 1.50f, 2.00f, 300.0f, 600.0f)},
 			{BreakthroughPillId, MakeDefinition(
 				TEXT("破境丹"), TEXT("补足当前层级全部修为并立即突破；极品丹额外补充下一层修为。"), TEXT("破"),

@@ -49,12 +49,16 @@ void UImmortalAlchemyRecipeSlotWidget::InitializeRecipe(
 	UImmortalAlchemyWidget* InOwner,
 	const FName InRecipeId,
 	const bool bUnlocked,
-	const bool bSelected)
+	const bool bSelected,
+	const float SuccessChanceBonus,
+	const float ExceptionalChanceBonus)
 {
 	OwnerAlchemy = InOwner;
 	RecipeId = InRecipeId;
 	bRecipeUnlocked = bUnlocked;
 	bRecipeSelected = bSelected;
+	RecipeSuccessChanceBonus = FMath::IsFinite(SuccessChanceBonus) ? SuccessChanceBonus : 0.0f;
+	RecipeExceptionalChanceBonus = FMath::IsFinite(ExceptionalChanceBonus) ? ExceptionalChanceBonus : 0.0f;
 	RefreshAppearance();
 }
 
@@ -77,11 +81,15 @@ void UImmortalAlchemyRecipeSlotWidget::RefreshAppearance()
 	FImmortalPillDefinition Definition;
 	if (UImmortalAlchemyLibrary::GetPillDefinition(RecipeId, Definition))
 	{
+		const float ActualSuccessChance = FMath::Clamp(
+			Definition.BaseSuccessChance + RecipeSuccessChanceBonus, 0.0f, 1.0f);
+		const float ActualExceptionalChance = FMath::Clamp(
+			Definition.ExceptionalChance + RecipeExceptionalChanceBonus, 0.0f, ActualSuccessChance);
 		Label->SetText(FText::FromString(FString::Printf(
-			TEXT("%s\n成功 %.0f%%  %s"),
+			TEXT("%s\n成丹 %.0f%%  极品 %.0f%%"),
 			*Definition.DisplayName.ToString(),
-			Definition.BaseSuccessChance * 100.0f,
-			bRecipeUnlocked ? TEXT("可炼制") : TEXT("未解锁"))));
+			ActualSuccessChance * 100.0f,
+			ActualExceptionalChance * 100.0f)));
 		Label->SetColorAndOpacity(FSlateColor(bRecipeUnlocked
 			? (bRecipeSelected ? FLinearColor(1.0f, 0.82f, 0.32f) : Definition.DisplayColor)
 			: FLinearColor(0.55f, 0.55f, 0.58f)));
@@ -92,4 +100,3 @@ void UImmortalAlchemyRecipeSlotWidget::HandleClicked()
 {
 	if (bRecipeUnlocked && OwnerAlchemy.IsValid()) OwnerAlchemy->SelectRecipe(RecipeId);
 }
-

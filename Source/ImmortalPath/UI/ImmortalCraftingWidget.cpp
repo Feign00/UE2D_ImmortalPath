@@ -196,7 +196,8 @@ void UImmortalCraftingWidget::NativeTick(const FGeometry& MyGeometry, const floa
 		&& (LastEquipmentRevision != Player->GetEquipmentInventoryRevision()
 			|| LastMaterialRevision != Player->GetMaterialInventoryRevision()
 			|| LastSpiritStones != Player->GetGold()
-			|| LastStage != Player->GetQingyunStage()))
+			|| LastStage != Player->GetQingyunStage()
+			|| LastCaveRevision != Player->GetCaveRevision()))
 	{
 		RefreshFromPlayer();
 	}
@@ -209,6 +210,7 @@ void UImmortalCraftingWidget::RefreshFromPlayer()
 	LastMaterialRevision = Player->GetMaterialInventoryRevision();
 	LastSpiritStones = Player->GetGold();
 	LastStage = Player->GetQingyunStage();
+	LastCaveRevision = Player->GetCaveRevision();
 	CurrencyText->SetText(FText::FromString(FString::Printf(TEXT("灵石 %d · 青云山第 %d 关"), LastSpiritStones, LastStage)));
 
 	const TArray<FName> Recipes = UImmortalCraftingLibrary::GetKnownRecipeIds();
@@ -272,11 +274,16 @@ void UImmortalCraftingWidget::RefreshRecipeDetails()
 	if (!UImmortalCraftingLibrary::GetRecipeDefinition(SelectedRecipeId, Definition)) return;
 	RecipeNameText->SetText(Definition.DisplayName);
 	RecipeNameText->SetColorAndOpacity(FSlateColor(UImmortalEquipmentLibrary::GetQualityColor(Definition.OutputQuality)));
-	RecipeDescriptionText->SetText(FText::FromString(FString::Printf(TEXT("%s\n产物：%s · %s"),
+	FImmortalEquipmentSetDefinition SetDefinition;
+	const FString SetText = UImmortalEquipmentLibrary::GetSetDefinition(Definition.OutputSetId, SetDefinition)
+		? FString::Printf(TEXT(" · %s"), *SetDefinition.DisplayName.ToString()) : FString();
+	RecipeDescriptionText->SetText(FText::FromString(FString::Printf(TEXT("%s\n产物：%s · %s%s"),
 		*Definition.Description.ToString(),
 		*UImmortalEquipmentLibrary::GetQualityText(Definition.OutputQuality).ToString(),
-		*UImmortalEquipmentLibrary::GetSlotText(Definition.OutputSlot).ToString())));
-	RecipeCostText->SetText(UImmortalCraftingLibrary::FormatCost(Definition.Cost, Player->GetMaterialInventory(), Player->GetGold()));
+		*UImmortalEquipmentLibrary::GetSlotText(Definition.OutputSlot).ToString(), *SetText)));
+	const FImmortalCraftingCost EffectiveCost = Player->ApplyCaveForgeDiscount(Definition.Cost);
+	RecipeCostText->SetText(UImmortalCraftingLibrary::FormatCost(
+		EffectiveCost, Player->GetMaterialInventory(), Player->GetGold()));
 	const bool bUnlocked = Player->IsCraftingRecipeUnlocked(SelectedRecipeId);
 	const bool bCanCraft = Player->CanCraftEquipment(SelectedRecipeId);
 	CraftButton->SetIsEnabled(bCanCraft);
@@ -310,8 +317,10 @@ void UImmortalCraftingWidget::RefreshEquipmentDetails()
 	FString Affixes = TEXT("词条：");
 	for (const FImmortalEquipmentAffix& Affix : Item.Affixes) Affixes += TEXT("\n") + UImmortalEquipmentLibrary::GetAffixText(Affix).ToString();
 	AffixText->SetText(FText::FromString(Affixes));
-	const FImmortalCraftingCost EnhancementCost = UImmortalCraftingLibrary::GetEnhancementCost(Item);
-	const FImmortalCraftingCost RefinementCost = UImmortalCraftingLibrary::GetRefinementCost(Item);
+	const FImmortalCraftingCost EnhancementCost = Player->ApplyCaveForgeDiscount(
+		UImmortalCraftingLibrary::GetEnhancementCost(Item));
+	const FImmortalCraftingCost RefinementCost = Player->ApplyCaveForgeDiscount(
+		UImmortalCraftingLibrary::GetRefinementCost(Item));
 	EnhancementCostText->SetText(Item.EnhancementLevel >= 15
 		? FText::FromString(TEXT("强化已满级"))
 		: UImmortalCraftingLibrary::FormatCost(EnhancementCost, Player->GetMaterialInventory(), Player->GetGold()));

@@ -2,6 +2,8 @@
 
 #include "ImmortalMaterialTypes.h"
 
+#include "../Maps/ImmortalMapTypes.h"
+
 #include "Engine/DataTable.h"
 #include "Misc/PackageName.h"
 
@@ -14,6 +16,8 @@ namespace
 	const FName DemonBoneId(TEXT("DemonBone"));
 	const FName ArtifactFragmentId(TEXT("ArtifactFragment"));
 	const FName SpiritIronId(TEXT("SpiritIron"));
+	const FName ImmortalFruitId(TEXT("ImmortalFruit"));
+	const FName SpiritWoodId(TEXT("SpiritWood"));
 
 	FImmortalMaterialDefinition MakeDefinition(
 		const TCHAR* Name,
@@ -45,7 +49,9 @@ namespace
 			{OreId, MakeDefinition(TEXT("矿石"), TEXT("青云山出产的普通灵矿，是打造武器与护甲的基础材料。"), EImmortalMaterialCategory::Mineral, FLinearColor(0.72f, 0.74f, 0.78f), TEXT("矿"), 1, 22.0f)},
 			{DemonBoneId, MakeDefinition(TEXT("妖骨"), TEXT("坚韧的妖兽骨骼，适合用于强化护甲与法宝结构。"), EImmortalMaterialCategory::Monster, FLinearColor(0.92f, 0.84f, 0.66f), TEXT("骨"), 20, 10.0f)},
 			{ArtifactFragmentId, MakeDefinition(TEXT("法宝碎片"), TEXT("破损法宝残留的灵性碎片，后续可用于打造与升星法宝。"), EImmortalMaterialCategory::Artifact, FLinearColor(0.78f, 0.35f, 1.0f), TEXT("片"), 10, 2.0f)},
-			{SpiritIronId, MakeDefinition(TEXT("灵铁"), TEXT("被灵脉长期淬炼的金属，是炼制高阶装备的重要材料。"), EImmortalMaterialCategory::Mineral, FLinearColor(1.0f, 0.67f, 0.22f), TEXT("铁"), 50, 6.0f)}
+			{SpiritIronId, MakeDefinition(TEXT("灵铁"), TEXT("被灵脉长期淬炼的金属，是炼制高阶装备的重要材料。"), EImmortalMaterialCategory::Mineral, FLinearColor(1.0f, 0.67f, 0.22f), TEXT("铁"), 50, 6.0f)},
+			{ImmortalFruitId, MakeDefinition(TEXT("仙果"), TEXT("由洞府灵田培育的灵果，可用于炼制悟道类丹药，也可在百宝阁出售。"), EImmortalMaterialCategory::Herb, FLinearColor(1.0f, 0.45f, 0.68f), TEXT("果"), 50, 0.0f)},
+			{SpiritWoodId, MakeDefinition(TEXT("灵木"), TEXT("吸收灵气生长的木材，可用于炼器与法器结构，也可在百宝阁出售。"), EImmortalMaterialCategory::Herb, FLinearColor(0.56f, 0.82f, 0.28f), TEXT("木"), 100, 0.0f)}
 		};
 		return Catalog;
 	}
@@ -270,5 +276,67 @@ FImmortalMaterialStack UImmortalMaterialLibrary::GenerateStageDrop(
 	{
 		Result.Quantity = FMath::Max(Result.Quantity / 2, 1);
 	}
+	return Result;
+}
+
+FImmortalMaterialStack UImmortalMaterialLibrary::GenerateMapDrop(
+	const FName MapId,
+	const int32 LocalStage,
+	const bool bBossDrop,
+	const int32 DropIndex)
+{
+	FImmortalMapDefinition MapDefinition;
+	if (!UImmortalMapLibrary::GetMapDefinition(MapId, MapDefinition))
+	{
+		return GenerateStageDrop(LocalStage, bBossDrop, DropIndex);
+	}
+
+	struct FCandidate
+	{
+		FName Id;
+		float Weight = 0.0f;
+	};
+	TArray<FCandidate> Candidates;
+	float TotalWeight = 0.0f;
+	for (const FName MaterialId : MapDefinition.MaterialPoolIds)
+	{
+		FImmortalMaterialDefinition Definition;
+		if (GetMaterialDefinition(MaterialId, Definition) && Definition.DropWeight > 0.0f)
+		{
+			Candidates.Add({MaterialId, Definition.DropWeight});
+			TotalWeight += Definition.DropWeight;
+		}
+	}
+	if (Candidates.IsEmpty())
+	{
+		return GenerateStageDrop(LocalStage, bBossDrop, DropIndex);
+	}
+
+	FImmortalMaterialStack Result;
+	if (bBossDrop)
+	{
+		// Guaranteed boss bundles rotate through the local pool, making each map's
+		// identity visible even in short verification sessions.
+		Result.MaterialId = Candidates[FMath::Abs(DropIndex) % Candidates.Num()].Id;
+	}
+	else
+	{
+		float Roll = FMath::FRandRange(0.0f, FMath::Max(TotalWeight, KINDA_SMALL_NUMBER));
+		Result.MaterialId = Candidates.Last().Id;
+		for (const FCandidate& Candidate : Candidates)
+		{
+			Roll -= Candidate.Weight;
+			if (Roll <= 0.0f)
+			{
+				Result.MaterialId = Candidate.Id;
+				break;
+			}
+		}
+	}
+
+	const int32 SafeStage = FMath::Clamp(LocalStage, 1, MapDefinition.MaximumStage);
+	Result.Quantity = 1 + SafeStage / 250 + MapDefinition.OrderIndex / 2;
+	if (bBossDrop) Result.Quantity *= 2;
+	if (Result.MaterialId == TEXT("ArtifactFragment")) Result.Quantity = FMath::Max(Result.Quantity / 2, 1);
 	return Result;
 }

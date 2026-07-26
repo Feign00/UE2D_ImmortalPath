@@ -50,6 +50,10 @@ struct IMMORTALPATH_API FImmortalCraftingRecipeDefinition : public FTableRowBase
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Recipe")
 	EImmortalEquipmentQuality OutputQuality = EImmortalEquipmentQuality::Uncommon;
 
+	/** Optional guaranteed set ID. None produces a normal crafted item. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Recipe")
+	FName OutputSetId = NAME_None;
+
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Recipe", meta = (ClampMin = "1", ClampMax = "999"))
 	int32 MinimumQingyunStage = 1;
 

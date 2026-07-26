@@ -3,10 +3,12 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "../Maps/ImmortalMapTypes.h"
 #include "GameFramework/Actor.h"
 #include "ImmortalMonsterSpawner.generated.h"
 
 class AImmortalMonsterCharacter;
+class UImmortalPathSaveGame;
 class UBoxComponent;
 class USceneComponent;
 
@@ -45,7 +47,36 @@ public:
 	bool IsCurrentStageBossStage() const;
 
 	UFUNCTION(BlueprintPure, Category = "Immortal Path|Stage")
-	bool IsQingyunMountainCompleted() const { return bQingyunMountainCompleted; }
+	bool IsQingyunMountainCompleted() const;
+
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|Maps")
+	FName GetActiveMapId() const { return MapSystemState.ActiveMapId; }
+
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|Maps")
+	FText GetActiveMapDisplayName() const { return ActiveMapDefinition.DisplayName; }
+
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|Maps")
+	FImmortalMapDefinition GetActiveMapDefinition() const { return ActiveMapDefinition; }
+
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|Maps")
+	FImmortalMapSystemState GetMapSystemState() const { return MapSystemState; }
+
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|Maps")
+	int32 GetMapRevision() const { return MapSystemRevision; }
+
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|Maps")
+	bool GetProgressForMap(FName MapId, FImmortalMapProgress& OutProgress) const;
+
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|Maps")
+	bool IsCurrentMapCompleted() const { return bCurrentMapCompleted; }
+
+	/** Returns true only for a known map unlocked by the player's current major realm. */
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|Maps")
+	bool CanTravelToMap(FName DestinationMapId) const;
+
+	/** Atomically persists the old map, clears its combat actors and activates the destination. */
+	UFUNCTION(BlueprintCallable, Category = "Immortal Path|Maps")
+	FImmortalMapTravelResult TravelToMap(FName DestinationMapId);
 
 	UFUNCTION(BlueprintCallable, Category = "Immortal Path|Save")
 	bool SaveStageProgress();
@@ -127,12 +158,25 @@ protected:
 	UFUNCTION(BlueprintImplementableEvent, Category = "Immortal Path|Boss", meta = (DisplayName = "On Boss Defeated"))
 	void BP_OnBossDefeated(int32 ClearedStage, int32 NextStage, bool bMapCompleted);
 
+	/** Presentation hook for future per-map backgrounds while all maps share the TBH combat level. */
+	UFUNCTION(BlueprintImplementableEvent, Category = "Immortal Path|Maps", meta = (DisplayName = "On Active Map Changed"))
+	void BP_OnActiveMapChanged(FName PreviousMapId, FName NewMapId, const FText& NewMapName, int32 Stage);
+
 private:
 	void SpawnUntilInitialCount();
 	void HandleSpawnTimer();
+	void SuspendSpawnTimer();
 	bool FindSpawnLocation(FVector& OutLocation) const;
 	void RemoveInvalidMonsters();
 	void UpdateStageHud() const;
+	void ApplyActiveMapPresentation() const;
+	bool ApplyProgressForMap(FName MapId);
+	bool SyncCurrentProgressToState();
+	void MirrorLegacyQingyunProgress(UImmortalPathSaveGame* SaveGame) const;
+	void ClearAllMonstersAndDrops();
+	int32 GetPlayerRealmIndex() const;
+	int32 GetCurrentMaximumStage() const;
+	int32 GetCurrentBossStageInterval() const;
 	AImmortalMonsterCharacter* SpawnConfiguredMonster(bool bSpawnBoss, bool bIgnoreAliveLimit, AActor* SpawnOwner = nullptr);
 	void SpawnBossMinions(AImmortalMonsterCharacter* Boss, int32 Count);
 	void AdvanceStage(AImmortalMonsterCharacter* DefeatedMonster);
@@ -160,10 +204,23 @@ private:
 	TSubclassOf<AImmortalMonsterCharacter> DefaultBossMonsterClass;
 
 	FTimerHandle SpawnTimerHandle;
+	bool bSpawningRequested = false;
+	bool bMapTransitionInProgress = false;
+	bool bHandlingMonsterDeath = false;
+	bool bMapMigrationPending = false;
 
 	UPROPERTY(VisibleInstanceOnly, Category = "Immortal Path|Stage")
 	int32 CurrentStageKills = 0;
 
-	UPROPERTY(VisibleInstanceOnly, Category = "Immortal Path|Stage")
-	bool bQingyunMountainCompleted = false;
+	UPROPERTY(VisibleInstanceOnly, Category = "Immortal Path|Maps")
+	bool bCurrentMapCompleted = false;
+
+	UPROPERTY(VisibleInstanceOnly, Category = "Immortal Path|Maps")
+	FImmortalMapSystemState MapSystemState;
+
+	UPROPERTY(VisibleInstanceOnly, Category = "Immortal Path|Maps")
+	FImmortalMapDefinition ActiveMapDefinition;
+
+	UPROPERTY(VisibleInstanceOnly, Category = "Immortal Path|Maps")
+	int32 MapSystemRevision = 0;
 };

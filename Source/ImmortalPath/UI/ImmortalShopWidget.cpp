@@ -223,17 +223,18 @@ void UImmortalShopWidget::NativeTick(const FGeometry& MyGeometry, const float In
 
 	const bool bInventoryChanged = LastShopRevision != Player->GetShopRevision()
 		|| LastEquipmentRevision != Player->GetEquipmentInventoryRevision()
-		|| LastMaterialRevision != Player->GetMaterialInventoryRevision()
-		|| LastSpiritStones != Player->GetGold();
+		|| LastMaterialRevision != Player->GetMaterialInventoryRevision();
 	if (bInventoryChanged)
 	{
 		RefreshFromPlayer();
 		return;
 	}
 
+	const int32 SpiritStones = Player->GetGold();
 	const int64 Seconds = Player->GetShopSecondsUntilRefresh();
-	if (Seconds != LastRefreshSeconds)
+	if (SpiritStones != LastSpiritStones || Seconds != LastRefreshSeconds)
 	{
+		LastSpiritStones = SpiritStones;
 		LastRefreshSeconds = Seconds;
 		RefreshHeader();
 	}
@@ -262,7 +263,7 @@ void UImmortalShopWidget::RefreshFromPlayer()
 	const TArray<FImmortalEquipmentItem> Equipment = Player->GetInventoryItems();
 	const TArray<FImmortalMaterialStack> Materials = Player->GetMaterialInventory();
 	const bool bEquipmentStillExists = Equipment.ContainsByPredicate([this](const FImmortalEquipmentItem& Item)
-		{ return Item.ItemId == SelectedEquipmentId; });
+		{ return Item.ItemId == SelectedEquipmentId && !Item.bLocked; });
 	const bool bMaterialStillExists = Materials.ContainsByPredicate([this](const FImmortalMaterialStack& Stack)
 		{ return Stack.MaterialId == SelectedMaterialId && Stack.Quantity > 0; });
 	if (SaleSelection == ESaleSelection::Equipment && !bEquipmentStillExists)
@@ -277,10 +278,13 @@ void UImmortalShopWidget::RefreshFromPlayer()
 	}
 	if (SaleSelection == ESaleSelection::None)
 	{
-		if (!Equipment.IsEmpty())
+		if (const FImmortalEquipmentItem* FirstSellable = Equipment.FindByPredicate([](const FImmortalEquipmentItem& Item)
+		{
+			return !Item.bLocked;
+		}))
 		{
 			SaleSelection = ESaleSelection::Equipment;
-			SelectedEquipmentId = Equipment[0].ItemId;
+			SelectedEquipmentId = FirstSellable->ItemId;
 		}
 		else if (!Materials.IsEmpty())
 		{
@@ -459,13 +463,16 @@ void UImmortalShopWidget::RefreshSaleDetails()
 			SaleNameText->SetText(FText::FromString(Name));
 			SaleNameText->SetColorAndOpacity(FSlateColor(UImmortalEquipmentLibrary::GetQualityColor(Item->Quality)));
 			SaleDetailText->SetText(FText::FromString(FString::Printf(
-				TEXT("%s · %s · %d级 · 强化 +%d\n出售可得 %d 灵石"),
+				TEXT("%s · %s · %d级 · 强化 +%d%s\n%s"),
 				*UImmortalEquipmentLibrary::GetQualityText(Item->Quality).ToString(),
 				*UImmortalEquipmentLibrary::GetSlotText(Item->Slot).ToString(),
 				Item->ItemLevel,
 				Item->EnhancementLevel,
-				Player->GetEquipmentShopSellPrice(Item->ItemId))));
-			SellOneButton->SetIsEnabled(true);
+				Item->bLocked ? TEXT(" · 已锁定") : TEXT(""),
+				Item->bLocked
+					? TEXT("请先在储物戒中解锁")
+					: *FString::Printf(TEXT("出售可得 %d 灵石"), Player->GetEquipmentShopSellPrice(Item->ItemId)))));
+			SellOneButton->SetIsEnabled(!Item->bLocked);
 			SellAllButton->SetIsEnabled(false);
 			return;
 		}

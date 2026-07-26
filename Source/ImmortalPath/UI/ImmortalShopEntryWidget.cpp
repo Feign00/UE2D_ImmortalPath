@@ -88,17 +88,18 @@ void UImmortalShopEntryWidget::InitializeEquipmentSaleEntry(
 	EntryId = InItem.ItemId;
 	MaterialId = NAME_None;
 	bSelected = bInSelected;
-	bSoldOut = false;
+	bSoldOut = InItem.bLocked;
 	DisplayColor = UImmortalEquipmentLibrary::GetQualityColor(InItem.Quality);
 	const FString ItemName = InItem.DisplayName.IsNone()
 		? UImmortalEquipmentLibrary::GetSlotText(InItem.Slot).ToString()
 		: InItem.DisplayName.ToString();
 	DisplayText = FText::FromString(FString::Printf(
-		TEXT("%s  +%d\n%s  ·  售 %d"),
+		TEXT("%s%s  +%d\n%s  ·  %s"),
+		InItem.bLocked ? TEXT("[已锁定] ") : TEXT(""),
 		*ItemName,
 		InItem.EnhancementLevel,
 		*UImmortalEquipmentLibrary::GetQualityText(InItem.Quality).ToString(),
-		SellPrice));
+		InItem.bLocked ? TEXT("不可出售") : *FString::Printf(TEXT("售 %d"), SellPrice)));
 	RefreshAppearance();
 }
 
@@ -146,6 +147,7 @@ void UImmortalShopEntryWidget::RefreshAppearance()
 	Style.SetHovered(MakeShopEntryBrush(HoverTint));
 	Style.SetPressed(MakeShopEntryBrush(FLinearColor(0.75f, 0.54f, 0.2f, 1.0f)));
 	EntryButton->SetStyle(Style);
+	EntryButton->SetIsEnabled(!bSoldOut);
 	EntryText->SetText(DisplayText);
 	EntryText->SetColorAndOpacity(FSlateColor(bSoldOut
 		? FLinearColor(0.55f, 0.55f, 0.58f, 1.0f)
@@ -174,4 +176,3 @@ void UImmortalShopEntryWidget::HandleClicked()
 		break;
 	}
 }
-

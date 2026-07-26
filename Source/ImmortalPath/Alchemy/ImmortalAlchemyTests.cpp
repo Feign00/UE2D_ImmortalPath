@@ -24,6 +24,13 @@ bool FImmortalAlchemyCoreTest::RunTest(const FString& Parameters)
 		TestTrue(TEXT("Success chance is valid"), Definition.BaseSuccessChance > 0.0f && Definition.BaseSuccessChance <= 1.0f);
 		TestTrue(TEXT("Exceptional chance fits success band"), Definition.ExceptionalChance <= Definition.BaseSuccessChance);
 	}
+	FImmortalPillDefinition Enlightenment;
+	UImmortalAlchemyLibrary::GetPillDefinition(TEXT("EnlightenmentPill"), Enlightenment);
+	TestTrue(TEXT("A farming ImmortalFruit has a concrete alchemy use"),
+		Enlightenment.Ingredients.ContainsByPredicate([](const FImmortalAlchemyIngredient& Ingredient)
+		{
+			return Ingredient.MaterialId == TEXT("ImmortalFruit") && Ingredient.Quantity > 0;
+		}));
 
 	FImmortalPillDefinition Healing;
 	UImmortalAlchemyLibrary::GetPillDefinition(TEXT("HealingPill"), Healing);
@@ -56,4 +63,3 @@ bool FImmortalAlchemyCoreTest::RunTest(const FString& Parameters)
 }
 
 #endif
-

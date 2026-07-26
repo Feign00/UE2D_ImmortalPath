@@ -4,6 +4,8 @@
 
 #include "CoreMinimal.h"
 #include "../Alchemy/ImmortalAlchemyTypes.h"
+#include "../Artifacts/ImmortalArtifactTypes.h"
+#include "../Inventory/ImmortalInventoryTypes.h"
 #include "../Items/ImmortalEquipmentTypes.h"
 #include "../Items/ImmortalMaterialTypes.h"
 #include "Blueprint/UserWidget.h"
@@ -39,6 +41,17 @@ public:
 		const FImmortalPillStack& InStack,
 		bool bInSelected);
 
+	void InitializeArtifactSlot(
+		UImmortalInventoryWidget* InOwner,
+		const FImmortalArtifactItem& InItem,
+		bool bInEquipped,
+		bool bInSelected);
+
+	void InitializeQuestItemSlot(
+		UImmortalInventoryWidget* InOwner,
+		const FImmortalQuestItemStack& InStack,
+		bool bInSelected);
+
 	const FImmortalEquipmentItem& GetItem() const { return Item; }
 	bool HasItem() const { return bHasItem; }
 
@@ -69,12 +82,19 @@ private:
 	UPROPERTY(Transient)
 	TObjectPtr<UTextBlock> MaterialGlyphText;
 
+	UPROPERTY(Transient)
+	TObjectPtr<UTextBlock> LockGlyphText;
+
 	FImmortalEquipmentItem Item;
 	FImmortalMaterialStack MaterialStack;
 	FImmortalPillStack PillStack;
+	FImmortalArtifactItem ArtifactItem;
+	FImmortalQuestItemStack QuestItemStack;
 	EImmortalEquipmentSlot PlaceholderSlot = EImmortalEquipmentSlot::MAX;
 	bool bMaterialItem = false;
 	bool bPillItem = false;
+	bool bArtifactItem = false;
+	bool bQuestItem = false;
 	bool bHasItem = false;
 	bool bEquipped = false;
 	bool bSelected = false;

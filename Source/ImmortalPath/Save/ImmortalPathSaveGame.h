@@ -5,10 +5,15 @@
 #include "CoreMinimal.h"
 #include "../Alchemy/ImmortalAlchemyTypes.h"
 #include "../Artifacts/ImmortalArtifactTypes.h"
+#include "../Cave/ImmortalCaveTypes.h"
+#include "../Farming/ImmortalFarmingTypes.h"
 #include "../Items/ImmortalEquipmentTypes.h"
 #include "../Items/ImmortalMaterialTypes.h"
+#include "../Inventory/ImmortalInventoryTypes.h"
+#include "../Maps/ImmortalMapTypes.h"
 #include "../Techniques/ImmortalTechniqueTypes.h"
 #include "../Progression/ImmortalCharacterPathTypes.h"
+#include "../Sects/ImmortalSectTypes.h"
 #include "../Shop/ImmortalShopTypes.h"
 #include "GameFramework/SaveGame.h"
 #include "ImmortalPathSaveGame.generated.h"
@@ -20,7 +25,7 @@ class IMMORTALPATH_API UImmortalPathSaveGame : public USaveGame
 	GENERATED_BODY()
 
 public:
-	static constexpr int32 CurrentSaveVersion = 11;
+	static constexpr int32 CurrentSaveVersion = 17;
 
 	UImmortalPathSaveGame();
 
@@ -89,6 +94,18 @@ public:
 	UPROPERTY(SaveGame)
 	TArray<FImmortalArtifactItem> ArtifactInventory;
 
+	/** Read-only mission objects live outside equipment capacity and cannot be sold or dismantled. */
+	UPROPERTY(SaveGame)
+	TArray<FImmortalQuestItemStack> QuestItemInventory;
+
+	/** Distinguishes a native v16 inventory snapshot from a migrated older save. */
+	UPROPERTY(SaveGame)
+	bool bInventoryManagementInitialized = false;
+
+	/** Distinguishes a native v17 nine-slot, seven-quality and equipment-set snapshot. */
+	UPROPERTY(SaveGame)
+	bool bEquipmentExpansionInitialized = false;
+
 	UPROPERTY(SaveGame)
 	FGuid EquippedArtifactInstanceId;
 
@@ -109,6 +126,22 @@ public:
 
 	UPROPERTY(SaveGame)
 	FImmortalShopState ShopState;
+
+	/** Active adventure map and independent 1-999 progress for all eight maps. */
+	UPROPERTY(SaveGame)
+	FImmortalMapSystemState MapSystemState;
+
+	/** Personal cave buildings plus unclaimed passive-production state. */
+	UPROPERTY(SaveGame)
+	FImmortalCaveState CaveState;
+
+	/** Persistent spirit-field plots, crop growth and unclaimed harvests. */
+	UPROPERTY(SaveGame)
+	FImmortalFarmingState FarmingState;
+
+	/** Sect membership, contribution, daily tasks and exchange limits. */
+	UPROPERTY(SaveGame)
+	FImmortalSectState SectState;
 
 	/** Online-only悟道丹 buff pauses while the game is closed and resumes from this duration. */
 	UPROPERTY(SaveGame)

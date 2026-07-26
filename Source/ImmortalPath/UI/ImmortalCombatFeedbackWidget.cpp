@@ -55,7 +55,7 @@ void UImmortalCombatFeedbackWidget::NativeOnInitialized()
 		StageSlot->SetAnchors(FAnchors(0.5f, 0.0f));
 		StageSlot->SetAlignment(FVector2D(0.5f, 0.0f));
 		StageSlot->SetPosition(FVector2D(0.0f, 20.0f));
-		StageSlot->SetSize(FVector2D(440.0f, 38.0f));
+		StageSlot->SetSize(FVector2D(600.0f, 38.0f));
 	}
 
 	CultivationText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("CultivationProgress"));
@@ -176,6 +176,8 @@ void UImmortalCombatFeedbackWidget::ShowMaterialPickup(
 }
 
 void UImmortalCombatFeedbackWidget::SetStageProgress(
+	const FText& MapDisplayName,
+	const int32 MaximumStage,
 	const int32 Stage,
 	const int32 Kills,
 	const int32 RequiredKills,
@@ -184,24 +186,41 @@ void UImmortalCombatFeedbackWidget::SetStageProgress(
 {
 	if (StageText)
 	{
+		const int32 SafeMaximumStage = FMath::Max(MaximumStage, 1);
+		const int32 SafeStage = FMath::Clamp(Stage, 1, SafeMaximumStage);
+		const FString SafeMapName = MapDisplayName.IsEmpty()
+			? TEXT("历练地图")
+			: MapDisplayName.ToString();
 		if (bMapCompleted)
 		{
-			StageText->SetText(FText::FromString(TEXT("青云山  第 999 关    已通关")));
+			StageText->SetText(FText::FromString(FString::Printf(
+				TEXT("%s  第 %d 关    已通关"), *SafeMapName, SafeMaximumStage)));
 			StageText->SetColorAndOpacity(FSlateColor(FLinearColor(1.0f, 0.78f, 0.18f, 1.0f)));
 		}
 		else if (bBossStage)
 		{
 			StageText->SetText(FText::FromString(FString::Printf(
-				TEXT("青云山  第 %d 关    [守关 BOSS]"), FMath::Clamp(Stage, 1, 999))));
+				TEXT("%s  第 %d / %d 关    [守关 BOSS]"), *SafeMapName, SafeStage, SafeMaximumStage)));
 			StageText->SetColorAndOpacity(FSlateColor(FLinearColor(1.0f, 0.30f, 0.15f, 1.0f)));
 		}
 		else
 		{
 			StageText->SetText(FText::FromString(FString::Printf(
-				TEXT("青云山  第 %d 关    %d / %d"), FMath::Clamp(Stage, 1, 999), FMath::Max(Kills, 0), FMath::Max(RequiredKills, 1))));
+				TEXT("%s  第 %d / %d 关    %d / %d"), *SafeMapName, SafeStage, SafeMaximumStage,
+				FMath::Max(Kills, 0), FMath::Max(RequiredKills, 1))));
 			StageText->SetColorAndOpacity(FSlateColor(FLinearColor(0.98f, 0.82f, 0.38f, 1.0f)));
 		}
 	}
+}
+
+void UImmortalCombatFeedbackWidget::SetStageProgress(
+	const int32 Stage,
+	const int32 Kills,
+	const int32 RequiredKills,
+	const bool bBossStage,
+	const bool bMapCompleted)
+{
+	SetStageProgress(FText::FromString(TEXT("青云山")), 999, Stage, Kills, RequiredKills, bBossStage, bMapCompleted);
 }
 
 void UImmortalCombatFeedbackWidget::ShowBossAnnouncement(

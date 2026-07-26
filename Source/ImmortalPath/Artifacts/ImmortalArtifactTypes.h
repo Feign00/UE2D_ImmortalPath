@@ -58,6 +58,8 @@ struct IMMORTALPATH_API FImmortalArtifactItem
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, SaveGame, Category = "Artifact") FName ArtifactId = NAME_None;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, SaveGame, Category = "Artifact", meta = (ClampMin = "1", ClampMax = "50")) int32 Level = 1;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, SaveGame, Category = "Artifact", meta = (ClampMin = "0", ClampMax = "5")) int32 Stars = 0;
+	/** Prevents future recycle/sale systems from silently consuming this instance. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, SaveGame, Category = "Artifact") bool bLocked = false;
 
 	bool IsValid() const { return InstanceId.IsValid() && !ArtifactId.IsNone(); }
 };
@@ -107,4 +109,3 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Immortal Path|Artifact") static FText GetActiveEffectText(const FImmortalArtifactItem& Item);
 	UFUNCTION(BlueprintPure, Category = "Immortal Path|Artifact") static FText GetPassiveEffectText(const FImmortalArtifactItem& Item);
 };
-

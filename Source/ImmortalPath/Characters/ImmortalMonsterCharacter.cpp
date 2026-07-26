@@ -184,17 +184,58 @@ void AImmortalMonsterCharacter::ConfigureForStage(const int32 Stage)
 	GoldReward = 0;
 }
 
+void AImmortalMonsterCharacter::ConfigureForMapStage(const FName MapId, const int32 Stage)
+{
+	ConfigureForStage(Stage);
+	FImmortalMapDefinition Definition;
+	if (!UImmortalMapLibrary::GetMapDefinition(MapId, Definition))
+	{
+		UImmortalMapLibrary::GetMapDefinition(UImmortalMapLibrary::GetQingyunMountainId(), Definition);
+	}
+	CurrentMapId = Definition.MapId;
+	MonsterDisplayName = Definition.NormalMonsterName;
+	MinimumEquipmentDropQuality = Definition.MinimumEquipmentQuality;
+	MinimumBossEquipmentDropQuality = Definition.BossMinimumEquipmentQuality;
+	MaxHealth *= FMath::Max(Definition.HealthMultiplier, 0.01f);
+	CurrentHealth = MaxHealth;
+	AttackDamage *= FMath::Max(Definition.AttackMultiplier, 0.01f);
+	Defense = Defense * FMath::Max(Definition.DefenseMultiplier, 0.0f) + Definition.OrderIndex * 0.5f;
+	EquipmentItemLevel = FMath::Max(EquipmentItemLevel + Definition.EquipmentLevelBonus, 1);
+	EquipmentDropChance = FMath::Clamp(
+		EquipmentDropChance + FMath::Max(Definition.EquipmentDropChanceBonus, 0.0f), 0.0f, 0.90f);
+	MaterialDropChance = FMath::Clamp(
+		MaterialDropChance + FMath::Max(Definition.MaterialDropChanceBonus, 0.0f), 0.0f, 0.90f);
+	SpiritStoneMinAmount = FMath::Max(FMath::CeilToInt32(
+		SpiritStoneMinAmount * FMath::Max(Definition.SpiritStoneMultiplier, 0.1f)), 1);
+	SpiritStoneMaxAmount = FMath::Max(FMath::CeilToInt32(
+		SpiritStoneMaxAmount * FMath::Max(Definition.SpiritStoneMultiplier, 0.1f)), SpiritStoneMinAmount);
+	if (UPaperFlipbookComponent* SpriteComponent = GetSprite())
+	{
+		SpriteComponent->SetSpriteColor(Definition.MonsterTint);
+	}
+	UE_LOG(LogTemp, Display, TEXT("Monster configured for map %s stage %d: health %.0f | attack %.1f | defense %.1f | item level %d"),
+		*CurrentMapId.ToString(), CurrentConfiguredStage, MaxHealth, AttackDamage, Defense, EquipmentItemLevel);
+}
+
 void AImmortalMonsterCharacter::ConfigureAsBoss(const int32 Stage)
+{
+	ConfigureAsMapBoss(UImmortalMapLibrary::GetQingyunMountainId(), Stage);
+}
+
+void AImmortalMonsterCharacter::ConfigureAsMapBoss(const FName MapId, const int32 Stage)
 {
 	if (bIsBoss)
 	{
 		return;
 	}
 
-	ConfigureForStage(Stage);
+	ConfigureForMapStage(MapId, Stage);
 	bIsBoss = true;
 	CurrentBossPhase = 1;
 	Tags.AddUnique(TEXT("Boss"));
+	FImmortalMapDefinition MapDefinition;
+	UImmortalMapLibrary::GetMapDefinition(CurrentMapId, MapDefinition);
+	MonsterDisplayName = MapDefinition.BossName;
 
 	MaxHealth *= FMath::Max(BossHealthMultiplier, 1.0f);
 	CurrentHealth = MaxHealth;
@@ -212,6 +253,7 @@ void AImmortalMonsterCharacter::ConfigureAsBoss(const int32 Stage)
 		SpriteComponent->SetRelativeScale3D(
 			SpriteComponent->GetRelativeScale3D() * FMath::Max(BossVisualScaleMultiplier, 1.0f));
 		SpriteComponent->SetTranslucentSortPriority(VisualSortPriority + 2);
+		SpriteComponent->SetSpriteColor(MapDefinition.BossColor);
 	}
 	if (HealthBarComponent)
 	{
@@ -221,8 +263,8 @@ void AImmortalMonsterCharacter::ConfigureAsBoss(const int32 Stage)
 
 	BP_OnBossPhaseChanged(CurrentBossPhase);
 	UE_LOG(LogTemp, Display,
-		TEXT("Qingyun Mountain boss configured: stage %d | health %.0f | attack %.1f | defense %.1f"),
-		FMath::Clamp(Stage, 1, 999), MaxHealth, AttackDamage, Defense);
+		TEXT("Map boss configured: %s | map %s | stage %d | health %.0f | attack %.1f | defense %.1f"),
+		*MonsterDisplayName.ToString(), *CurrentMapId.ToString(), FMath::Clamp(Stage, 1, 999), MaxHealth, AttackDamage, Defense);
 }
 
 void AImmortalMonsterCharacter::AcquireCombatTarget()
@@ -280,7 +322,8 @@ void AImmortalMonsterCharacter::StartAttack()
 		if (bBossSkillAttack)
 		{
 			BP_OnBossSkillStarted(Target);
-			UE_LOG(LogTemp, Display, TEXT("Qingyun Mountain boss started heavy skill in phase %d"), CurrentBossPhase);
+			UE_LOG(LogTemp, Display, TEXT("Map boss %s started heavy skill in phase %d"),
+				*MonsterDisplayName.ToString(), CurrentBossPhase);
 		}
 	}
 	const float EffectiveAttackInterval = FMath::Max(AttackInterval, 0.05f) / FMath::Max(AttackSpeedMultiplier, 0.1f);
@@ -402,8 +445,8 @@ void AImmortalMonsterCharacter::EnterBossPhase(const int32 NewPhase)
 
 	BP_OnBossPhaseChanged(CurrentBossPhase);
 	OnBossPhaseChanged.Broadcast(this, CurrentBossPhase);
-	UE_LOG(LogTemp, Display, TEXT("Qingyun Mountain boss entered phase %d at %.1f%% health"),
-		CurrentBossPhase, GetHealthPercent() * 100.0f);
+	UE_LOG(LogTemp, Display, TEXT("Map boss %s entered phase %d at %.1f%% health"),
+		*MonsterDisplayName.ToString(), CurrentBossPhase, GetHealthPercent() * 100.0f);
 }
 
 void AImmortalMonsterCharacter::UpdateFacing(const float HorizontalDirection)
@@ -472,12 +515,17 @@ void AImmortalMonsterCharacter::Die(AActor* DamageCauser)
 
 	OnMonsterDeath.Broadcast(this, DamageCauser);
 
-	BP_OnMonsterRewardsGranted(0, 0, bIsBoss ? 1.0f : EquipmentDropChance, DamageCauser);
+	const AImmortalPlayerCharacter* RewardPlayer = Cast<AImmortalPlayerCharacter>(DamageCauser);
+	const float EffectiveEquipmentDropChance = FMath::Clamp(
+		EquipmentDropChance * (RewardPlayer ? RewardPlayer->GetEquipmentDropChanceMultiplier() : 1.0f),
+		0.0f,
+		1.0f);
+	BP_OnMonsterRewardsGranted(0, 0, bIsBoss ? 1.0f : EffectiveEquipmentDropChance, DamageCauser);
 	BP_OnMonsterDied(DamageCauser);
 
 	const int32 EquipmentDropCount = bIsBoss
 		? FMath::Max(BossGuaranteedEquipmentDrops, 1)
-		: (FMath::FRand() < FMath::Clamp(EquipmentDropChance, 0.0f, 1.0f) ? 1 : 0);
+		: (FMath::FRand() < EffectiveEquipmentDropChance ? 1 : 0);
 	for (int32 DropIndex = 0; GetWorld() && EquipmentDropClass && DropIndex < EquipmentDropCount; ++DropIndex)
 	{
 		FActorSpawnParameters SpawnParameters;
@@ -492,7 +540,12 @@ void AImmortalMonsterCharacter::Die(AActor* DamageCauser)
 			{
 				SpawnedDrop->GenerateEquipmentForLevelWithMinimumQuality(
 					FMath::Max(EquipmentItemLevel + BossEquipmentLevelBonus, 1),
-					EImmortalEquipmentQuality::Rare);
+					MinimumBossEquipmentDropQuality);
+			}
+			else if (MinimumEquipmentDropQuality != EImmortalEquipmentQuality::Common)
+			{
+				SpawnedDrop->GenerateEquipmentForLevelWithMinimumQuality(
+					FMath::Max(EquipmentItemLevel, 1), MinimumEquipmentDropQuality);
 			}
 			else
 			{
@@ -522,8 +575,8 @@ void AImmortalMonsterCharacter::Die(AActor* DamageCauser)
 		: (FMath::FRand() < FMath::Clamp(MaterialDropChance, 0.0f, 1.0f) ? 1 : 0);
 	for (int32 DropIndex = 0; GetWorld() && MaterialDropClass && DropIndex < MaterialDropCount; ++DropIndex)
 	{
-		const FImmortalMaterialStack Material = UImmortalMaterialLibrary::GenerateStageDrop(
-			CurrentConfiguredStage, bIsBoss, DropIndex);
+		const FImmortalMaterialStack Material = UImmortalMaterialLibrary::GenerateMapDrop(
+			CurrentMapId, CurrentConfiguredStage, bIsBoss, DropIndex);
 		if (!Material.IsValid())
 		{
 			continue;
@@ -542,8 +595,8 @@ void AImmortalMonsterCharacter::Die(AActor* DamageCauser)
 
 	if (bIsBoss)
 	{
-		UE_LOG(LogTemp, Display, TEXT("Qingyun Mountain boss rewards spawned: %d rare+ equipment, spirit stones and %d material entities"),
-			EquipmentDropCount, MaterialDropCount);
+		UE_LOG(LogTemp, Display, TEXT("Map boss rewards spawned: %s | %d equipment, spirit stones and %d material entities"),
+			*CurrentMapId.ToString(), EquipmentDropCount, MaterialDropCount);
 	}
 
 	if (bDestroyAfterDeath)

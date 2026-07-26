@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "../Combat/AutoAttackTarget.h"
+#include "../Maps/ImmortalMapTypes.h"
 #include "PaperCharacter.h"
 #include "ImmortalMonsterCharacter.generated.h"
 
@@ -77,13 +78,26 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Immortal Path|Monster|Boss")
 	int32 GetBossPhase() const { return CurrentBossPhase; }
 
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|Monster|Map")
+	FName GetConfiguredMapId() const { return CurrentMapId; }
+
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|Monster|Map")
+	FText GetMonsterDisplayName() const { return MonsterDisplayName; }
+
 	/** Applies Qingyun Mountain stage scaling and drop level to an already spawned monster. */
 	UFUNCTION(BlueprintCallable, Category = "Immortal Path|Monster|Stage")
 	void ConfigureForStage(int32 Stage);
 
+	/** Applies local-stage scaling plus the selected map's difficulty, tint and reward pool. */
+	UFUNCTION(BlueprintCallable, Category = "Immortal Path|Monster|Map")
+	void ConfigureForMapStage(FName MapId, int32 Stage);
+
 	/** Promotes this already spawned monster into the current map's stage boss. */
 	UFUNCTION(BlueprintCallable, Category = "Immortal Path|Monster|Boss")
 	void ConfigureAsBoss(int32 Stage);
+
+	UFUNCTION(BlueprintCallable, Category = "Immortal Path|Monster|Boss")
+	void ConfigureAsMapBoss(FName MapId, int32 Stage);
 
 	/** Sent once when this monster reaches zero health. */
 	UPROPERTY(BlueprintAssignable, Category = "Immortal Path|Monster")
@@ -310,4 +324,8 @@ private:
 	float StageBaseAttackDamage = 0.0f;
 	float StageBaseDefense = 0.0f;
 	int32 CurrentConfiguredStage = 1;
+	FName CurrentMapId = TEXT("QingyunMountain");
+	FText MonsterDisplayName;
+	EImmortalEquipmentQuality MinimumEquipmentDropQuality = EImmortalEquipmentQuality::Common;
+	EImmortalEquipmentQuality MinimumBossEquipmentDropQuality = EImmortalEquipmentQuality::Rare;
 };

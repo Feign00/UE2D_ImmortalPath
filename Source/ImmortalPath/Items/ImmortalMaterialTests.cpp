@@ -14,7 +14,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 bool FImmortalMaterialInventoryTest::RunTest(const FString& Parameters)
 {
 	const TArray<FName> MaterialIds = UImmortalMaterialLibrary::GetKnownMaterialIds();
-	TestTrue(TEXT("Catalog contains alchemy and crafting foundations"), MaterialIds.Num() >= 7);
+	TestTrue(TEXT("Catalog contains combat and farming materials"), MaterialIds.Num() >= 9);
 	for (const FName MaterialId : MaterialIds)
 	{
 		FImmortalMaterialDefinition Definition;
@@ -23,6 +23,20 @@ bool FImmortalMaterialInventoryTest::RunTest(const FString& Parameters)
 		TestFalse(TEXT("Display name is not empty"), Definition.DisplayName.IsEmpty());
 		TestTrue(TEXT("Maximum stack is positive"), Definition.MaximumStack > 0);
 	}
+	FImmortalMaterialDefinition ImmortalFruit;
+	FImmortalMaterialDefinition SpiritWood;
+	TestTrue(TEXT("Farming output ImmortalFruit is registered"),
+		UImmortalMaterialLibrary::GetMaterialDefinition(TEXT("ImmortalFruit"), ImmortalFruit));
+	TestTrue(TEXT("Farming output SpiritWood is registered"),
+		UImmortalMaterialLibrary::GetMaterialDefinition(TEXT("SpiritWood"), SpiritWood));
+	TestEqual(TEXT("ImmortalFruit stays in the serialized herb category"),
+		ImmortalFruit.Category, EImmortalMaterialCategory::Herb);
+	TestEqual(TEXT("SpiritWood stays in the serialized herb category"),
+		SpiritWood.Category, EImmortalMaterialCategory::Herb);
+	TestTrue(TEXT("Farm-only ImmortalFruit is excluded from monster drop weighting"),
+		FMath::IsNearlyZero(ImmortalFruit.DropWeight));
+	TestTrue(TEXT("Farm-only SpiritWood is excluded from monster drop weighting"),
+		FMath::IsNearlyZero(SpiritWood.DropWeight));
 
 	TArray<FImmortalMaterialStack> Inventory;
 	const FName FirstId = MaterialIds[0];
@@ -48,4 +62,3 @@ bool FImmortalMaterialInventoryTest::RunTest(const FString& Parameters)
 }
 
 #endif
-

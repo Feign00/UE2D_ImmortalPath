@@ -59,5 +59,5 @@ private:
 	int32 LastMaterialRevision = INDEX_NONE;
 	int32 LastSpiritStones = INDEX_NONE;
 	int32 LastStage = INDEX_NONE;
+	int32 LastCaveRevision = INDEX_NONE;
 };
-

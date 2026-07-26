@@ -14,7 +14,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 bool FImmortalCraftingCoreTest::RunTest(const FString& Parameters)
 {
 	const TArray<FName> RecipeIds = UImmortalCraftingLibrary::GetKnownRecipeIds();
-	TestEqual(TEXT("Five initial equipment recipes"), RecipeIds.Num(), 5);
+	TestEqual(TEXT("Nine equipment-slot recipes"), RecipeIds.Num(), 9);
 	for (const FName RecipeId : RecipeIds)
 	{
 		FImmortalCraftingRecipeDefinition Recipe;
@@ -22,6 +22,13 @@ bool FImmortalCraftingCoreTest::RunTest(const FString& Parameters)
 		TestFalse(TEXT("Recipe consumes materials"), Recipe.Cost.Materials.IsEmpty());
 		TestTrue(TEXT("Recipe consumes spirit stones"), Recipe.Cost.SpiritStones > 0);
 	}
+	FImmortalCraftingRecipeDefinition CloudRobe;
+	UImmortalCraftingLibrary::GetRecipeDefinition(TEXT("CloudRobe"), CloudRobe);
+	TestTrue(TEXT("A farming SpiritWood has a concrete forging use"),
+		CloudRobe.Cost.Materials.ContainsByPredicate([](const FImmortalCraftingMaterialCost& Material)
+		{
+			return Material.MaterialId == TEXT("SpiritWood") && Material.Quantity > 0;
+		}));
 
 	TArray<FImmortalMaterialStack> Materials;
 	UImmortalMaterialLibrary::AddMaterialStack(Materials, TEXT("Ore"), 3);

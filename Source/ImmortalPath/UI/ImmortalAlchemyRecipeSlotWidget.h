@@ -16,7 +16,13 @@ class IMMORTALPATH_API UImmortalAlchemyRecipeSlotWidget : public UUserWidget
 	GENERATED_BODY()
 
 public:
-	void InitializeRecipe(UImmortalAlchemyWidget* InOwner, FName InRecipeId, bool bUnlocked, bool bSelected);
+	void InitializeRecipe(
+		UImmortalAlchemyWidget* InOwner,
+		FName InRecipeId,
+		bool bUnlocked,
+		bool bSelected,
+		float SuccessChanceBonus,
+		float ExceptionalChanceBonus);
 
 protected:
 	virtual void NativeOnInitialized() override;
@@ -39,5 +45,6 @@ private:
 	FName RecipeId = NAME_None;
 	bool bRecipeUnlocked = false;
 	bool bRecipeSelected = false;
+	float RecipeSuccessChanceBonus = 0.0f;
+	float RecipeExceptionalChanceBonus = 0.0f;
 };
-

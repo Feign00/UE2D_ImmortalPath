@@ -27,16 +27,20 @@ namespace
 		case EImmortalEquipmentQuality::Rare: return 2.4;
 		case EImmortalEquipmentQuality::Epic: return 4.0;
 		case EImmortalEquipmentQuality::Legendary: return 7.0;
+		case EImmortalEquipmentQuality::Immortal: return 12.0;
+		case EImmortalEquipmentQuality::Divine: return 20.0;
 		default: return 1.0;
 		}
 	}
 
 	EImmortalEquipmentQuality GetMinimumShopQuality(const int32 Stage)
 	{
-		if (Stage >= 750) return EImmortalEquipmentQuality::Legendary;
-		if (Stage >= 500) return EImmortalEquipmentQuality::Epic;
-		if (Stage >= 200) return EImmortalEquipmentQuality::Rare;
-		if (Stage >= 50) return EImmortalEquipmentQuality::Uncommon;
+		if (Stage >= 950) return EImmortalEquipmentQuality::Divine;
+		if (Stage >= 800) return EImmortalEquipmentQuality::Immortal;
+		if (Stage >= 600) return EImmortalEquipmentQuality::Legendary;
+		if (Stage >= 350) return EImmortalEquipmentQuality::Epic;
+		if (Stage >= 150) return EImmortalEquipmentQuality::Rare;
+		if (Stage >= 40) return EImmortalEquipmentQuality::Uncommon;
 		return EImmortalEquipmentQuality::Common;
 	}
 
@@ -56,6 +60,77 @@ namespace
 		const uint32 C = static_cast<uint32>(FMath::Max(SlotIndex, 0) + 1);
 		const uint32 D = HashCombineFast(A, HashCombineFast(B, C));
 		return FGuid(A, B, C, D == 0 ? 1u : D);
+	}
+
+	bool AreAffixesEqual(const TArray<FImmortalEquipmentAffix>& Left, const TArray<FImmortalEquipmentAffix>& Right)
+	{
+		if (Left.Num() != Right.Num()) return false;
+		for (int32 Index = 0; Index < Left.Num(); ++Index)
+		{
+			if (Left[Index].Type != Right[Index].Type || Left[Index].Value != Right[Index].Value) return false;
+		}
+		return true;
+	}
+
+	bool AreEquipmentItemsEqual(const FImmortalEquipmentItem& Left, const FImmortalEquipmentItem& Right)
+	{
+		return Left.ItemId == Right.ItemId
+			&& Left.DisplayName == Right.DisplayName
+			&& Left.Slot == Right.Slot
+			&& Left.Quality == Right.Quality
+			&& Left.Discipline == Right.Discipline
+			&& Left.SetId == Right.SetId
+			&& Left.ItemLevel == Right.ItemLevel
+			&& Left.EnhancementLevel == Right.EnhancementLevel
+			&& Left.RefinementCount == Right.RefinementCount
+			&& Left.bLocked == Right.bLocked
+			&& Left.BaseAttackBonus == Right.BaseAttackBonus
+			&& Left.BaseDefenseBonus == Right.BaseDefenseBonus
+			&& Left.BaseHealthBonus == Right.BaseHealthBonus
+			&& Left.BaseAttackSpeedBonus == Right.BaseAttackSpeedBonus
+			&& Left.BaseCriticalChanceBonus == Right.BaseCriticalChanceBonus
+			&& AreAffixesEqual(Left.Affixes, Right.Affixes)
+			&& Left.AttackBonus == Right.AttackBonus
+			&& Left.DefenseBonus == Right.DefenseBonus
+			&& Left.HealthBonus == Right.HealthBonus
+			&& Left.AttackSpeedBonus == Right.AttackSpeedBonus
+			&& Left.CriticalChanceBonus == Right.CriticalChanceBonus
+			&& Left.CriticalDamageBonus == Right.CriticalDamageBonus
+			&& Left.FireDamageBonus == Right.FireDamageBonus
+			&& Left.ThunderDamageBonus == Right.ThunderDamageBonus
+			&& Left.IceDamageBonus == Right.IceDamageBonus
+			&& Left.LifeStealBonus == Right.LifeStealBonus
+			&& Left.CultivationGainBonus == Right.CultivationGainBonus
+			&& Left.LootFindBonus == Right.LootFindBonus
+			&& Left.BossDamageBonus == Right.BossDamageBonus;
+	}
+
+	bool AreShopStatesEqual(const FImmortalShopState& Left, const FImmortalShopState& Right)
+	{
+		if (Left.RefreshDayKey != Right.RefreshDayKey
+			|| Left.RefreshSerial != Right.RefreshSerial
+			|| Left.ManualRefreshCount != Right.ManualRefreshCount
+			|| Left.Listings.Num() != Right.Listings.Num())
+		{
+			return false;
+		}
+		for (int32 Index = 0; Index < Left.Listings.Num(); ++Index)
+		{
+			const FImmortalShopListing& A = Left.Listings[Index];
+			const FImmortalShopListing& B = Right.Listings[Index];
+			if (A.ListingId != B.ListingId
+				|| A.ProductType != B.ProductType
+				|| A.ProductId != B.ProductId
+				|| A.BundleQuantity != B.BundleQuantity
+				|| A.BundlePrice != B.BundlePrice
+				|| A.PillQuality != B.PillQuality
+				|| A.bSoldOut != B.bSoldOut
+				|| !AreEquipmentItemsEqual(A.EquipmentItem, B.EquipmentItem))
+			{
+				return false;
+			}
+		}
+		return true;
 	}
 }
 
@@ -222,8 +297,9 @@ FImmortalShopState UImmortalShopLibrary::GenerateStock(
 	return Result;
 }
 
-void UImmortalShopLibrary::NormalizeState(FImmortalShopState& State)
+bool UImmortalShopLibrary::NormalizeState(FImmortalShopState& State)
 {
+	const FImmortalShopState OriginalState = State;
 	State.RefreshDayKey = FMath::Max(State.RefreshDayKey, 0);
 	State.RefreshSerial = FMath::Max(State.RefreshSerial, 0);
 	State.ManualRefreshCount = FMath::Max(State.ManualRefreshCount, 0);
@@ -234,8 +310,20 @@ void UImmortalShopLibrary::NormalizeState(FImmortalShopState& State)
 		Listing.BundlePrice = FMath::Clamp(Listing.BundlePrice, 1, MAX_int32);
 		if (Listing.ProductType == EImmortalShopProductType::Equipment)
 		{
+			const FImmortalEquipmentItem OriginalEquipment = Listing.EquipmentItem;
+			const int32 QualityValue = static_cast<int32>(Listing.EquipmentItem.Quality);
+			if (QualityValue < static_cast<int32>(EImmortalEquipmentQuality::Common)
+				|| QualityValue > static_cast<int32>(EImmortalEquipmentQuality::Divine))
+			{
+				// Invalid persisted enums must never be promoted into a cheap Divine item.
+				Listing.EquipmentItem.Quality = EImmortalEquipmentQuality::Common;
+			}
 			UImmortalEquipmentLibrary::NormalizeForgingState(Listing.EquipmentItem);
 			Listing.BundleQuantity = 1;
+			if (!AreEquipmentItemsEqual(OriginalEquipment, Listing.EquipmentItem))
+			{
+				Listing.BundlePrice = FMath::Max(GetEquipmentBuyPrice(Listing.EquipmentItem), 1);
+			}
 		}
 		if (!Listing.ListingId.IsValid()) Listing.ListingId = FGuid::NewGuid();
 	}
@@ -245,6 +333,7 @@ void UImmortalShopLibrary::NormalizeState(FImmortalShopState& State)
 		Seen.Add(Listing.ListingId);
 		return false;
 	});
+	return !AreShopStatesEqual(OriginalState, State);
 }
 
 int32 UImmortalShopLibrary::GetEquipmentBuyPrice(const FImmortalEquipmentItem& Item)
@@ -269,6 +358,8 @@ int32 UImmortalShopLibrary::GetMaterialUnitBuyPrice(const FName MaterialId)
 	if (MaterialId == TEXT("DemonCore")) return 12;
 	if (MaterialId == TEXT("SpiritLiquid")) return 15;
 	if (MaterialId == TEXT("DemonBone")) return 25;
+	if (MaterialId == TEXT("ImmortalFruit")) return 35;
+	if (MaterialId == TEXT("SpiritWood")) return 30;
 	if (MaterialId == TEXT("SpiritIron")) return 50;
 	if (MaterialId == TEXT("ArtifactFragment")) return 80;
 	FImmortalMaterialDefinition Definition;
@@ -359,14 +450,25 @@ FText UImmortalShopLibrary::GetListingDetailText(const FImmortalShopListing& Lis
 	switch (Listing.ProductType)
 	{
 	case EImmortalShopProductType::Equipment:
+	{
+		FImmortalEquipmentSetDefinition SetDefinition;
+		const FString SetText = UImmortalEquipmentLibrary::GetSetDefinition(Listing.EquipmentItem.SetId, SetDefinition)
+			? FString::Printf(TEXT(" · %s"), *SetDefinition.DisplayName.ToString()) : FString();
 		return FText::FromString(FString::Printf(
-			TEXT("%s · %s · %d级\n战力 %.1f\n攻击 %.1f · 防御 %.1f · 生命 %.1f\n攻速 %.1f%% · 暴击 %.1f%%"),
+			TEXT("%s · %s · %s%s · %d级\n战力 %.1f · 词条%d\n攻击 %.1f · 防御 %.1f · 生命 %.1f\n攻速 %.1f%% · 暴击 %.1f%% · 暴伤 %.1f%%\n火/雷/冰 %.1f%%/%.1f%%/%.1f%% · 吸血 %.1f%%\n修炼 %.1f%% · 掉率 %.1f%% · 首领 %.1f%%"),
 			*UImmortalEquipmentLibrary::GetSlotText(Listing.EquipmentItem.Slot).ToString(),
 			*UImmortalEquipmentLibrary::GetDisciplineText(Listing.EquipmentItem.Discipline).ToString(),
-			Listing.EquipmentItem.ItemLevel,
-			UImmortalEquipmentLibrary::CalculateEquipmentPower(Listing.EquipmentItem),
+			*UImmortalEquipmentLibrary::GetQualityText(Listing.EquipmentItem.Quality).ToString(), *SetText,
+			Listing.EquipmentItem.ItemLevel, UImmortalEquipmentLibrary::CalculateEquipmentPower(Listing.EquipmentItem),
+			Listing.EquipmentItem.Affixes.Num(),
 			Listing.EquipmentItem.AttackBonus, Listing.EquipmentItem.DefenseBonus, Listing.EquipmentItem.HealthBonus,
-			Listing.EquipmentItem.AttackSpeedBonus * 100.0f, Listing.EquipmentItem.CriticalChanceBonus * 100.0f));
+			Listing.EquipmentItem.AttackSpeedBonus * 100.0f, Listing.EquipmentItem.CriticalChanceBonus * 100.0f,
+			Listing.EquipmentItem.CriticalDamageBonus * 100.0f,
+			Listing.EquipmentItem.FireDamageBonus * 100.0f, Listing.EquipmentItem.ThunderDamageBonus * 100.0f,
+			Listing.EquipmentItem.IceDamageBonus * 100.0f, Listing.EquipmentItem.LifeStealBonus * 100.0f,
+			Listing.EquipmentItem.CultivationGainBonus * 100.0f, Listing.EquipmentItem.LootFindBonus * 100.0f,
+			Listing.EquipmentItem.BossDamageBonus * 100.0f));
+	}
 	case EImmortalShopProductType::Material:
 	{
 		FImmortalMaterialDefinition Definition;

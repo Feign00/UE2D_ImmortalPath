@@ -14,6 +14,10 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 
 bool FImmortalShopCoreTest::RunTest(const FString& Parameters)
 {
+	TestTrue(TEXT("ImmortalFruit can be sold for spirit stones"),
+		UImmortalShopLibrary::GetMaterialUnitSellPrice(TEXT("ImmortalFruit")) > 0);
+	TestTrue(TEXT("SpiritWood can be sold for spirit stones"),
+		UImmortalShopLibrary::GetMaterialUnitSellPrice(TEXT("SpiritWood")) > 0);
 	// The free refresh uses the shop's configured calendar day (China Standard Time by default),
 	// not the machine's local time or the UTC date.
 	const FDateTime BeforeCstMidnight(2026, 7, 18, 15, 59, 59);
@@ -129,11 +133,36 @@ bool FImmortalShopCoreTest::RunTest(const FString& Parameters)
 	DirtyState.RefreshDayKey = -1;
 	DirtyState.RefreshSerial = -2;
 	DirtyState.ManualRefreshCount = -3;
-	UImmortalShopLibrary::NormalizeState(DirtyState);
+	TestTrue(TEXT("Normalize reports persisted shop repairs"), UImmortalShopLibrary::NormalizeState(DirtyState));
 	TestEqual(TEXT("Normalize removes invalid and duplicate listings"), DirtyState.Listings.Num(), CleanListingCount);
 	TestEqual(TEXT("Normalize clamps invalid day key"), DirtyState.RefreshDayKey, 0);
 	TestEqual(TEXT("Normalize clamps invalid refresh serial"), DirtyState.RefreshSerial, 0);
 	TestEqual(TEXT("Normalize clamps invalid manual refresh count"), DirtyState.ManualRefreshCount, 0);
+	TestFalse(TEXT("Normalize reports no change for canonical stock"), UImmortalShopLibrary::NormalizeState(DirtyState));
+
+	FImmortalShopState InvalidQualityState = DailyStock;
+	FImmortalShopListing* EquipmentListing = InvalidQualityState.Listings.FindByPredicate([](const FImmortalShopListing& Listing)
+	{
+		return Listing.ProductType == EImmortalShopProductType::Equipment;
+	});
+	TestNotNull(TEXT("Daily stock contains equipment for quality repair"), EquipmentListing);
+	if (EquipmentListing)
+	{
+		EquipmentListing->EquipmentItem.Quality = static_cast<EImmortalEquipmentQuality>(255);
+		EquipmentListing->BundlePrice = 1;
+		TestTrue(TEXT("Invalid shop quality is reported as a repair"),
+			UImmortalShopLibrary::NormalizeState(InvalidQualityState));
+		EquipmentListing = InvalidQualityState.Listings.FindByPredicate([](const FImmortalShopListing& Listing)
+		{
+			return Listing.ProductType == EImmortalShopProductType::Equipment;
+		});
+		TestNotNull(TEXT("Repaired equipment listing remains available"), EquipmentListing);
+		if (!EquipmentListing) return false;
+		TestEqual(TEXT("Invalid shop quality falls back to common"),
+			EquipmentListing->EquipmentItem.Quality, EImmortalEquipmentQuality::Common);
+		TestEqual(TEXT("Repaired equipment price is recalculated"), EquipmentListing->BundlePrice,
+			UImmortalShopLibrary::GetEquipmentBuyPrice(EquipmentListing->EquipmentItem));
+	}
 
 	TArray<FImmortalMaterialStack> Materials;
 	Materials.Add({TEXT("SpiritGrass"), 2});

@@ -3,6 +3,8 @@
 #include "ImmortalPathSaveGame.h"
 
 #include "Kismet/GameplayStatics.h"
+#include "Misc/CommandLine.h"
+#include "Misc/Parse.h"
 
 namespace
 {
@@ -48,7 +50,17 @@ bool UImmortalPathSaveGame::SaveToDisk()
 			SaveVersion, CurrentSaveVersion);
 		return false;
 	}
-	SaveVersion = CurrentSaveVersion;
+	int32 VersionToWrite = CurrentSaveVersion;
+#if !UE_BUILD_SHIPPING
+	int32 TestLegacyVersion = 0;
+	if (FParse::Value(FCommandLine::Get(), TEXT("ImmortalTestLegacySaveVersion="), TestLegacyVersion)
+		&& TestLegacyVersion > 0 && TestLegacyVersion < CurrentSaveVersion)
+	{
+		VersionToWrite = TestLegacyVersion;
+		UE_LOG(LogTemp, Display, TEXT("Writing development legacy save fixture at version %d"), VersionToWrite);
+	}
+#endif
+	SaveVersion = VersionToWrite;
 	LastSavedUtcTicks = FDateTime::UtcNow().GetTicks();
 	const bool bSaved = UGameplayStatics::SaveGameToSlot(this, GetSlotName(), SaveUserIndex);
 	if (!bSaved)

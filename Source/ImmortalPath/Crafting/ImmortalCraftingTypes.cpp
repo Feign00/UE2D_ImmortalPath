@@ -31,13 +31,15 @@ namespace
 		const EImmortalEquipmentSlot Slot,
 		const EImmortalEquipmentQuality Quality,
 		const int32 Stage,
-		const FImmortalCraftingCost& Cost)
+		const FImmortalCraftingCost& Cost,
+		const FName SetId = NAME_None)
 	{
 		FImmortalCraftingRecipeDefinition Result;
 		Result.DisplayName = FText::FromString(Name);
 		Result.Description = FText::FromString(Description);
 		Result.OutputSlot = Slot;
 		Result.OutputQuality = Quality;
+		Result.OutputSetId = SetId;
 		Result.MinimumQingyunStage = Stage;
 		Result.Cost = Cost;
 		return Result;
@@ -55,13 +57,25 @@ namespace
 				CraftingCost(70, {CraftingIngredient(TEXT("Ore"), 3), CraftingIngredient(TEXT("DemonBone"), 2)}))},
 			{TEXT("CloudRobe"), CraftingRecipe(TEXT("流云法衣"), TEXT("以灵铁加固的稀有护甲。"),
 				EImmortalEquipmentSlot::Chest, EImmortalEquipmentQuality::Rare, 20,
-				CraftingCost(140, {CraftingIngredient(TEXT("Ore"), 5), CraftingIngredient(TEXT("DemonBone"), 3), CraftingIngredient(TEXT("SpiritIron"), 1)}))},
+				CraftingCost(140, {CraftingIngredient(TEXT("Ore"), 5), CraftingIngredient(TEXT("DemonBone"), 3), CraftingIngredient(TEXT("SpiritIron"), 1), CraftingIngredient(TEXT("SpiritWood"), 2)}))},
 			{TEXT("WindBoots"), CraftingRecipe(TEXT("踏风履"), TEXT("蕴含风灵的轻便战靴。"),
 				EImmortalEquipmentSlot::Boots, EImmortalEquipmentQuality::Uncommon, 10,
 				CraftingCost(90, {CraftingIngredient(TEXT("Ore"), 3), CraftingIngredient(TEXT("DemonBone"), 1), CraftingIngredient(TEXT("SpiritIron"), 1)}))},
-			{TEXT("HeartJade"), CraftingRecipe(TEXT("护心灵玉"), TEXT("以法宝碎片炼成的稀有随身饰物；独立法宝将在法宝系统中打造。"),
+			{TEXT("HeartJade"), CraftingRecipe(TEXT("护心灵玉"), TEXT("以法宝碎片炼成的稀有随身项链；独立法宝仍在法宝系统中打造。"),
 				EImmortalEquipmentSlot::Accessory, EImmortalEquipmentQuality::Rare, 10,
-				CraftingCost(160, {CraftingIngredient(TEXT("SpiritIron"), 2), CraftingIngredient(TEXT("ArtifactFragment"), 1)}))}
+				CraftingCost(160, {CraftingIngredient(TEXT("SpiritIron"), 2), CraftingIngredient(TEXT("ArtifactFragment"), 1)}))},
+			{TEXT("QingyunBracers"), CraftingRecipe(TEXT("青云护腕"), TEXT("青云套部件，兼顾攻击与出手速度。"),
+				EImmortalEquipmentSlot::Bracers, EImmortalEquipmentQuality::Rare, 30,
+				CraftingCost(180, {CraftingIngredient(TEXT("Ore"), 5), CraftingIngredient(TEXT("SpiritIron"), 2)}), TEXT("QingyunSet"))},
+			{TEXT("XuanwuBelt"), CraftingRecipe(TEXT("玄武腰带"), TEXT("玄武套部件，强化生命与防御。"),
+				EImmortalEquipmentSlot::Belt, EImmortalEquipmentQuality::Epic, 80,
+				CraftingCost(260, {CraftingIngredient(TEXT("DemonBone"), 6), CraftingIngredient(TEXT("SpiritIron"), 3)}), TEXT("BlackTortoiseSet"))},
+			{TEXT("HeavenlySwordRing"), CraftingRecipe(TEXT("天剑戒"), TEXT("天剑套左戒，追求暴击与首领伤害。"),
+				EImmortalEquipmentSlot::RingLeft, EImmortalEquipmentQuality::Epic, 150,
+				CraftingCost(340, {CraftingIngredient(TEXT("SpiritIron"), 4), CraftingIngredient(TEXT("ArtifactFragment"), 2)}), TEXT("HeavenlySwordSet"))},
+			{TEXT("MyriadThunderRing"), CraftingRecipe(TEXT("万雷戒"), TEXT("万雷套右戒，承载雷霆灵力。"),
+				EImmortalEquipmentSlot::RingRight, EImmortalEquipmentQuality::Legendary, 300,
+				CraftingCost(520, {CraftingIngredient(TEXT("SpiritIron"), 6), CraftingIngredient(TEXT("ArtifactFragment"), 3)}), TEXT("MyriadThunderSet"))}
 		};
 		return Catalog;
 	}

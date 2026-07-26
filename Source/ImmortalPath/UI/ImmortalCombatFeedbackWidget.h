@@ -36,6 +36,15 @@ public:
 	void ShowRewards(const FVector& WorldLocation, int32 Cultivation, int32 Gold);
 	void ShowEquipmentPickup(const FText& ItemName, const FLinearColor& QualityColor, bool bAutoEquipped);
 	void ShowMaterialPickup(const FText& MaterialName, const FLinearColor& MaterialColor, int32 Quantity);
+	void SetStageProgress(
+		const FText& MapDisplayName,
+		int32 MaximumStage,
+		int32 Stage,
+		int32 Kills,
+		int32 RequiredKills,
+		bool bBossStage = false,
+		bool bMapCompleted = false);
+	/** Compatibility overload for the legacy Qingyun-only caller. */
 	void SetStageProgress(int32 Stage, int32 Kills, int32 RequiredKills, bool bBossStage = false, bool bMapCompleted = false);
 	void ShowBossAnnouncement(const FText& Message, const FLinearColor& Color, float Duration = 3.0f);
 	void SetCultivationProgress(

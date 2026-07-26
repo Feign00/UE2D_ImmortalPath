@@ -9,6 +9,11 @@ namespace
 {
 	constexpr int32 StagesPerMajorRealm = 10;
 
+	float NormalizeRateMultiplier(const float Multiplier)
+	{
+		return FMath::IsFinite(Multiplier) ? FMath::Max(Multiplier, 0.0f) : 1.0f;
+	}
+
 	FText GetMinorStageName(const int32 Stage)
 	{
 		static const TCHAR* Names[] =
@@ -49,6 +54,7 @@ void UImmortalCultivationComponent::StartCultivating()
 	{
 		return;
 	}
+	if (GetWorld()->GetTimerManager().IsTimerActive(CultivationTimerHandle)) return;
 	GetWorld()->GetTimerManager().SetTimer(
 		CultivationTimerHandle,
 		this,
@@ -123,15 +129,17 @@ int32 UImmortalCultivationComponent::GetRequiredCultivation() const
 
 float UImmortalCultivationComponent::GetCultivationPerSecond() const
 {
-	return GetCultivationPerSecondWithoutAlchemyBoost() * FMath::Max(AlchemyRateMultiplier, 0.0f);
+	return GetCultivationPerSecondWithoutAlchemyBoost() * NormalizeRateMultiplier(AlchemyRateMultiplier);
 }
 
 float UImmortalCultivationComponent::GetCultivationPerSecondWithoutAlchemyBoost() const
 {
 	return FMath::Max(BaseCultivationPerSecond, 0.0f)
-		* FMath::Max(RuntimeRateMultiplier, 0.0f)
-		* FMath::Max(TechniqueRateMultiplier, 0.0f)
-		* FMath::Max(CharacterPathRateMultiplier, 0.0f);
+		* NormalizeRateMultiplier(RuntimeRateMultiplier)
+		* NormalizeRateMultiplier(CaveRateMultiplier)
+		* NormalizeRateMultiplier(TechniqueRateMultiplier)
+		* NormalizeRateMultiplier(CharacterPathRateMultiplier)
+		* NormalizeRateMultiplier(EquipmentRateMultiplier);
 }
 
 bool UImmortalCultivationComponent::HasReachedAscension() const
@@ -176,8 +184,22 @@ float UImmortalCultivationComponent::GetDefenseBonus() const
 
 void UImmortalCultivationComponent::SetRuntimeRateMultiplier(const float Multiplier)
 {
-	RuntimeRateMultiplier = FMath::Max(Multiplier, 0.0f);
+	RuntimeRateMultiplier = NormalizeRateMultiplier(Multiplier);
 	if (RuntimeRateMultiplier <= 0.0f)
+	{
+		StopCultivating();
+	}
+	else
+	{
+		StartCultivating();
+	}
+	BroadcastProgress();
+}
+
+void UImmortalCultivationComponent::SetCaveRateMultiplier(const float Multiplier)
+{
+	CaveRateMultiplier = NormalizeRateMultiplier(Multiplier);
+	if (GetCultivationPerSecond() <= 0.0f)
 	{
 		StopCultivating();
 	}
@@ -190,7 +212,7 @@ void UImmortalCultivationComponent::SetRuntimeRateMultiplier(const float Multipl
 
 void UImmortalCultivationComponent::SetAlchemyRateMultiplier(const float Multiplier)
 {
-	AlchemyRateMultiplier = FMath::Max(Multiplier, 0.0f);
+	AlchemyRateMultiplier = NormalizeRateMultiplier(Multiplier);
 	if (GetCultivationPerSecond() <= 0.0f)
 	{
 		StopCultivating();
@@ -204,7 +226,7 @@ void UImmortalCultivationComponent::SetAlchemyRateMultiplier(const float Multipl
 
 void UImmortalCultivationComponent::SetTechniqueRateMultiplier(const float Multiplier)
 {
-	TechniqueRateMultiplier = FMath::Max(Multiplier, 0.0f);
+	TechniqueRateMultiplier = NormalizeRateMultiplier(Multiplier);
 	if (GetCultivationPerSecond() <= 0.0f)
 	{
 		StopCultivating();
@@ -218,7 +240,18 @@ void UImmortalCultivationComponent::SetTechniqueRateMultiplier(const float Multi
 
 void UImmortalCultivationComponent::SetCharacterPathRateMultiplier(const float Multiplier)
 {
-	CharacterPathRateMultiplier = FMath::Max(Multiplier, 0.0f);
+	CharacterPathRateMultiplier = NormalizeRateMultiplier(Multiplier);
+	if (GetCultivationPerSecond() <= 0.0f)
+	{
+		StopCultivating();
+	}
+	else StartCultivating();
+	BroadcastProgress();
+}
+
+void UImmortalCultivationComponent::SetEquipmentRateMultiplier(const float Multiplier)
+{
+	EquipmentRateMultiplier = NormalizeRateMultiplier(Multiplier);
 	if (GetCultivationPerSecond() <= 0.0f)
 	{
 		StopCultivating();

@@ -4,15 +4,22 @@
 
 #include "../Combat/AutoAttackTarget.h"
 #include "../Save/ImmortalPathSaveGame.h"
+#include "../Spawning/ImmortalMonsterSpawner.h"
+#include "ImmortalMonsterCharacter.h"
 #include "../UI/ImmortalAlchemyWidget.h"
 #include "../UI/ImmortalArtifactWidget.h"
 #include "../UI/ImmortalCombatFeedbackWidget.h"
 #include "../UI/ImmortalCraftingWidget.h"
 #include "../UI/ImmortalCharacterBuildWidget.h"
+#include "../UI/ImmortalCaveWidget.h"
+#include "../UI/ImmortalFarmingWidget.h"
 #include "../UI/ImmortalInventoryWidget.h"
+#include "../UI/ImmortalMapWidget.h"
 #include "../UI/ImmortalPlayerStatusWidget.h"
+#include "../UI/ImmortalSectWidget.h"
 #include "../UI/ImmortalShopWidget.h"
 #include "../UI/ImmortalTechniqueWidget.h"
+#include "Blueprint/WidgetLayoutLibrary.h"
 #include "Camera/CameraComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/InputComponent.h"
@@ -42,6 +49,142 @@
 #include "Windows/HideWindowsPlatformTypes.h"
 #endif
 
+namespace
+{
+	bool HaveSameMaterialQuantities(
+		const TArray<FImmortalMaterialStack>& Left,
+		const TArray<FImmortalMaterialStack>& Right)
+	{
+		TSet<FName> MaterialIds;
+		for (const FImmortalMaterialStack& Stack : Left) if (!Stack.MaterialId.IsNone()) MaterialIds.Add(Stack.MaterialId);
+		for (const FImmortalMaterialStack& Stack : Right) if (!Stack.MaterialId.IsNone()) MaterialIds.Add(Stack.MaterialId);
+		for (const FName MaterialId : MaterialIds)
+		{
+			if (UImmortalMaterialLibrary::GetMaterialQuantity(Left, MaterialId)
+				!= UImmortalMaterialLibrary::GetMaterialQuantity(Right, MaterialId))
+			{
+				return false;
+			}
+		}
+		return true;
+	}
+
+	bool ShouldForceFarmingPersistenceFailure(const TCHAR* Operation)
+	{
+#if !UE_BUILD_SHIPPING
+		FString ForcedOperation;
+		return Operation
+			&& FParse::Value(
+				FCommandLine::Get(), TEXT("ImmortalTestForceFarmingSaveFailure="), ForcedOperation)
+			&& ForcedOperation.Equals(Operation, ESearchCase::IgnoreCase);
+#else
+		return false;
+#endif
+	}
+
+	bool ShouldForceSectPersistenceFailure(const TCHAR* Operation)
+	{
+#if !UE_BUILD_SHIPPING
+		FString ForcedOperation;
+		return Operation
+			&& FParse::Value(
+				FCommandLine::Get(), TEXT("ImmortalTestForceSectSaveFailure="), ForcedOperation)
+			&& ForcedOperation.Equals(Operation, ESearchCase::IgnoreCase);
+#else
+		return false;
+#endif
+	}
+
+	bool ShouldForceInventoryPersistenceFailure(const TCHAR* Operation)
+	{
+#if !UE_BUILD_SHIPPING
+		FString ForcedOperation;
+		return Operation
+			&& FParse::Value(
+				FCommandLine::Get(), TEXT("ImmortalTestForceInventorySaveFailure="), ForcedOperation)
+			&& ForcedOperation.Equals(Operation, ESearchCase::IgnoreCase);
+#else
+		return false;
+#endif
+	}
+
+	bool HaveSameEquipmentOrder(
+		const TArray<FImmortalEquipmentItem>& Left,
+		const TArray<FImmortalEquipmentItem>& Right)
+	{
+		if (Left.Num() != Right.Num()) return false;
+		for (int32 Index = 0; Index < Left.Num(); ++Index)
+		{
+			if (Left[Index].ItemId != Right[Index].ItemId || Left[Index].bLocked != Right[Index].bLocked) return false;
+		}
+		return true;
+	}
+
+	bool HaveSameMaterialOrder(
+		const TArray<FImmortalMaterialStack>& Left,
+		const TArray<FImmortalMaterialStack>& Right)
+	{
+		if (Left.Num() != Right.Num()) return false;
+		for (int32 Index = 0; Index < Left.Num(); ++Index)
+		{
+			if (Left[Index].MaterialId != Right[Index].MaterialId || Left[Index].Quantity != Right[Index].Quantity) return false;
+		}
+		return true;
+	}
+
+	bool HaveSamePillOrder(
+		const TArray<FImmortalPillStack>& Left,
+		const TArray<FImmortalPillStack>& Right)
+	{
+		if (Left.Num() != Right.Num()) return false;
+		for (int32 Index = 0; Index < Left.Num(); ++Index)
+		{
+			if (Left[Index].PillId != Right[Index].PillId
+				|| Left[Index].Quality != Right[Index].Quality
+				|| Left[Index].Quantity != Right[Index].Quantity) return false;
+		}
+		return true;
+	}
+
+	bool HaveSameArtifactOrder(
+		const TArray<FImmortalArtifactItem>& Left,
+		const TArray<FImmortalArtifactItem>& Right)
+	{
+		if (Left.Num() != Right.Num()) return false;
+		for (int32 Index = 0; Index < Left.Num(); ++Index)
+		{
+			if (Left[Index].InstanceId != Right[Index].InstanceId || Left[Index].bLocked != Right[Index].bLocked) return false;
+		}
+		return true;
+	}
+
+	bool HaveSameQuestItemOrder(
+		const TArray<FImmortalQuestItemStack>& Left,
+		const TArray<FImmortalQuestItemStack>& Right)
+	{
+		if (Left.Num() != Right.Num()) return false;
+		for (int32 Index = 0; Index < Left.Num(); ++Index)
+		{
+			if (Left[Index].QuestItemId != Right[Index].QuestItemId || Left[Index].Quantity != Right[Index].Quantity) return false;
+		}
+		return true;
+	}
+
+	FString FormatInventoryMaterials(const TArray<FImmortalMaterialStack>& Materials)
+	{
+		TArray<FString> Parts;
+		for (const FImmortalMaterialStack& Stack : Materials)
+		{
+			FImmortalMaterialDefinition Definition;
+			const FString Name = UImmortalMaterialLibrary::GetMaterialDefinition(Stack.MaterialId, Definition)
+				? Definition.DisplayName.ToString()
+				: Stack.MaterialId.ToString();
+			Parts.Add(FString::Printf(TEXT("%s×%d"), *Name, Stack.Quantity));
+		}
+		return FString::Join(Parts, TEXT("、"));
+	}
+}
+
 AImmortalPlayerCharacter::AImmortalPlayerCharacter()
 {
 	PrimaryActorTick.bCanEverTick = false;
@@ -61,6 +204,8 @@ void AImmortalPlayerCharacter::BeginPlay()
 	ArtifactInventory.Reset();
 	EquippedArtifactInstanceId.Invalidate();
 	ArtifactInventoryRevision = 0;
+	QuestItemInventory.Reset();
+	QuestItemInventoryRevision = 0;
 	ArtifactAttackCounter = 0;
 	ArtifactShield = 0.0f;
 	ArtifactAttackMultiplier = 1.0f;
@@ -96,6 +241,17 @@ void AImmortalPlayerCharacter::BeginPlay()
 	CharacterPathCultivationRateMultiplier = 1.0f;
 	ShopState = FImmortalShopState();
 	ShopRevision = 0;
+	DisplayedMapId = UImmortalMapLibrary::GetQingyunMountainId();
+	FImmortalMapDefinition InitialMapDefinition;
+	if (UImmortalMapLibrary::GetMapDefinition(DisplayedMapId, InitialMapDefinition))
+	{
+		DisplayedMapName = InitialMapDefinition.DisplayName;
+		DisplayedMapMaximumStage = InitialMapDefinition.MaximumStage;
+	}
+	CachedMapSystemState = UImmortalMapLibrary::CreateMigratedState(1, 0, false);
+	CaveState = UImmortalCaveLibrary::CreateDefaultState(FDateTime::UtcNow().GetTicks());
+	FarmingState = UImmortalFarmingLibrary::CreateDefaultState(FDateTime::UtcNow().GetTicks());
+	SectState = UImmortalSectLibrary::CreateDefaultState(FDateTime::UtcNow().GetTicks(), SectUtcOffsetMinutes);
 	AlchemyCultivationBoostMultiplier = 1.0f;
 	AlchemyBoostEndWorldTime = 0.0f;
 	RecalculateEquipmentBonuses();
@@ -118,6 +274,7 @@ void AImmortalPlayerCharacter::BeginPlay()
 			EImmortalCultivationRealm::QiRefining, 1, FMath::Max(StartingCultivation, 0));
 	}
 	const bool bLoadedProgress = LoadProgress();
+	RecalculateCaveBonuses();
 	AwakenSpiritRootIfNeeded();
 	RecalculateEquipmentBonuses();
 	if (!bLoadedProgress)
@@ -141,7 +298,7 @@ void AImmortalPlayerCharacter::BeginPlay()
 			PlayerStatusWidget->InitializeForPlayer(this);
 			PlayerStatusWidget->AddToViewport(10);
 			PlayerStatusWidget->SetPositionInViewport(FVector2D(32.0f, 28.0f), false);
-			PlayerStatusWidget->SetDesiredSizeInViewport(FVector2D(1220.0f, 64.0f));
+			PlayerStatusWidget->SetDesiredSizeInViewport(FVector2D(1520.0f, 64.0f));
 		}
 
 		PlayerInventoryWidget = CreateWidget<UImmortalInventoryWidget>(PlayerController, UImmortalInventoryWidget::StaticClass());
@@ -149,7 +306,7 @@ void AImmortalPlayerCharacter::BeginPlay()
 		{
 			PlayerInventoryWidget->InitializeForPlayer(this);
 			PlayerInventoryWidget->AddToViewport(100);
-			PlayerInventoryWidget->SetDesiredSizeInViewport(FVector2D(900.0f, 600.0f));
+			PlayerInventoryWidget->SetDesiredSizeInViewport(FVector2D(1600.0f, 300.0f));
 			PlayerInventoryWidget->SetVisibility(ESlateVisibility::Collapsed);
 		}
 
@@ -207,12 +364,51 @@ void AImmortalPlayerCharacter::BeginPlay()
 			PlayerShopWidget->SetVisibility(ESlateVisibility::Collapsed);
 		}
 
+		PlayerMapWidget = CreateWidget<UImmortalMapWidget>(PlayerController, UImmortalMapWidget::StaticClass());
+		if (PlayerMapWidget)
+		{
+			PlayerMapWidget->InitializeForPlayer(this);
+			PlayerMapWidget->AddToViewport(140);
+			PlayerMapWidget->SetDesiredSizeInViewport(FVector2D(900.0f, 600.0f));
+			PlayerMapWidget->SetVisibility(ESlateVisibility::Collapsed);
+		}
+
+		PlayerCaveWidget = CreateWidget<UImmortalCaveWidget>(PlayerController, UImmortalCaveWidget::StaticClass());
+		if (PlayerCaveWidget)
+		{
+			PlayerCaveWidget->InitializeForPlayer(this);
+			PlayerCaveWidget->AddToViewport(145);
+			PlayerCaveWidget->SetDesiredSizeInViewport(FVector2D(900.0f, 600.0f));
+			PlayerCaveWidget->SetVisibility(ESlateVisibility::Collapsed);
+		}
+
+		PlayerFarmingWidget = CreateWidget<UImmortalFarmingWidget>(PlayerController, UImmortalFarmingWidget::StaticClass());
+		if (PlayerFarmingWidget)
+		{
+			PlayerFarmingWidget->InitializeForPlayer(this);
+			PlayerFarmingWidget->AddToViewport(150);
+			// Farming is designed as a native TBH strip instead of a tall modal.
+			PlayerFarmingWidget->SetDesiredSizeInViewport(FVector2D(1600.0f, 300.0f));
+			PlayerFarmingWidget->SetVisibility(ESlateVisibility::Collapsed);
+		}
+
+		PlayerSectWidget = CreateWidget<UImmortalSectWidget>(PlayerController, UImmortalSectWidget::StaticClass());
+		if (PlayerSectWidget)
+		{
+			PlayerSectWidget->InitializeForPlayer(this);
+			PlayerSectWidget->AddToViewport(155);
+			PlayerSectWidget->SetDesiredSizeInViewport(FVector2D(1600.0f, 300.0f));
+			PlayerSectWidget->SetVisibility(ESlateVisibility::Collapsed);
+		}
+
 		CombatFeedbackWidget = CreateWidget<UImmortalCombatFeedbackWidget>(PlayerController, UImmortalCombatFeedbackWidget::StaticClass());
 		if (CombatFeedbackWidget)
 		{
 			CombatFeedbackWidget->InitializeForPlayer(this);
 			CombatFeedbackWidget->AddToViewport(50);
 			CombatFeedbackWidget->SetStageProgress(
+				DisplayedMapName,
+				DisplayedMapMaximumStage,
 				DisplayedStage,
 				DisplayedStageKills,
 				DisplayedStageRequiredKills,
@@ -264,12 +460,12 @@ void AImmortalPlayerCharacter::BeginPlay()
 
 	if (FParse::Param(FCommandLine::Get(), TEXT("ImmortalTestGrantAlchemyMaterials")))
 	{
-		for (const FName MaterialId : { FName(TEXT("SpiritGrass")), FName(TEXT("DemonCore")), FName(TEXT("SpiritLiquid")), FName(TEXT("Ore")) })
+		for (const FName MaterialId : { FName(TEXT("SpiritGrass")), FName(TEXT("DemonCore")), FName(TEXT("SpiritLiquid")), FName(TEXT("Ore")), FName(TEXT("ImmortalFruit")) })
 		{
 			AddMaterialInternal(MaterialId, 20);
 		}
 		++MaterialInventoryRevision;
-		UE_LOG(LogTemp, Display, TEXT("Alchemy development materials granted: four recipe materials x20"));
+		UE_LOG(LogTemp, Display, TEXT("Alchemy development materials granted: five recipe materials x20"));
 	}
 
 	FString TestAlchemyRecipe;
@@ -340,14 +536,14 @@ void AImmortalPlayerCharacter::BeginPlay()
 	if (FParse::Param(FCommandLine::Get(), TEXT("ImmortalTestGrantCraftingResources")))
 	{
 		for (const FName MaterialId :
-			{ FName(TEXT("Ore")), FName(TEXT("DemonBone")), FName(TEXT("SpiritIron")), FName(TEXT("ArtifactFragment")) })
+			{ FName(TEXT("Ore")), FName(TEXT("DemonBone")), FName(TEXT("SpiritIron")), FName(TEXT("ArtifactFragment")), FName(TEXT("SpiritWood")) })
 		{
 			AddMaterialInternal(MaterialId, 50);
 		}
 		CurrentGold = FMath::Min(CurrentGold + 5000, MAX_int32);
 		++MaterialInventoryRevision;
 		BP_OnRewardsChanged(CurrentCultivation, CurrentGold, 0, 0);
-		UE_LOG(LogTemp, Display, TEXT("Crafting development resources granted: four materials x50 | spirit stones +5000"));
+		UE_LOG(LogTemp, Display, TEXT("Crafting development resources granted: five materials x50 | spirit stones +5000"));
 	}
 
 	FString TestCraftingRecipe;
@@ -925,8 +1121,942 @@ void AImmortalPlayerCharacter::BeginPlay()
 				false);
 		}
 	}
+
+	FString TestTravelMapId;
+	const bool bHasTestTravelMap = FParse::Value(
+		FCommandLine::Get(), TEXT("ImmortalTestTravelMap="), TestTravelMapId);
+	const bool bTestOpenMaps = FParse::Param(FCommandLine::Get(), TEXT("ImmortalTestOpenMaps"));
+	const bool bTestScreenshotMaps = FParse::Param(FCommandLine::Get(), TEXT("ImmortalTestScreenshotMaps"));
+	const bool bTestLogMaps = FParse::Param(FCommandLine::Get(), TEXT("ImmortalTestLogMaps"));
+	int32 TestMapRealm = INDEX_NONE;
+	if (FParse::Value(FCommandLine::Get(), TEXT("ImmortalTestMapRealm="), TestMapRealm)
+		&& CultivationComponent)
+	{
+		const int32 SafeRealm = FMath::Clamp(
+			TestMapRealm, 0, static_cast<int32>(EImmortalCultivationRealm::Ascension));
+		CultivationComponent->InitializeProgress(
+			static_cast<EImmortalCultivationRealm>(SafeRealm), 1, 0);
+		CurrentCultivation = CultivationComponent->GetCurrentCultivation();
+		UE_LOG(LogTemp, Display, TEXT("Map runtime realm override applied: %d"), SafeRealm);
+	}
+	if (bHasTestTravelMap || bTestOpenMaps || bTestScreenshotMaps || bTestLogMaps)
+	{
+		FTimerHandle MapVerificationTimer;
+		GetWorldTimerManager().SetTimer(
+			MapVerificationTimer,
+			FTimerDelegate::CreateWeakLambda(this,
+				[this, TestTravelMapId, bHasTestTravelMap, bTestOpenMaps, bTestScreenshotMaps, bTestLogMaps]
+				{
+					if (bHasTestTravelMap)
+					{
+						const FImmortalMapTravelResult TravelResult = TravelToMap(FName(*TestTravelMapId));
+						UE_LOG(LogTemp, Display,
+							TEXT("Map runtime travel audit: destination=%s success=%s unlocked=%s alreadyActive=%s message=%s"),
+							*TestTravelMapId,
+							TravelResult.bSucceeded ? TEXT("true") : TEXT("false"),
+							TravelResult.bUnlocked ? TEXT("true") : TEXT("false"),
+							TravelResult.bAlreadyActive ? TEXT("true") : TEXT("false"),
+							*TravelResult.Message.ToString());
+					}
+					if (bTestLogMaps)
+					{
+						const FImmortalMapSystemState State = GetMapSystemState();
+						for (const FImmortalMapProgress& Progress : State.MapProgress)
+						{
+							UE_LOG(LogTemp, Display,
+								TEXT("Map persistence audit: active=%s map=%s stage=%d kills=%d completed=%s"),
+								*State.ActiveMapId.ToString(), *Progress.MapId.ToString(), Progress.Stage,
+								Progress.StageKills, Progress.bCompleted ? TEXT("true") : TEXT("false"));
+						}
+					}
+					if (bTestOpenMaps && PlayerMapWidget && !bMapSelectionOpen)
+					{
+						ToggleMapSelection();
+						UE_LOG(LogTemp, Display, TEXT("Adventure map selector opened by development test parameter"));
+					}
+					if (bTestScreenshotMaps)
+					{
+						FTimerHandle ScreenshotTimer;
+						GetWorldTimerManager().SetTimer(
+							ScreenshotTimer,
+							FTimerDelegate::CreateWeakLambda(this, []
+							{
+								const FString ScreenshotPath = FPaths::Combine(
+									FPaths::ProjectSavedDir(), TEXT("Screenshots/MapSelectionTest.png"));
+								FScreenshotRequest::RequestScreenshot(ScreenshotPath, true, false);
+								UE_LOG(LogTemp, Display, TEXT("Map selector verification screenshot requested: %s"), *ScreenshotPath);
+							}),
+							1.5f,
+							false);
+					}
+				}),
+			1.0f,
+			false);
+
+		if (bTestScreenshotMaps && FParse::Param(FCommandLine::Get(), TEXT("ImmortalTestExitAfterScreenshot")))
+		{
+			FTimerHandle ExitTimer;
+			GetWorldTimerManager().SetTimer(
+				ExitTimer,
+				FTimerDelegate::CreateWeakLambda(this, []
+				{
+					UE_LOG(LogTemp, Display, TEXT("Map runtime verification complete; requesting clean exit"));
+					FPlatformMisc::RequestExit(false);
+				}),
+				6.0f,
+				false);
+		}
+	}
+
+	int32 TestCaveSeconds = 0;
+	const bool bHasTestCaveSeconds = FParse::Value(
+		FCommandLine::Get(), TEXT("ImmortalTestCaveSeconds="), TestCaveSeconds);
+	FString TestCaveUpgrade;
+	const bool bHasTestCaveUpgrade = FParse::Value(
+		FCommandLine::Get(), TEXT("ImmortalTestCaveUpgrade="), TestCaveUpgrade);
+	const bool bTestGrantCaveResources = FParse::Param(FCommandLine::Get(), TEXT("ImmortalTestGrantCaveResources"));
+	const bool bTestCollectCave = FParse::Param(FCommandLine::Get(), TEXT("ImmortalTestCollectCave"));
+	const bool bTestOpenCave = FParse::Param(FCommandLine::Get(), TEXT("ImmortalTestOpenCave"));
+	const bool bTestScreenshotCave = FParse::Param(FCommandLine::Get(), TEXT("ImmortalTestScreenshotCave"));
+	const bool bTestLogCave = FParse::Param(FCommandLine::Get(), TEXT("ImmortalTestLogCave"));
+	if (bHasTestCaveSeconds || bHasTestCaveUpgrade || bTestGrantCaveResources
+		|| bTestCollectCave || bTestOpenCave || bTestScreenshotCave || bTestLogCave)
+	{
+		FTimerHandle CaveVerificationTimer;
+		GetWorldTimerManager().SetTimer(
+			CaveVerificationTimer,
+			FTimerDelegate::CreateWeakLambda(this,
+				[this, TestCaveSeconds, bHasTestCaveSeconds, TestCaveUpgrade, bHasTestCaveUpgrade,
+					bTestGrantCaveResources, bTestCollectCave, bTestOpenCave, bTestScreenshotCave, bTestLogCave]
+				{
+					if (bTestGrantCaveResources)
+					{
+						CurrentGold = static_cast<int32>(FMath::Min<int64>(
+							static_cast<int64>(CurrentGold) + 1000000, MAX_int32));
+						for (const FName MaterialId : {FName(TEXT("SpiritGrass")), FName(TEXT("SpiritLiquid")),
+							FName(TEXT("Ore")), FName(TEXT("DemonBone")), FName(TEXT("SpiritIron"))})
+						{
+							AddMaterialInternal(MaterialId, 10000);
+						}
+						BP_OnRewardsChanged(CurrentCultivation, CurrentGold, 0, 1000000);
+						UE_LOG(LogTemp, Display, TEXT("Cave development resources granted"));
+					}
+					if (bHasTestCaveSeconds && TestCaveSeconds > 0)
+					{
+						const int64 NowTicks = FDateTime::UtcNow().GetTicks();
+						const int64 SafeSeconds = FMath::Clamp<int64>(TestCaveSeconds, 1, 60LL * 24LL * 60LL * 60LL);
+						CaveState.LastSettlementUtcTicks = FMath::Max<int64>(
+							NowTicks - SafeSeconds * ETimespan::TicksPerSecond, 1);
+						const FImmortalCaveSettlementResult Settlement = SettleCaveProduction(NowTicks);
+						UE_LOG(LogTemp, Display,
+							TEXT("Cave development settlement: seconds=%.0f stones=%d grass=%d ore=%d discarded=%lld/%lld/%lld"),
+							Settlement.ElapsedSeconds, Settlement.AddedSpiritStones, Settlement.AddedSpiritGrass,
+							Settlement.AddedOre, Settlement.DiscardedSpiritStones,
+							Settlement.DiscardedSpiritGrass, Settlement.DiscardedOre);
+					}
+					if (bHasTestCaveUpgrade)
+					{
+						EImmortalCaveBuildingType Type = EImmortalCaveBuildingType::CaveHeart;
+						bool bKnownType = TestCaveUpgrade.Equals(TEXT("CaveHeart"), ESearchCase::IgnoreCase);
+						if (TestCaveUpgrade.Equals(TEXT("MeditationRoom"), ESearchCase::IgnoreCase)) { Type = EImmortalCaveBuildingType::MeditationRoom; bKnownType = true; }
+						else if (TestCaveUpgrade.Equals(TEXT("SpiritVein"), ESearchCase::IgnoreCase)) Type = EImmortalCaveBuildingType::SpiritVein;
+						else if (TestCaveUpgrade.Equals(TEXT("StoragePavilion"), ESearchCase::IgnoreCase)) Type = EImmortalCaveBuildingType::StoragePavilion;
+						else if (TestCaveUpgrade.Equals(TEXT("AlchemyRoom"), ESearchCase::IgnoreCase)) Type = EImmortalCaveBuildingType::AlchemyRoom;
+						else if (TestCaveUpgrade.Equals(TEXT("ForgeRoom"), ESearchCase::IgnoreCase)) Type = EImmortalCaveBuildingType::ForgeRoom;
+						else if (TestCaveUpgrade.Equals(TEXT("SpiritField"), ESearchCase::IgnoreCase)) Type = EImmortalCaveBuildingType::SpiritField;
+						bKnownType = bKnownType
+							|| TestCaveUpgrade.Equals(TEXT("SpiritVein"), ESearchCase::IgnoreCase)
+							|| TestCaveUpgrade.Equals(TEXT("StoragePavilion"), ESearchCase::IgnoreCase)
+							|| TestCaveUpgrade.Equals(TEXT("AlchemyRoom"), ESearchCase::IgnoreCase)
+							|| TestCaveUpgrade.Equals(TEXT("ForgeRoom"), ESearchCase::IgnoreCase)
+							|| TestCaveUpgrade.Equals(TEXT("SpiritField"), ESearchCase::IgnoreCase);
+						if (!bKnownType)
+						{
+							UE_LOG(LogTemp, Error, TEXT("Unknown cave development upgrade id ignored: %s"), *TestCaveUpgrade);
+						}
+						else
+						{
+							const FImmortalCaveUpgradeResult Upgrade = UpgradeCaveBuilding(Type);
+							UE_LOG(LogTemp, Display, TEXT("Cave development upgrade: %s success=%s target=%d message=%s"),
+								*TestCaveUpgrade, Upgrade.bSucceeded ? TEXT("true") : TEXT("false"),
+								Upgrade.TargetLevel, *Upgrade.Message.ToString());
+						}
+					}
+					if (bTestCollectCave)
+					{
+						const FImmortalCaveCollectionResult Collection = CollectCaveResources();
+						UE_LOG(LogTemp, Display, TEXT("Cave development collection: success=%s stones=%d grass=%d ore=%d"),
+							Collection.bCollectedAnything ? TEXT("true") : TEXT("false"),
+							Collection.SpiritStonesCollected, Collection.SpiritGrassCollected, Collection.OreCollected);
+					}
+					if (bTestLogCave)
+					{
+						const FImmortalCaveProductionSnapshot Snapshot = GetCaveProductionSnapshot();
+						UE_LOG(LogTemp, Display,
+							TEXT("Cave persistence audit: revision=%d last=%lld stored=%d/%d/%d rates=%.2f/%.2f/%.2f cap=%d/%d/%d cultivate=%.3f alchemy=%.3f/%.3f forge=%.3f"),
+							CaveState.Revision, CaveState.LastSettlementUtcTicks,
+							CaveState.StoredSpiritStones, CaveState.StoredSpiritGrass, CaveState.StoredOre,
+							Snapshot.SpiritStonesPerHour, Snapshot.SpiritGrassPerHour, Snapshot.OrePerHour,
+							Snapshot.SpiritStoneCapacity, Snapshot.SpiritGrassCapacity, Snapshot.OreCapacity,
+							Snapshot.CultivationRateMultiplier, Snapshot.AlchemySuccessChanceBonus,
+							Snapshot.AlchemyExceptionalChanceBonus, Snapshot.ForgeSpiritStoneDiscount);
+					}
+					if ((bTestOpenCave || bTestScreenshotCave) && PlayerCaveWidget && !bCaveOpen)
+					{
+						ToggleCave();
+					}
+					if (bTestScreenshotCave)
+					{
+						FTimerHandle ScreenshotTimer;
+						GetWorldTimerManager().SetTimer(
+							ScreenshotTimer,
+							FTimerDelegate::CreateWeakLambda(this, []
+							{
+								const FString ScreenshotPath = FPaths::Combine(
+									FPaths::ProjectSavedDir(), TEXT("Screenshots/CaveTest.png"));
+								FScreenshotRequest::RequestScreenshot(ScreenshotPath, true, false);
+								UE_LOG(LogTemp, Display, TEXT("Cave verification screenshot requested: %s"), *ScreenshotPath);
+							}),
+							1.5f,
+							false);
+					}
+				}),
+			1.0f,
+			false);
+
+		if (bTestScreenshotCave && FParse::Param(FCommandLine::Get(), TEXT("ImmortalTestExitAfterScreenshot")))
+		{
+			FTimerHandle ExitTimer;
+			GetWorldTimerManager().SetTimer(
+				ExitTimer,
+				FTimerDelegate::CreateWeakLambda(this, [] { FPlatformMisc::RequestExit(false); }),
+				6.0f,
+				false);
+		}
+	}
+
+	int32 TestFarmingSeconds = 0;
+	const bool bHasTestFarmingSeconds = FParse::Value(
+		FCommandLine::Get(), TEXT("ImmortalTestFarmingSeconds="), TestFarmingSeconds);
+	int32 TestFarmingPlot = 0;
+	FParse::Value(FCommandLine::Get(), TEXT("ImmortalTestFarmingPlot="), TestFarmingPlot);
+	int32 TestFarmingFieldLevel = 0;
+	const bool bHasTestFarmingFieldLevel = FParse::Value(
+		FCommandLine::Get(), TEXT("ImmortalTestFarmingFieldLevel="), TestFarmingFieldLevel);
+	FString TestFarmingCrop(TEXT("SpiritGrassCrop"));
+	FParse::Value(FCommandLine::Get(), TEXT("ImmortalTestFarmingCrop="), TestFarmingCrop);
+	const bool bTestGrantFarmingResources = FParse::Param(FCommandLine::Get(), TEXT("ImmortalTestGrantFarmingResources"));
+	const bool bTestPlantFarming = FParse::Param(FCommandLine::Get(), TEXT("ImmortalTestPlantFarming"));
+	const bool bTestPlantAllFarming = FParse::Param(FCommandLine::Get(), TEXT("ImmortalTestPlantAllFarming"));
+	const bool bTestHarvestFarming = FParse::Param(FCommandLine::Get(), TEXT("ImmortalTestHarvestFarming"));
+	const bool bTestHarvestAllFarming = FParse::Param(FCommandLine::Get(), TEXT("ImmortalTestHarvestAllFarming"));
+	const bool bTestOpenFarming = FParse::Param(FCommandLine::Get(), TEXT("ImmortalTestOpenFarming"));
+	const bool bTestScreenshotFarming = FParse::Param(FCommandLine::Get(), TEXT("ImmortalTestScreenshotFarming"));
+	const bool bTestLogFarming = FParse::Param(FCommandLine::Get(), TEXT("ImmortalTestLogFarming"));
+	if (bHasTestFarmingSeconds || bHasTestFarmingFieldLevel || bTestGrantFarmingResources
+		|| bTestPlantFarming || bTestPlantAllFarming || bTestHarvestFarming || bTestHarvestAllFarming
+		|| bTestOpenFarming || bTestScreenshotFarming || bTestLogFarming)
+	{
+		FTimerHandle FarmingVerificationTimer;
+		GetWorldTimerManager().SetTimer(
+			FarmingVerificationTimer,
+			FTimerDelegate::CreateWeakLambda(this,
+				[this, TestFarmingSeconds, bHasTestFarmingSeconds, TestFarmingPlot,
+					TestFarmingFieldLevel, bHasTestFarmingFieldLevel, TestFarmingCrop,
+					bTestGrantFarmingResources, bTestPlantFarming, bTestPlantAllFarming,
+					bTestHarvestFarming, bTestHarvestAllFarming, bTestOpenFarming,
+					bTestScreenshotFarming, bTestLogFarming]
+				{
+					const int64 NowTicks = FDateTime::UtcNow().GetTicks();
+					if (bHasTestFarmingFieldLevel)
+					{
+						const int32 SafeLevel = FMath::Clamp(TestFarmingFieldLevel, 1, 20);
+						for (FImmortalCaveBuildingProgress& Building : CaveState.Buildings)
+						{
+							if (Building.Type == EImmortalCaveBuildingType::CaveHeart)
+							{
+								Building.Level = FMath::Max(Building.Level, SafeLevel);
+							}
+							else if (Building.Type == EImmortalCaveBuildingType::SpiritField)
+							{
+								Building.Level = SafeLevel;
+							}
+						}
+						UImmortalCaveLibrary::NormalizeState(CaveState, NowTicks);
+						UE_LOG(LogTemp, Display, TEXT("Farming development field level applied: %d"), SafeLevel);
+					}
+					if (bTestGrantFarmingResources)
+					{
+						const int32 PreviousGold = CurrentGold;
+						CurrentGold = static_cast<int32>(FMath::Min<int64>(
+							static_cast<int64>(CurrentGold) + 10000, MAX_int32));
+						AddMaterialInternal(TEXT("SpiritGrass"), 1000);
+						AddMaterialInternal(TEXT("Ore"), 1000);
+						BP_OnRewardsChanged(CurrentCultivation, CurrentGold, 0, CurrentGold - PreviousGold);
+						UE_LOG(LogTemp, Display, TEXT("Farming development resources granted: stones +10000 grass/ore +1000"));
+					}
+
+					FImmortalFarmingCropDefinition TestCropDefinition;
+					const FName CropId(*TestFarmingCrop);
+					const bool bKnownCrop = UImmortalFarmingLibrary::GetCropDefinition(CropId, TestCropDefinition);
+					if (!bKnownCrop && (bTestPlantFarming || bTestPlantAllFarming))
+					{
+						UE_LOG(LogTemp, Error, TEXT("Unknown farming development crop id ignored: %s"), *TestFarmingCrop);
+					}
+					else if (bTestPlantAllFarming)
+					{
+						const FImmortalFarmingBatchPlantResult PlantResult = PlantCropInAllEmptyPlots(CropId);
+						UE_LOG(LogTemp, Display,
+							TEXT("Farming development batch plant: crop=%s success=%s planted=%d/%d message=%s"),
+							*TestFarmingCrop, PlantResult.bSucceeded ? TEXT("true") : TEXT("false"),
+							PlantResult.PlantedPlotCount, PlantResult.EligiblePlotCount, *PlantResult.Message.ToString());
+					}
+					else if (bTestPlantFarming)
+					{
+						const FImmortalFarmingPlantResult PlantResult = PlantCrop(TestFarmingPlot, CropId);
+						UE_LOG(LogTemp, Display,
+							TEXT("Farming development plant: plot=%d crop=%s success=%s yield=%d message=%s"),
+							TestFarmingPlot, *TestFarmingCrop, PlantResult.bSucceeded ? TEXT("true") : TEXT("false"),
+							PlantResult.FrozenYield, *PlantResult.Message.ToString());
+					}
+
+					if (bHasTestFarmingSeconds && TestFarmingSeconds > 0)
+					{
+						const int64 SafeSeconds = FMath::Clamp<int64>(
+							TestFarmingSeconds, 1, 60LL * 24LL * 60LL * 60LL);
+						FarmingState.LastSettlementUtcTicks = FMath::Max<int64>(
+							NowTicks - SafeSeconds * ETimespan::TicksPerSecond, 1);
+						const FImmortalFarmingSettlementResult Settlement = SettleFarmingGrowth(NowTicks);
+						UE_LOG(LogTemp, Display,
+							TEXT("Farming development settlement: seconds=%.0f growing=%d matured=%d rollback=%s"),
+							Settlement.ElapsedSeconds, Settlement.GrowingPlotCount, Settlement.MaturedPlotCount,
+							Settlement.bClockRollbackDetected ? TEXT("true") : TEXT("false"));
+					}
+
+					if (bTestHarvestAllFarming)
+					{
+						const FImmortalFarmingBatchHarvestResult HarvestResult = HarvestAllReadyCrops();
+						UE_LOG(LogTemp, Display,
+							TEXT("Farming development batch harvest: success=%s ready=%d full=%d partial=%d items=%d message=%s"),
+							HarvestResult.bSucceeded ? TEXT("true") : TEXT("false"), HarvestResult.ReadyPlotCount,
+							HarvestResult.FullyHarvestedPlotCount, HarvestResult.PartiallyHarvestedPlotCount,
+							HarvestResult.HarvestedItemCount, *HarvestResult.Message.ToString());
+					}
+					else if (bTestHarvestFarming)
+					{
+						const FImmortalFarmingHarvestResult HarvestResult = HarvestCrop(TestFarmingPlot);
+						UE_LOG(LogTemp, Display,
+							TEXT("Farming development harvest: plot=%d success=%s material=%s amount=%d remaining=%d message=%s"),
+							TestFarmingPlot, HarvestResult.bSucceeded ? TEXT("true") : TEXT("false"),
+							*HarvestResult.OutputMaterialId.ToString(), HarvestResult.HarvestedQuantity,
+							HarvestResult.RemainingQuantity, *HarvestResult.Message.ToString());
+					}
+
+					if (bTestLogFarming)
+					{
+						for (int32 PlotIndex = 0; PlotIndex < UImmortalFarmingLibrary::GetMaximumPlotCount(); ++PlotIndex)
+						{
+							const FImmortalFarmingPlotView View = UImmortalFarmingLibrary::GetPlotView(
+								FarmingState, PlotIndex, GetSpiritFieldLevel(), NowTicks);
+							UE_LOG(LogTemp, Display,
+								TEXT("Farming persistence plot: index=%d unlocked=%s crop=%s stage=%d remaining=%lld yield=%d"),
+								PlotIndex, View.bUnlocked ? TEXT("true") : TEXT("false"), *View.CropId.ToString(),
+								static_cast<int32>(View.GrowthStage), View.RemainingSeconds, View.PendingYield);
+						}
+						UE_LOG(LogTemp, Display,
+							TEXT("Farming persistence audit: field=%d revision=%d last=%lld planted=%lld harvested=%lld items=%lld materials=%d/%d/%d saveVersion=%d"),
+							GetSpiritFieldLevel(), FarmingState.Revision, FarmingState.LastSettlementUtcTicks,
+							FarmingState.TotalCropsPlanted, FarmingState.TotalCropsHarvested, FarmingState.TotalItemsHarvested,
+							GetMaterialQuantity(TEXT("SpiritGrass")), GetMaterialQuantity(TEXT("ImmortalFruit")),
+							GetMaterialQuantity(TEXT("SpiritWood")), UImmortalPathSaveGame::CurrentSaveVersion);
+					}
+					SaveProgress();
+					if ((bTestOpenFarming || bTestScreenshotFarming) && PlayerFarmingWidget && !bFarmingOpen)
+					{
+						ToggleFarming();
+					}
+					if (bTestScreenshotFarming)
+					{
+						FTimerHandle ScreenshotTimer;
+						GetWorldTimerManager().SetTimer(
+							ScreenshotTimer,
+							FTimerDelegate::CreateWeakLambda(this, []
+							{
+								const FString ScreenshotPath = FPaths::Combine(
+									FPaths::ProjectSavedDir(), TEXT("Screenshots/FarmingTest.png"));
+								FScreenshotRequest::RequestScreenshot(ScreenshotPath, true, false);
+								UE_LOG(LogTemp, Display, TEXT("Farming verification screenshot requested: %s"), *ScreenshotPath);
+							}),
+							1.5f,
+							false);
+					}
+				}),
+			1.2f,
+			false);
+
+		if (bTestScreenshotFarming && FParse::Param(FCommandLine::Get(), TEXT("ImmortalTestExitAfterScreenshot")))
+		{
+			FTimerHandle ExitTimer;
+			GetWorldTimerManager().SetTimer(
+				ExitTimer,
+				FTimerDelegate::CreateWeakLambda(this, [] { FPlatformMisc::RequestExit(false); }),
+				6.0f,
+				false);
+		}
+	}
+
+	FString TestSectId;
+	const bool bHasTestSect = FParse::Value(
+		FCommandLine::Get(), TEXT("ImmortalTestSect="), TestSectId);
+	int32 TestSectContribution = 0;
+	const bool bHasTestSectContribution = FParse::Value(
+		FCommandLine::Get(), TEXT("ImmortalTestGrantSectContribution="), TestSectContribution);
+	FString TestSectExchange;
+	const bool bHasTestSectExchange = FParse::Value(
+		FCommandLine::Get(), TEXT("ImmortalTestSectExchange="), TestSectExchange);
+	const bool bTestCompleteSectTasks = FParse::Param(FCommandLine::Get(), TEXT("ImmortalTestCompleteSectTasks"));
+	const bool bTestClaimSectTasks = FParse::Param(FCommandLine::Get(), TEXT("ImmortalTestClaimSectTasks"));
+	const bool bTestOpenSect = FParse::Param(FCommandLine::Get(), TEXT("ImmortalTestOpenSect"));
+	const bool bTestScreenshotSect = FParse::Param(FCommandLine::Get(), TEXT("ImmortalTestScreenshotSect"));
+	const bool bTestLogSect = FParse::Param(FCommandLine::Get(), TEXT("ImmortalTestLogSect"));
+	if (bHasTestSect || bHasTestSectContribution || bHasTestSectExchange
+		|| bTestCompleteSectTasks || bTestClaimSectTasks || bTestOpenSect
+		|| bTestScreenshotSect || bTestLogSect)
+	{
+		FTimerHandle SectVerificationTimer;
+		GetWorldTimerManager().SetTimer(
+			SectVerificationTimer,
+			FTimerDelegate::CreateWeakLambda(this,
+				[this, TestSectId, bHasTestSect, TestSectContribution, bHasTestSectContribution,
+					TestSectExchange, bHasTestSectExchange, bTestCompleteSectTasks,
+					bTestClaimSectTasks, bTestOpenSect, bTestScreenshotSect, bTestLogSect]
+				{
+					if (bHasTestSect)
+					{
+						const FImmortalSectJoinResult JoinResult = JoinSect(FName(*TestSectId));
+						UE_LOG(LogTemp, Display,
+							TEXT("Sect development join: id=%s success=%s requirements=%s locked=%s persistenceFailed=%s message=%s"),
+							*TestSectId, JoinResult.bSucceeded ? TEXT("true") : TEXT("false"),
+							JoinResult.bRequirementsMet ? TEXT("true") : TEXT("false"),
+							JoinResult.bLockedToOtherSect ? TEXT("true") : TEXT("false"),
+							JoinResult.bPersistenceFailed ? TEXT("true") : TEXT("false"),
+							*JoinResult.Message.ToString());
+					}
+					if (bHasTestSectContribution && TestSectContribution > 0 && SectState.HasJoined())
+					{
+						const int32 SafeGrant = FMath::Clamp(TestSectContribution, 1, 1000000);
+						const int32 Applied = static_cast<int32>(FMath::Min<int64>(
+							SafeGrant, static_cast<int64>(MAX_int32) - SectState.Contribution));
+						SectState.Contribution += Applied;
+						SectState.TotalContributionEarned = FMath::Min<int64>(
+							SectState.TotalContributionEarned + Applied, MAX_int64);
+						SectState.Revision = SectState.Revision >= MAX_int32 ? MAX_int32 : SectState.Revision + 1;
+						const bool bSaved = SaveProgress();
+						if (bSaved) BP_OnSectStateChanged(SectState);
+						UE_LOG(LogTemp, Display,
+							TEXT("Sect development contribution grant: requested=%d applied=%d total=%d earned=%lld saved=%s"),
+							TestSectContribution, Applied, SectState.Contribution,
+							SectState.TotalContributionEarned, bSaved ? TEXT("true") : TEXT("false"));
+					}
+					if (bTestCompleteSectTasks)
+					{
+						NotifySectCombatProgress(20, 3, 1);
+					}
+					if (bTestClaimSectTasks)
+					{
+						for (const FImmortalSectTaskDefinition& Definition : UImmortalSectLibrary::GetDailyTaskDefinitions())
+						{
+							const FImmortalSectTaskClaimResult Claim = ClaimSectTask(Definition.TaskId);
+							UE_LOG(LogTemp, Display,
+								TEXT("Sect development task claim: id=%s success=%s awarded=%d contribution=%d message=%s"),
+								*Definition.TaskId.ToString(), Claim.bSucceeded ? TEXT("true") : TEXT("false"),
+								Claim.ContributionAwarded, Claim.ContributionAfter, *Claim.Message.ToString());
+						}
+					}
+					if (bHasTestSectExchange)
+					{
+						const int32 ContributionBefore = SectState.Contribution;
+						const TArray<FImmortalMaterialStack> MaterialsBefore = MaterialInventory;
+						const int32 TechniqueCountBefore = TechniqueLibrary.Num();
+						const FImmortalSectExchangeResult Exchange = ExchangeSectOffer(FName(*TestSectExchange));
+						UE_LOG(LogTemp, Display,
+							TEXT("Sect development exchange: id=%s success=%s persistenceFailed=%s contribution=%d->%d materialUnchanged=%s techniques=%d->%d reward=%d/%s x%d message=%s"),
+							*TestSectExchange, Exchange.bSucceeded ? TEXT("true") : TEXT("false"),
+							Exchange.bPersistenceFailed ? TEXT("true") : TEXT("false"),
+							ContributionBefore, SectState.Contribution,
+							HaveSameMaterialQuantities(MaterialsBefore, MaterialInventory) ? TEXT("true") : TEXT("false"),
+							TechniqueCountBefore, TechniqueLibrary.Num(), static_cast<int32>(Exchange.RewardType),
+							*Exchange.RewardId.ToString(), Exchange.RewardQuantity, *Exchange.Message.ToString());
+					}
+					if (bTestLogSect)
+					{
+						UE_LOG(LogTemp, Display,
+							TEXT("Sect persistence audit: initialized=%s sect=%s contribution=%d earned=%lld spent=%lld day=%d last=%lld claimed=%lld revision=%d saveVersion=%d"),
+							SectState.bInitialized ? TEXT("true") : TEXT("false"), *SectState.SectId.ToString(),
+							SectState.Contribution, SectState.TotalContributionEarned,
+							SectState.TotalContributionSpent, SectState.TaskDayKey,
+							SectState.LastObservedUtcTicks, SectState.TotalTasksClaimed,
+							SectState.Revision, UImmortalPathSaveGame::CurrentSaveVersion);
+						for (const FImmortalSectTaskProgress& Progress : SectState.DailyTasks)
+						{
+							UE_LOG(LogTemp, Display, TEXT("Sect persistence task: id=%s progress=%d claimed=%s"),
+								*Progress.TaskId.ToString(), Progress.Progress,
+								Progress.bClaimed ? TEXT("true") : TEXT("false"));
+						}
+						for (const FImmortalSectOfferProgress& Progress : SectState.OfferProgress)
+						{
+							UE_LOG(LogTemp, Display, TEXT("Sect persistence offer: id=%s daily=%d total=%lld"),
+								*Progress.OfferId.ToString(), Progress.DailyPurchaseCount, Progress.TotalPurchaseCount);
+						}
+					}
+					if ((bTestOpenSect || bTestScreenshotSect) && PlayerSectWidget && !bSectOpen)
+					{
+						ToggleSect();
+					}
+					if (bTestScreenshotSect)
+					{
+						FTimerHandle ScreenshotTimer;
+						GetWorldTimerManager().SetTimer(
+							ScreenshotTimer,
+							FTimerDelegate::CreateWeakLambda(this, []
+							{
+								const FString ScreenshotPath = FPaths::Combine(
+									FPaths::ProjectSavedDir(), TEXT("Screenshots/SectTest.png"));
+								FScreenshotRequest::RequestScreenshot(ScreenshotPath, true, false);
+								UE_LOG(LogTemp, Display, TEXT("Sect verification screenshot requested: %s"), *ScreenshotPath);
+							}),
+							1.5f,
+							false);
+					}
+				}),
+			1.4f,
+			false);
+
+		if (bTestScreenshotSect && FParse::Param(FCommandLine::Get(), TEXT("ImmortalTestExitAfterScreenshot")))
+		{
+			FTimerHandle ExitTimer;
+			GetWorldTimerManager().SetTimer(
+				ExitTimer,
+				FTimerDelegate::CreateWeakLambda(this, [] { FPlatformMisc::RequestExit(false); }),
+				6.5f,
+				false);
+		}
+	}
+
+	const bool bTestPrepareInventory = FParse::Param(FCommandLine::Get(), TEXT("ImmortalTestPrepareInventory"));
+	const bool bTestPrepareEquipmentExpansion = FParse::Param(
+		FCommandLine::Get(), TEXT("ImmortalTestPrepareEquipmentExpansion"));
+	const bool bTestFillInventoryLocked = FParse::Param(FCommandLine::Get(), TEXT("ImmortalTestFillInventoryLocked"));
+	const bool bTestProbeFullInventory = FParse::Param(FCommandLine::Get(), TEXT("ImmortalTestProbeFullInventory"));
+	const bool bTestProbeMixedLockedInventory = FParse::Param(FCommandLine::Get(), TEXT("ImmortalTestProbeMixedLockedInventory"));
+	const bool bTestProtectLockedEquipped = FParse::Param(FCommandLine::Get(), TEXT("ImmortalTestProtectLockedEquipped"));
+	const bool bTestLockFirstInventory = FParse::Param(FCommandLine::Get(), TEXT("ImmortalTestLockFirstInventory"));
+	const bool bTestLockFirstArtifact = FParse::Param(FCommandLine::Get(), TEXT("ImmortalTestLockFirstArtifact"));
+	const bool bTestSortInventory = FParse::Param(FCommandLine::Get(), TEXT("ImmortalTestSortInventory"));
+	const bool bTestDismantleFirst = FParse::Param(FCommandLine::Get(), TEXT("ImmortalTestDismantleFirst"));
+	const bool bTestGrantQuestItems = FParse::Param(FCommandLine::Get(), TEXT("ImmortalTestGrantQuestItems"));
+	const bool bTestOpenInventory = FParse::Param(FCommandLine::Get(), TEXT("ImmortalTestOpenInventory"));
+	const bool bTestScreenshotInventory = FParse::Param(FCommandLine::Get(), TEXT("ImmortalTestScreenshotInventory"));
+	const bool bTestLogInventory = FParse::Param(FCommandLine::Get(), TEXT("ImmortalTestLogInventory"));
+	FString TestInventoryBatchSell;
+	const bool bHasTestInventoryBatchSell = FParse::Value(
+		FCommandLine::Get(), TEXT("ImmortalTestInventoryBatchSell="), TestInventoryBatchSell);
+	FString TestInventoryBatchDismantle;
+	const bool bHasTestInventoryBatchDismantle = FParse::Value(
+		FCommandLine::Get(), TEXT("ImmortalTestInventoryBatchDismantle="), TestInventoryBatchDismantle);
+	FString TestInventoryTab;
+	const bool bHasTestInventoryTab = FParse::Value(
+		FCommandLine::Get(), TEXT("ImmortalTestInventoryTab="), TestInventoryTab);
+	if (bTestPrepareInventory || bTestPrepareEquipmentExpansion || bTestFillInventoryLocked || bTestProbeFullInventory || bTestProbeMixedLockedInventory
+		|| bTestProtectLockedEquipped || bTestLockFirstInventory || bTestLockFirstArtifact || bTestSortInventory || bTestDismantleFirst
+		|| bTestGrantQuestItems || bHasTestInventoryBatchSell || bHasTestInventoryBatchDismantle
+		|| bHasTestInventoryTab || bTestOpenInventory || bTestScreenshotInventory || bTestLogInventory)
+	{
+		FTimerHandle InventoryVerificationTimer;
+		GetWorldTimerManager().SetTimer(
+			InventoryVerificationTimer,
+			FTimerDelegate::CreateWeakLambda(this,
+				[this, bTestPrepareInventory, bTestPrepareEquipmentExpansion, bTestFillInventoryLocked, bTestProbeFullInventory, bTestProbeMixedLockedInventory,
+					bTestProtectLockedEquipped, bTestLockFirstInventory, bTestLockFirstArtifact, bTestSortInventory, bTestDismantleFirst,
+					bTestGrantQuestItems, bHasTestInventoryBatchSell, TestInventoryBatchSell,
+					bHasTestInventoryBatchDismantle, TestInventoryBatchDismantle,
+					bHasTestInventoryTab, TestInventoryTab, bTestOpenInventory,
+					bTestScreenshotInventory, bTestLogInventory]
+				{
+						auto ParseQuality = [](const FString& Text)
+					{
+						if (Text.Equals(TEXT("Uncommon"), ESearchCase::IgnoreCase)
+							|| Text.Equals(TEXT("Spirit"), ESearchCase::IgnoreCase)) return EImmortalEquipmentQuality::Uncommon;
+						if (Text.Equals(TEXT("Rare"), ESearchCase::IgnoreCase)
+							|| Text.Equals(TEXT("Mystic"), ESearchCase::IgnoreCase)) return EImmortalEquipmentQuality::Rare;
+						if (Text.Equals(TEXT("Epic"), ESearchCase::IgnoreCase)
+							|| Text.Equals(TEXT("Earth"), ESearchCase::IgnoreCase)) return EImmortalEquipmentQuality::Epic;
+						if (Text.Equals(TEXT("Legendary"), ESearchCase::IgnoreCase)
+							|| Text.Equals(TEXT("Heaven"), ESearchCase::IgnoreCase)) return EImmortalEquipmentQuality::Legendary;
+						if (Text.Equals(TEXT("Immortal"), ESearchCase::IgnoreCase)) return EImmortalEquipmentQuality::Immortal;
+						if (Text.Equals(TEXT("Divine"), ESearchCase::IgnoreCase)) return EImmortalEquipmentQuality::Divine;
+						return EImmortalEquipmentQuality::Common;
+					};
+
+					if (bTestPrepareEquipmentExpansion)
+					{
+						InventoryItems.Reset();
+						EquippedItems.Reset();
+						const EImmortalEquipmentSlot DisplaySlots[] =
+						{
+							EImmortalEquipmentSlot::Weapon, EImmortalEquipmentSlot::Head,
+							EImmortalEquipmentSlot::Chest, EImmortalEquipmentSlot::Bracers,
+							EImmortalEquipmentSlot::Belt, EImmortalEquipmentSlot::Boots,
+							EImmortalEquipmentSlot::RingLeft, EImmortalEquipmentSlot::RingRight,
+							EImmortalEquipmentSlot::Accessory
+						};
+						const FName DisplaySets[] =
+						{
+							TEXT("QingyunSet"), TEXT("QingyunSet"), TEXT("QingyunSet"),
+							TEXT("QingyunSet"), TEXT("QingyunSet"), TEXT("QingyunSet"),
+							TEXT("HeavenlySwordSet"), TEXT("MyriadThunderSet"), TEXT("BlackTortoiseSet")
+						};
+						for (int32 Index = 0; Index < UE_ARRAY_COUNT(DisplaySlots); ++Index)
+						{
+							const EImmortalEquipmentQuality Quality = static_cast<EImmortalEquipmentQuality>(
+								FMath::Clamp(Index / 2 + 2, 2, static_cast<int32>(EImmortalEquipmentQuality::Divine)));
+							EquippedItems.Add(UImmortalEquipmentLibrary::GenerateCraftedEquipment(
+								120 + Index * 10, DisplaySlots[Index], Quality,
+								EImmortalEquipmentDiscipline::Universal, DisplaySets[Index]));
+						}
+						for (int32 QualityIndex = 0; QualityIndex <= static_cast<int32>(EImmortalEquipmentQuality::Divine); ++QualityIndex)
+						{
+							InventoryItems.Add(UImmortalEquipmentLibrary::GenerateCraftedEquipment(
+								40 + QualityIndex * 15,
+								DisplaySlots[QualityIndex],
+								static_cast<EImmortalEquipmentQuality>(QualityIndex),
+								EImmortalEquipmentDiscipline::Universal,
+								QualityIndex >= static_cast<int32>(EImmortalEquipmentQuality::Rare)
+									? DisplaySets[QualityIndex] : NAME_None));
+						}
+						ArtifactInventory.Reset();
+						FImmortalArtifactItem Artifact = UImmortalArtifactLibrary::CreateArtifact(TEXT("XuanGuangSword"));
+						if (Artifact.IsValid())
+						{
+							ArtifactInventory.Add(Artifact);
+							EquippedArtifactInstanceId = Artifact.InstanceId;
+						}
+						++EquipmentInventoryRevision;
+						++ArtifactInventoryRevision;
+						RecalculateEquipmentBonuses();
+						const bool bSaved = SaveProgress();
+						FString SetSummary = GetEquipmentSetSummaryText().ToString();
+						SetSummary.ReplaceInline(TEXT("\n"), TEXT("; "));
+						UE_LOG(LogTemp, Display,
+							TEXT("Equipment expansion development sample prepared: equipped=%d backpack=%d artifact=%s saved=%s setSummary=%s"),
+							EquippedItems.Num(), InventoryItems.Num(), EquippedArtifactInstanceId.IsValid() ? TEXT("true") : TEXT("false"),
+							bSaved ? TEXT("true") : TEXT("false"), *SetSummary);
+					}
+
+					if (bTestPrepareInventory)
+					{
+						InventoryItems.Reset();
+						const EImmortalEquipmentSlot Slots[] =
+						{
+							EImmortalEquipmentSlot::Weapon, EImmortalEquipmentSlot::Head,
+							EImmortalEquipmentSlot::Chest, EImmortalEquipmentSlot::Boots,
+							EImmortalEquipmentSlot::Accessory, EImmortalEquipmentSlot::Weapon
+						};
+						const EImmortalEquipmentQuality Qualities[] =
+						{
+							EImmortalEquipmentQuality::Common, EImmortalEquipmentQuality::Common,
+							EImmortalEquipmentQuality::Uncommon, EImmortalEquipmentQuality::Rare,
+							EImmortalEquipmentQuality::Epic, EImmortalEquipmentQuality::Legendary
+						};
+						for (int32 Index = 0; Index < 6; ++Index)
+						{
+							FImmortalEquipmentItem Item = UImmortalEquipmentLibrary::GenerateCraftedEquipment(
+								5 + Index * 7, Slots[Index], Qualities[Index]);
+							Item.bLocked = false;
+							InventoryItems.Add(Item);
+						}
+						++EquipmentInventoryRevision;
+						const bool bSaved = SaveProgress();
+						UE_LOG(LogTemp, Display, TEXT("Inventory development sample prepared: items=%d saved=%s"),
+							InventoryItems.Num(), bSaved ? TEXT("true") : TEXT("false"));
+					}
+					if (bTestFillInventoryLocked)
+					{
+						InventoryItems.Reset();
+						for (int32 Index = 0; Index < GetInventoryCapacity(); ++Index)
+						{
+							FImmortalEquipmentItem Item = UImmortalEquipmentLibrary::GenerateCraftedEquipment(
+								1 + Index, static_cast<EImmortalEquipmentSlot>(Index % static_cast<int32>(EImmortalEquipmentSlot::MAX)),
+								EImmortalEquipmentQuality::Common);
+							Item.bLocked = true;
+							InventoryItems.Add(Item);
+						}
+						++EquipmentInventoryRevision;
+						const bool bSaved = SaveProgress();
+						UE_LOG(LogTemp, Display, TEXT("Inventory development full locked backpack prepared: items=%d/%d saved=%s"),
+							InventoryItems.Num(), GetInventoryCapacity(), bSaved ? TEXT("true") : TEXT("false"));
+					}
+					if (bTestProbeFullInventory)
+					{
+						const int32 BeforeCount = InventoryItems.Num();
+						int32 LockedBefore = 0;
+						for (const FImmortalEquipmentItem& Item : InventoryItems) LockedBefore += Item.bLocked ? 1 : 0;
+						const FImmortalEquipmentItem Probe = UImmortalEquipmentLibrary::GenerateCraftedEquipment(
+							999, EImmortalEquipmentSlot::Weapon, EImmortalEquipmentQuality::Legendary);
+						const bool bStored = AddItemToInventory(Probe);
+						int32 LockedAfter = 0;
+						for (const FImmortalEquipmentItem& Item : InventoryItems) LockedAfter += Item.bLocked ? 1 : 0;
+						UE_LOG(LogTemp, Display,
+							TEXT("Inventory full-lock replacement probe: stored=%s count=%d->%d locked=%d->%d"),
+							bStored ? TEXT("true") : TEXT("false"), BeforeCount, InventoryItems.Num(), LockedBefore, LockedAfter);
+					}
+					if (bTestProbeMixedLockedInventory)
+					{
+						InventoryItems.Reset();
+						FImmortalEquipmentItem LockedWeakest = UImmortalEquipmentLibrary::GenerateCraftedEquipment(
+							1, EImmortalEquipmentSlot::Weapon, EImmortalEquipmentQuality::Common);
+						LockedWeakest.BaseAttackBonus = 0.0f;
+						LockedWeakest.BaseDefenseBonus = 0.0f;
+						LockedWeakest.BaseHealthBonus = 0.0f;
+						LockedWeakest.BaseAttackSpeedBonus = 0.0f;
+						LockedWeakest.BaseCriticalChanceBonus = 0.0f;
+						LockedWeakest.Affixes.Reset();
+						LockedWeakest.bLocked = true;
+						UImmortalEquipmentLibrary::RebuildEquipmentStats(LockedWeakest);
+						InventoryItems.Add(LockedWeakest);
+						for (int32 Index = 1; Index < GetInventoryCapacity(); ++Index)
+						{
+							InventoryItems.Add(UImmortalEquipmentLibrary::GenerateCraftedEquipment(
+								100 + Index, static_cast<EImmortalEquipmentSlot>(Index % static_cast<int32>(EImmortalEquipmentSlot::MAX)),
+								EImmortalEquipmentQuality::Rare));
+						}
+						const int32 ReplaceableIndex = FindWeakestReplaceableInventoryItem();
+						const FGuid ExpectedReplacedId = ReplaceableIndex == INDEX_NONE ? FGuid() : InventoryItems[ReplaceableIndex].ItemId;
+						const float ReplaceablePower = ReplaceableIndex == INDEX_NONE ? -1.0f
+							: UImmortalEquipmentLibrary::CalculateEquipmentPower(InventoryItems[ReplaceableIndex]);
+						FImmortalEquipmentItem Probe = UImmortalEquipmentLibrary::GenerateCraftedEquipment(
+							999, EImmortalEquipmentSlot::Weapon, EImmortalEquipmentQuality::Legendary);
+						const bool bStored = AddItemToInventory(Probe);
+						const bool bLockedPreserved = InventoryItems.ContainsByPredicate([&LockedWeakest](const FImmortalEquipmentItem& Item)
+						{
+							return Item.ItemId == LockedWeakest.ItemId && Item.bLocked;
+						});
+						const bool bExpectedRemoved = ExpectedReplacedId.IsValid() && !InventoryItems.ContainsByPredicate([ExpectedReplacedId](const FImmortalEquipmentItem& Item)
+						{
+							return Item.ItemId == ExpectedReplacedId;
+						});
+						if (bStored) ++EquipmentInventoryRevision;
+						const bool bSaved = bStored && SaveProgress();
+						UE_LOG(LogTemp, Display,
+							TEXT("Inventory mixed-lock replacement probe: stored=%s saved=%s lockedPreserved=%s expectedRemoved=%s lockedPower=%.2f replaceablePower=%.2f lockedId=%s replacedId=%s probeId=%s"),
+							bStored ? TEXT("true") : TEXT("false"), bSaved ? TEXT("true") : TEXT("false"),
+							bLockedPreserved ? TEXT("true") : TEXT("false"), bExpectedRemoved ? TEXT("true") : TEXT("false"),
+							UImmortalEquipmentLibrary::CalculateEquipmentPower(LockedWeakest), ReplaceablePower,
+							*LockedWeakest.ItemId.ToString(), *ExpectedReplacedId.ToString(), *Probe.ItemId.ToString());
+					}
+					if (bTestProtectLockedEquipped)
+					{
+						if (EquippedItems.IsEmpty())
+						{
+							EquippedItems.Add(UImmortalEquipmentLibrary::GenerateCraftedEquipment(
+								1, EImmortalEquipmentSlot::Weapon, EImmortalEquipmentQuality::Common,
+								EImmortalEquipmentDiscipline::Universal));
+						}
+						FImmortalEquipmentItem& ProtectedItem = EquippedItems[0];
+						if (!ProtectedItem.IsValid())
+						{
+							ProtectedItem = UImmortalEquipmentLibrary::GenerateCraftedEquipment(
+								1, EImmortalEquipmentSlot::Weapon, EImmortalEquipmentQuality::Common,
+								EImmortalEquipmentDiscipline::Universal);
+						}
+						ProtectedItem.Discipline = EImmortalEquipmentDiscipline::Universal;
+						ProtectedItem.bLocked = true;
+						const FGuid ProtectedId = ProtectedItem.ItemId;
+						const EImmortalEquipmentSlot ProtectedSlot = ProtectedItem.Slot;
+						FImmortalEquipmentItem StrongerItem = UImmortalEquipmentLibrary::GenerateCraftedEquipment(
+							999, ProtectedSlot, EImmortalEquipmentQuality::Legendary,
+							EImmortalEquipmentDiscipline::Universal);
+						StrongerItem.AttackBonus += 100000.0f;
+						StrongerItem.BaseAttackBonus += 100000.0f;
+						const bool bStored = ProcessEquipmentItem(StrongerItem, false, true, false);
+						const int32 ProtectedIndex = EquippedItems.IndexOfByPredicate([ProtectedId](const FImmortalEquipmentItem& Item)
+						{
+							return Item.ItemId == ProtectedId && Item.bLocked;
+						});
+						const bool bStrongerInBackpack = InventoryItems.ContainsByPredicate([&StrongerItem](const FImmortalEquipmentItem& Item)
+						{
+							return Item.ItemId == StrongerItem.ItemId;
+						});
+						UE_LOG(LogTemp, Display,
+							TEXT("Inventory locked-equipped protection probe: stored=%s protected=%s strongerInBackpack=%s equippedId=%s probeId=%s"),
+							bStored ? TEXT("true") : TEXT("false"), ProtectedIndex != INDEX_NONE ? TEXT("true") : TEXT("false"),
+							bStrongerInBackpack ? TEXT("true") : TEXT("false"), *ProtectedId.ToString(), *StrongerItem.ItemId.ToString());
+					}
+					if (bTestGrantQuestItems)
+					{
+						ReceiveQuestItem(TEXT("QingyunTrialJadeSlip"), 2);
+						ReceiveQuestItem(TEXT("AncientMapFragment"), 3);
+						ReceiveQuestItem(TEXT("DemonKingSeal"), 1);
+					}
+					if (bTestLockFirstInventory && !InventoryItems.IsEmpty())
+					{
+						const FImmortalInventoryOperationResult LockResult = SetEquipmentLocked(InventoryItems[0].ItemId, true);
+						UE_LOG(LogTemp, Display, TEXT("Inventory development lock: success=%s persistenceFailed=%s message=%s"),
+							LockResult.bSucceeded ? TEXT("true") : TEXT("false"),
+							LockResult.bPersistenceFailed ? TEXT("true") : TEXT("false"), *LockResult.Message.ToString());
+					}
+					if (bTestLockFirstArtifact && !ArtifactInventory.IsEmpty())
+					{
+						const FImmortalInventoryOperationResult LockResult = SetArtifactLocked(ArtifactInventory[0].InstanceId, true);
+						UE_LOG(LogTemp, Display, TEXT("Inventory development artifact lock: success=%s persistenceFailed=%s message=%s"),
+							LockResult.bSucceeded ? TEXT("true") : TEXT("false"),
+							LockResult.bPersistenceFailed ? TEXT("true") : TEXT("false"), *LockResult.Message.ToString());
+					}
+					if (bTestSortInventory)
+					{
+						const FImmortalInventoryOperationResult SortResult = OrganizeInventory();
+						UE_LOG(LogTemp, Display, TEXT("Inventory development sort: success=%s persistenceFailed=%s affected=%d message=%s"),
+							SortResult.bSucceeded ? TEXT("true") : TEXT("false"),
+							SortResult.bPersistenceFailed ? TEXT("true") : TEXT("false"),
+							SortResult.AffectedItemCount, *SortResult.Message.ToString());
+					}
+					if (bTestDismantleFirst && !InventoryItems.IsEmpty())
+					{
+						const FImmortalInventoryOperationResult Salvage = DismantleEquipment(InventoryItems[0].ItemId);
+						UE_LOG(LogTemp, Display, TEXT("Inventory development single dismantle: success=%s persistenceFailed=%s count=%d rewards=%s message=%s"),
+							Salvage.bSucceeded ? TEXT("true") : TEXT("false"), Salvage.bPersistenceFailed ? TEXT("true") : TEXT("false"),
+							Salvage.AffectedItemCount, *FormatInventoryMaterials(Salvage.MaterialRewards), *Salvage.Message.ToString());
+					}
+					if (bHasTestInventoryBatchSell)
+					{
+						const int32 GoldBefore = CurrentGold;
+						const int32 CountBefore = InventoryItems.Num();
+						const FImmortalInventoryOperationResult Sale = BatchSellEquipment(ParseQuality(TestInventoryBatchSell));
+						UE_LOG(LogTemp, Display,
+							TEXT("Inventory development batch sale: threshold=%s success=%s persistenceFailed=%s count=%d->%d stones=%d->%d delta=%d lockedSkipped=%d message=%s"),
+							*TestInventoryBatchSell, Sale.bSucceeded ? TEXT("true") : TEXT("false"),
+							Sale.bPersistenceFailed ? TEXT("true") : TEXT("false"), CountBefore, InventoryItems.Num(),
+							GoldBefore, CurrentGold, Sale.SpiritStoneDelta, Sale.SkippedLockedItemCount, *Sale.Message.ToString());
+					}
+					if (bHasTestInventoryBatchDismantle)
+					{
+						const int32 CountBefore = InventoryItems.Num();
+						const TArray<FImmortalMaterialStack> MaterialsBefore = MaterialInventory;
+						const FImmortalInventoryOperationResult Salvage = BatchDismantleEquipment(ParseQuality(TestInventoryBatchDismantle));
+						UE_LOG(LogTemp, Display,
+							TEXT("Inventory development batch dismantle: threshold=%s success=%s persistenceFailed=%s count=%d->%d materialsUnchanged=%s rewards=%s lockedSkipped=%d message=%s"),
+							*TestInventoryBatchDismantle, Salvage.bSucceeded ? TEXT("true") : TEXT("false"),
+							Salvage.bPersistenceFailed ? TEXT("true") : TEXT("false"), CountBefore, InventoryItems.Num(),
+							HaveSameMaterialQuantities(MaterialsBefore, MaterialInventory) ? TEXT("true") : TEXT("false"),
+							*FormatInventoryMaterials(Salvage.MaterialRewards), Salvage.SkippedLockedItemCount, *Salvage.Message.ToString());
+					}
+
+					if (bTestLogInventory)
+					{
+						int32 LockedEquipment = 0;
+						for (int32 Index = 0; Index < InventoryItems.Num(); ++Index)
+						{
+							const FImmortalEquipmentItem& Item = InventoryItems[Index];
+							LockedEquipment += Item.bLocked ? 1 : 0;
+							UE_LOG(LogTemp, Display,
+								TEXT("Inventory persistence equipment: index=%d id=%s slot=%d quality=%d set=%s affixes=%d level=%d enhancement=%d locked=%s power=%.2f"),
+								Index, *Item.ItemId.ToString(), static_cast<int32>(Item.Slot), static_cast<int32>(Item.Quality),
+								*Item.SetId.ToString(), Item.Affixes.Num(), Item.ItemLevel, Item.EnhancementLevel, Item.bLocked ? TEXT("true") : TEXT("false"),
+								UImmortalEquipmentLibrary::CalculateEquipmentPower(Item));
+						}
+						for (int32 Index = 0; Index < EquippedItems.Num(); ++Index)
+						{
+							const FImmortalEquipmentItem& Item = EquippedItems[Index];
+							UE_LOG(LogTemp, Display,
+								TEXT("Inventory persistence equipped: index=%d id=%s slot=%d quality=%d set=%s affixes=%d level=%d enhancement=%d locked=%s power=%.2f"),
+								Index, *Item.ItemId.ToString(), static_cast<int32>(Item.Slot), static_cast<int32>(Item.Quality),
+								*Item.SetId.ToString(), Item.Affixes.Num(), Item.ItemLevel, Item.EnhancementLevel, Item.bLocked ? TEXT("true") : TEXT("false"),
+								UImmortalEquipmentLibrary::CalculateEquipmentPower(Item));
+						}
+						for (const FImmortalMaterialStack& Stack : MaterialInventory)
+						{
+							UE_LOG(LogTemp, Display, TEXT("Inventory persistence material: id=%s quantity=%d"),
+								*Stack.MaterialId.ToString(), Stack.Quantity);
+						}
+						for (const FImmortalPillStack& Stack : PillInventory)
+						{
+							UE_LOG(LogTemp, Display, TEXT("Inventory persistence pill: id=%s quality=%d quantity=%d"),
+								*Stack.PillId.ToString(), static_cast<int32>(Stack.Quality), Stack.Quantity);
+						}
+						int32 LockedArtifacts = 0;
+						for (const FImmortalArtifactItem& Item : ArtifactInventory)
+						{
+							LockedArtifacts += Item.bLocked ? 1 : 0;
+							UE_LOG(LogTemp, Display,
+								TEXT("Inventory persistence artifact: id=%s artifact=%s level=%d stars=%d locked=%s equipped=%s"),
+								*Item.InstanceId.ToString(), *Item.ArtifactId.ToString(), Item.Level, Item.Stars,
+								Item.bLocked ? TEXT("true") : TEXT("false"),
+								Item.InstanceId == EquippedArtifactInstanceId ? TEXT("true") : TEXT("false"));
+						}
+						UE_LOG(LogTemp, Display,
+							TEXT("Inventory persistence audit: backpack=%d/%d locked=%d equipmentRevision=%d materials=%d/%d pills=%d/%d artifacts=%d/locked%d/rev%d quest=%d/rev%d stones=%d saveVersion=%d"),
+							InventoryItems.Num(), GetInventoryCapacity(), LockedEquipment, EquipmentInventoryRevision,
+							MaterialInventory.Num(), MaterialInventoryRevision, PillInventory.Num(), PillInventoryRevision,
+							ArtifactInventory.Num(), LockedArtifacts, ArtifactInventoryRevision,
+							QuestItemInventory.Num(), QuestItemInventoryRevision, CurrentGold,
+							UImmortalPathSaveGame::CurrentSaveVersion);
+						for (const FImmortalQuestItemStack& Stack : QuestItemInventory)
+						{
+							UE_LOG(LogTemp, Display, TEXT("Inventory persistence quest item: id=%s quantity=%d"),
+								*Stack.QuestItemId.ToString(), Stack.Quantity);
+						}
+					}
+					if ((bHasTestInventoryTab || bTestOpenInventory || bTestScreenshotInventory) && PlayerInventoryWidget)
+					{
+						if (!bInventoryOpen) ToggleInventory();
+						if (bHasTestInventoryTab)
+						{
+							if (TestInventoryTab.Equals(TEXT("Material"), ESearchCase::IgnoreCase)) PlayerInventoryWidget->ShowMaterialTab();
+							else if (TestInventoryTab.Equals(TEXT("Pill"), ESearchCase::IgnoreCase)) PlayerInventoryWidget->ShowPillTab();
+							else if (TestInventoryTab.Equals(TEXT("Artifact"), ESearchCase::IgnoreCase)) PlayerInventoryWidget->ShowArtifactTab();
+							else if (TestInventoryTab.Equals(TEXT("Quest"), ESearchCase::IgnoreCase)) PlayerInventoryWidget->ShowQuestItemTab();
+							else PlayerInventoryWidget->ShowCategory(EImmortalInventoryCategory::Equipment);
+						}
+					}
+					if (bTestScreenshotInventory)
+					{
+						FTimerHandle ScreenshotTimer;
+						GetWorldTimerManager().SetTimer(
+							ScreenshotTimer,
+							FTimerDelegate::CreateWeakLambda(this, []
+							{
+								const FString ScreenshotPath = FPaths::Combine(
+									FPaths::ProjectSavedDir(), TEXT("Screenshots/InventoryTest.png"));
+								FScreenshotRequest::RequestScreenshot(ScreenshotPath, true, false);
+								UE_LOG(LogTemp, Display, TEXT("Inventory verification screenshot requested: %s"), *ScreenshotPath);
+							}),
+							1.5f,
+							false);
+					}
+				}),
+			1.6f,
+			false);
+
+		if (bTestScreenshotInventory && FParse::Param(FCommandLine::Get(), TEXT("ImmortalTestExitAfterScreenshot")))
+		{
+			FTimerHandle ExitTimer;
+			GetWorldTimerManager().SetTimer(
+				ExitTimer,
+				FTimerDelegate::CreateWeakLambda(this, [] { FPlatformMisc::RequestExit(false); }),
+				6.5f,
+				false);
+		}
+	}
 #endif
 
+#if !UE_BUILD_SHIPPING
+	if (FParse::Param(FCommandLine::Get(), TEXT("ImmortalTestDisableAutoBattle")))
+	{
+		bAutoAttackOnBeginPlay = false;
+		GetWorldTimerManager().ClearTimer(AutoAttackTimerHandle);
+		UE_LOG(LogTemp, Display, TEXT("Development verification disabled automatic battle"));
+	}
+#endif
 	if (bAutoAttackOnBeginPlay)
 	{
 		StartAutoAttack();
@@ -957,6 +2087,12 @@ void AImmortalPlayerCharacter::BeginPlay()
 		&AImmortalPlayerCharacter::CheckDailyShopRefresh,
 		60.0f,
 		true);
+	GetWorldTimerManager().SetTimer(
+		CaveProductionTimerHandle,
+		this,
+		&AImmortalPlayerCharacter::HandleCaveProductionTick,
+		1.0f,
+		true);
 }
 
 void AImmortalPlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
@@ -971,6 +2107,9 @@ void AImmortalPlayerCharacter::SetupPlayerInputComponent(UInputComponent* Player
 		PlayerInputComponent->BindKey(EKeys::G, IE_Pressed, this, &AImmortalPlayerCharacter::ToggleTechniques);
 		PlayerInputComponent->BindKey(EKeys::H, IE_Pressed, this, &AImmortalPlayerCharacter::ToggleCharacterBuild);
 		PlayerInputComponent->BindKey(EKeys::B, IE_Pressed, this, &AImmortalPlayerCharacter::ToggleShop);
+		PlayerInputComponent->BindKey(EKeys::M, IE_Pressed, this, &AImmortalPlayerCharacter::ToggleMapSelection);
+		PlayerInputComponent->BindKey(EKeys::C, IE_Pressed, this, &AImmortalPlayerCharacter::ToggleCave);
+		PlayerInputComponent->BindKey(EKeys::J, IE_Pressed, this, &AImmortalPlayerCharacter::ToggleSect);
 	}
 }
 
@@ -983,14 +2122,16 @@ void AImmortalPlayerCharacter::ToggleInventory()
 
 	const bool bWantsOpen = !bInventoryOpen;
 	if (bWantsOpen) CloseAllModalWidgetsExcept(PlayerInventoryWidget);
+	PlayerInventoryWidget->ResetTransientInteraction();
 	bInventoryOpen = bWantsOpen;
 	PlayerInventoryWidget->SetVisibility(bInventoryOpen ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
 	if (bInventoryOpen) PlayerInventoryWidget->RefreshFromPlayer();
 	ConfigureModalWidget(PlayerInventoryWidget, bInventoryOpen);
 	if (bInventoryOpen)
 	{
-		UE_LOG(LogTemp, Display, TEXT("Inventory opened: equipped %d | backpack %d/%d | material types %d | pill stacks %d | combat power %.2f"),
-			EquippedItems.Num(), InventoryItems.Num(), GetInventoryCapacity(), MaterialInventory.Num(), PillInventory.Num(), GetCombatPower());
+		UE_LOG(LogTemp, Display, TEXT("Inventory opened: equipped %d | backpack %d/%d | material types %d | pill stacks %d | artifacts %d | quest types %d | combat power %.2f"),
+			EquippedItems.Num(), InventoryItems.Num(), GetInventoryCapacity(), MaterialInventory.Num(), PillInventory.Num(),
+			ArtifactInventory.Num(), QuestItemInventory.Num(), GetCombatPower());
 	}
 }
 
@@ -1101,6 +2242,854 @@ void AImmortalPlayerCharacter::ToggleShop()
 	}
 }
 
+void AImmortalPlayerCharacter::ToggleMapSelection()
+{
+	if (!PlayerMapWidget) return;
+	const bool bWantsOpen = !bMapSelectionOpen;
+	if (bWantsOpen) CloseAllModalWidgetsExcept(PlayerMapWidget);
+	bMapSelectionOpen = bWantsOpen;
+	PlayerMapWidget->SetVisibility(bMapSelectionOpen ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
+	if (bMapSelectionOpen) PlayerMapWidget->SelectMap(GetActiveMapId());
+	ConfigureModalWidget(PlayerMapWidget, bMapSelectionOpen);
+	if (bMapSelectionOpen)
+	{
+		UE_LOG(LogTemp, Display, TEXT("Adventure map selector opened: active %s | stage %d | realm %d"),
+			*GetActiveMapId().ToString(), GetActiveMapStage(), static_cast<int32>(GetCultivationRealm()));
+	}
+}
+
+void AImmortalPlayerCharacter::ToggleCave()
+{
+	if (!PlayerCaveWidget) return;
+	const bool bWantsOpen = !bCaveOpen;
+	if (bWantsOpen)
+	{
+		SettleCaveProduction();
+		CloseAllModalWidgetsExcept(PlayerCaveWidget);
+	}
+	bCaveOpen = bWantsOpen;
+	PlayerCaveWidget->SetVisibility(bCaveOpen ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
+	if (bCaveOpen) PlayerCaveWidget->RefreshFromPlayer();
+	ConfigureModalWidget(PlayerCaveWidget, bCaveOpen);
+	if (bCaveOpen)
+	{
+		const FImmortalCaveProductionSnapshot Snapshot = GetCaveProductionSnapshot();
+		UE_LOG(LogTemp, Display,
+			TEXT("Cave opened: revision %d | stored stones=%d grass=%d ore=%d | cultivation x%.2f | forge discount %.1f%%"),
+			CaveState.Revision, CaveState.StoredSpiritStones, CaveState.StoredSpiritGrass, CaveState.StoredOre,
+			Snapshot.CultivationRateMultiplier, Snapshot.ForgeSpiritStoneDiscount * 100.0f);
+	}
+}
+
+void AImmortalPlayerCharacter::ToggleFarming()
+{
+	if (!PlayerFarmingWidget) return;
+	const bool bWantsOpen = !bFarmingOpen;
+	if (bWantsOpen)
+	{
+		SettleFarmingGrowth();
+		CloseAllModalWidgetsExcept(PlayerFarmingWidget);
+	}
+	bFarmingOpen = bWantsOpen;
+	PlayerFarmingWidget->SetVisibility(bFarmingOpen ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
+	if (bFarmingOpen) PlayerFarmingWidget->RefreshFromPlayer();
+	ConfigureModalWidget(PlayerFarmingWidget, bFarmingOpen);
+	if (bFarmingOpen)
+	{
+		UE_LOG(LogTemp, Display,
+			TEXT("Spirit field opened: level=%d unlocked=%d/%d revision=%d"),
+			GetSpiritFieldLevel(),
+			UImmortalFarmingLibrary::GetUnlockedPlotCount(GetSpiritFieldLevel()),
+			UImmortalFarmingLibrary::GetMaximumPlotCount(),
+			FarmingState.Revision);
+	}
+}
+
+void AImmortalPlayerCharacter::ToggleSect()
+{
+	if (!PlayerSectWidget) return;
+	const bool bWantsOpen = !bSectOpen;
+	if (bWantsOpen)
+	{
+		EnsureSectDailyState();
+		CloseAllModalWidgetsExcept(PlayerSectWidget);
+	}
+	bSectOpen = bWantsOpen;
+	PlayerSectWidget->SetVisibility(bSectOpen ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
+	if (bSectOpen) PlayerSectWidget->RefreshFromPlayer();
+	ConfigureModalWidget(PlayerSectWidget, bSectOpen);
+	if (bSectOpen)
+	{
+		UE_LOG(LogTemp, Display,
+			TEXT("Sect screen opened: sect=%s contribution=%d earned=%lld tasks=%d revision=%d"),
+			*SectState.SectId.ToString(), SectState.Contribution, SectState.TotalContributionEarned,
+			SectState.DailyTasks.Num(), SectState.Revision);
+	}
+}
+
+bool AImmortalPlayerCharacter::EnsureSectDailyState(const int64 CurrentUtcTicks)
+{
+	const int64 EffectiveTicks = CurrentUtcTicks > 0 ? CurrentUtcTicks : FDateTime::UtcNow().GetTicks();
+	const FImmortalSectState PreviousState = SectState;
+	const FImmortalSectDailyRefreshResult Result = UImmortalSectLibrary::EnsureDailyState(
+		SectState, EffectiveTicks, SectUtcOffsetMinutes);
+	if (!Result.bStateChanged)
+	{
+		return Result.bSucceeded && !Result.bClockRollbackDetected;
+	}
+	if (!SaveProgress())
+	{
+		SectState = PreviousState;
+		UE_LOG(LogTemp, Error, TEXT("Sect daily refresh rolled back because persistence failed"));
+		return false;
+	}
+	BP_OnSectStateChanged(SectState);
+	return true;
+}
+
+FImmortalSectJoinResult AImmortalPlayerCharacter::EvaluateJoinSect(const FName SectId) const
+{
+	return UImmortalSectLibrary::EvaluateJoin(
+		SectState,
+		SectId,
+		static_cast<int32>(GetCultivationRealm()),
+		GetMapSystemState(),
+		FDateTime::UtcNow().GetTicks(),
+		SectUtcOffsetMinutes);
+}
+
+FImmortalSectJoinResult AImmortalPlayerCharacter::JoinSect(const FName SectId)
+{
+	const FImmortalSectState PreviousState = SectState;
+	FImmortalSectJoinResult Result = UImmortalSectLibrary::TryJoin(
+		SectState,
+		SectId,
+		static_cast<int32>(GetCultivationRealm()),
+		GetMapSystemState(),
+		FDateTime::UtcNow().GetTicks(),
+		SectUtcOffsetMinutes);
+	if (!Result.bSucceeded)
+	{
+		return Result;
+	}
+	if (!SaveProgress())
+	{
+		SectState = PreviousState;
+		Result.bSucceeded = false;
+		Result.bCanJoin = false;
+		Result.bPersistenceFailed = true;
+		Result.Message = FText::FromString(TEXT("加入宗门失败：存档未写入，所有变更已回滚"));
+		return Result;
+	}
+	BP_OnSectStateChanged(SectState);
+	UE_LOG(LogTemp, Display, TEXT("Sect joined: %s | day=%d | revision=%d"),
+		*SectState.SectId.ToString(), SectState.TaskDayKey, SectState.Revision);
+	return Result;
+}
+
+FImmortalSectTaskClaimResult AImmortalPlayerCharacter::EvaluateSectTaskClaim(const FName TaskId) const
+{
+	return UImmortalSectLibrary::EvaluateTaskClaim(
+		SectState, TaskId, FDateTime::UtcNow().GetTicks(), SectUtcOffsetMinutes);
+}
+
+FImmortalSectTaskClaimResult AImmortalPlayerCharacter::ClaimSectTask(const FName TaskId)
+{
+	const FImmortalSectState PreviousState = SectState;
+	FImmortalSectTaskClaimResult Result = UImmortalSectLibrary::TryClaimTask(
+		SectState, TaskId, FDateTime::UtcNow().GetTicks(), SectUtcOffsetMinutes);
+	if (!Result.bSucceeded)
+	{
+		return Result;
+	}
+	if (!SaveProgress())
+	{
+		SectState = PreviousState;
+		Result.bSucceeded = false;
+		Result.bCanClaim = false;
+		Result.bPersistenceFailed = true;
+		Result.ContributionAwarded = 0;
+		Result.ContributionAfter = SectState.Contribution;
+		Result.Message = FText::FromString(TEXT("领取失败：存档未写入，贡献与任务状态已回滚"));
+		return Result;
+	}
+	BP_OnSectStateChanged(SectState);
+	UE_LOG(LogTemp, Display, TEXT("Sect task claimed: %s | contribution +%d => %d"),
+		*TaskId.ToString(), Result.ContributionAwarded, SectState.Contribution);
+	return Result;
+}
+
+FImmortalSectExchangeResult AImmortalPlayerCharacter::EvaluateSectExchange(const FName OfferId) const
+{
+	FImmortalSectExchangeResult Result = UImmortalSectLibrary::EvaluateExchange(
+		SectState, OfferId, FDateTime::UtcNow().GetTicks(), SectUtcOffsetMinutes);
+	if (!Result.bCanExchange)
+	{
+		return Result;
+	}
+
+	switch (Result.RewardType)
+	{
+	case EImmortalSectRewardType::Material:
+		{
+			TArray<FImmortalMaterialStack> CandidateInventory = MaterialInventory;
+			if (UImmortalMaterialLibrary::AddMaterialStack(
+				CandidateInventory, Result.RewardId, Result.RewardQuantity) != Result.RewardQuantity)
+			{
+				Result.bCanExchange = false;
+				Result.Message = FText::FromString(TEXT("材料堆叠已满，无法兑换"));
+			}
+			break;
+		}
+	case EImmortalSectRewardType::SpiritStones:
+		if (Result.RewardQuantity <= 0 || CurrentGold > MAX_int32 - Result.RewardQuantity)
+		{
+			Result.bCanExchange = false;
+			Result.Message = FText::FromString(TEXT("灵石已达到上限，无法兑换"));
+		}
+		break;
+	case EImmortalSectRewardType::TechniqueInsight:
+		if (Result.RewardQuantity <= 0 || TechniqueInsightPoints > 9999 - Result.RewardQuantity)
+		{
+			Result.bCanExchange = false;
+			Result.Message = FText::FromString(TEXT("悟道点已达到上限，无法兑换"));
+		}
+		break;
+	case EImmortalSectRewardType::Technique:
+		if (IsTechniqueLearned(Result.RewardId))
+		{
+			Result.bCanExchange = false;
+			Result.bOneTimePurchased = true;
+			Result.Message = FText::FromString(TEXT("该宗门功法已经领悟，不会重复扣除贡献"));
+		}
+		break;
+	default:
+		Result.bCanExchange = false;
+		Result.Message = FText::FromString(TEXT("未知宗门奖励"));
+		break;
+	}
+	return Result;
+}
+
+FImmortalSectExchangeResult AImmortalPlayerCharacter::ExchangeSectOffer(const FName OfferId)
+{
+	FImmortalSectExchangeResult Preflight = EvaluateSectExchange(OfferId);
+	if (!Preflight.bCanExchange)
+	{
+		return Preflight;
+	}
+
+	const FImmortalSectState PreviousSectState = SectState;
+	const TArray<FImmortalMaterialStack> PreviousMaterials = MaterialInventory;
+	const TArray<FImmortalTechniqueProgress> PreviousTechniques = TechniqueLibrary;
+	const int32 PreviousGold = CurrentGold;
+	const int32 PreviousInsight = TechniqueInsightPoints;
+	const int32 PreviousMaterialRevision = MaterialInventoryRevision;
+	const int32 PreviousTechniqueRevision = TechniqueRevision;
+
+	FImmortalSectExchangeResult Result = UImmortalSectLibrary::TryExchange(
+		SectState, OfferId, FDateTime::UtcNow().GetTicks(), SectUtcOffsetMinutes);
+	if (!Result.bSucceeded)
+	{
+		SectState = PreviousSectState;
+		return Result;
+	}
+
+	bool bRewardApplied = false;
+	FImmortalTechniqueProgress GrantedTechnique;
+	switch (Result.RewardType)
+	{
+	case EImmortalSectRewardType::Material:
+		bRewardApplied = AddMaterialInternal(Result.RewardId, Result.RewardQuantity) == Result.RewardQuantity;
+		break;
+	case EImmortalSectRewardType::SpiritStones:
+		CurrentGold += Result.RewardQuantity;
+		bRewardApplied = true;
+		break;
+	case EImmortalSectRewardType::TechniqueInsight:
+		TechniqueInsightPoints += Result.RewardQuantity;
+		++TechniqueRevision;
+		bRewardApplied = true;
+		break;
+	case EImmortalSectRewardType::Technique:
+		GrantedTechnique = UImmortalTechniqueLibrary::CreateTechnique(Result.RewardId);
+		if (!GrantedTechnique.TechniqueId.IsNone() && !IsTechniqueLearned(Result.RewardId))
+		{
+			TechniqueLibrary.Add(GrantedTechnique);
+			UImmortalTechniqueLibrary::NormalizeLibrary(
+				TechniqueLibrary, EquippedTechniqueIds, TechniqueInsightPoints);
+			++TechniqueRevision;
+			bRewardApplied = IsTechniqueLearned(Result.RewardId);
+		}
+		break;
+	default:
+		break;
+	}
+
+	const bool bPersistenceFailed = !bRewardApplied
+		|| ShouldForceSectPersistenceFailure(TEXT("Exchange"))
+		|| !SaveProgress();
+	if (bPersistenceFailed)
+	{
+		SectState = PreviousSectState;
+		MaterialInventory = PreviousMaterials;
+		TechniqueLibrary = PreviousTechniques;
+		CurrentGold = PreviousGold;
+		TechniqueInsightPoints = PreviousInsight;
+		MaterialInventoryRevision = PreviousMaterialRevision;
+		TechniqueRevision = PreviousTechniqueRevision;
+		Result.bSucceeded = false;
+		Result.bCanExchange = false;
+		Result.bPersistenceFailed = true;
+		Result.ContributionSpent = 0;
+		Result.ContributionAfter = SectState.Contribution;
+		Result.RewardQuantity = 0;
+		Result.Message = bRewardApplied
+			? FText::FromString(TEXT("兑换失败：存档未写入，贡献与奖励已完整回滚"))
+			: FText::FromString(TEXT("兑换失败：奖励无法写入，贡献未扣除"));
+		return Result;
+	}
+
+	if (Result.RewardType == EImmortalSectRewardType::Material)
+	{
+		PublishMaterialInventoryDiff(PreviousMaterials);
+	}
+	else if (Result.RewardType == EImmortalSectRewardType::SpiritStones)
+	{
+		BP_OnRewardsChanged(CurrentCultivation, CurrentGold, 0, CurrentGold - PreviousGold);
+	}
+	else if (Result.RewardType == EImmortalSectRewardType::Technique)
+	{
+		FImmortalTechniqueProgress PersistedTechnique;
+		if (GetTechniqueProgress(Result.RewardId, PersistedTechnique))
+		{
+			BP_OnTechniqueChanged(PersistedTechnique, false);
+		}
+	}
+	BP_OnSectStateChanged(SectState);
+	UE_LOG(LogTemp, Display,
+		TEXT("Sect exchange: %s | reward=%d/%s x%d | contribution -%d => %d"),
+		*OfferId.ToString(), static_cast<int32>(Result.RewardType), *Result.RewardId.ToString(),
+		Result.RewardQuantity, Result.ContributionSpent, SectState.Contribution);
+	return Result;
+}
+
+void AImmortalPlayerCharacter::NotifySectCombatProgress(
+	const int32 MonsterKills,
+	const int32 StageClears,
+	const int32 BossKills)
+{
+	if (!SectState.HasJoined() || (MonsterKills <= 0 && StageClears <= 0 && BossKills <= 0))
+	{
+		return;
+	}
+	const FImmortalSectState PreviousState = SectState;
+	const FImmortalSectTaskProgressResult Result = UImmortalSectLibrary::RecordCombatProgress(
+		SectState,
+		FMath::Max(MonsterKills, 0),
+		FMath::Max(StageClears, 0),
+		FMath::Max(BossKills, 0),
+		FDateTime::UtcNow().GetTicks(),
+		SectUtcOffsetMinutes);
+	if (!Result.bStateChanged)
+	{
+		return;
+	}
+	if (!SaveProgress())
+	{
+		SectState = PreviousState;
+		UE_LOG(LogTemp, Error, TEXT("Sect combat progress rolled back because persistence failed"));
+		return;
+	}
+	BP_OnSectStateChanged(SectState);
+}
+
+FImmortalCaveProductionSnapshot AImmortalPlayerCharacter::GetCaveProductionSnapshot() const
+{
+	return UImmortalCaveLibrary::GetProductionSnapshot(CaveState);
+}
+
+float AImmortalPlayerCharacter::GetCaveCultivationMultiplier() const
+{
+	return GetCaveProductionSnapshot().CultivationRateMultiplier;
+}
+
+float AImmortalPlayerCharacter::GetCaveAlchemySuccessBonus() const
+{
+	return GetCaveProductionSnapshot().AlchemySuccessChanceBonus;
+}
+
+float AImmortalPlayerCharacter::GetCaveAlchemyExceptionalBonus() const
+{
+	return GetCaveProductionSnapshot().AlchemyExceptionalChanceBonus;
+}
+
+FImmortalCraftingCost AImmortalPlayerCharacter::ApplyCaveForgeDiscount(const FImmortalCraftingCost& Cost) const
+{
+	return UImmortalCaveLibrary::ApplyForgeDiscount(Cost, CaveState);
+}
+
+bool AImmortalPlayerCharacter::CanUpgradeCaveBuilding(const EImmortalCaveBuildingType BuildingType) const
+{
+	return UImmortalCaveLibrary::EvaluateUpgrade(CaveState, BuildingType, MaterialInventory, CurrentGold).bCanUpgrade;
+}
+
+FImmortalCaveSettlementResult AImmortalPlayerCharacter::SettleCaveProduction(const int64 CurrentUtcTicks)
+{
+	const int64 SettlementTicks = CurrentUtcTicks > 0 ? CurrentUtcTicks : FDateTime::UtcNow().GetTicks();
+	const FImmortalCaveSettlementResult Result = UImmortalCaveLibrary::SettleProduction(CaveState, SettlementTicks);
+	if (Result.bClockRollbackDetected)
+	{
+		UE_LOG(LogTemp, VeryVerbose,
+			TEXT("Cave production paused because UTC moved backwards: saved=%lld current=%lld"),
+			CaveState.LastSettlementUtcTicks, SettlementTicks);
+	}
+	return Result;
+}
+
+int32 AImmortalPlayerCharacter::GetSpiritFieldLevel() const
+{
+	return UImmortalCaveLibrary::GetBuildingLevel(CaveState, EImmortalCaveBuildingType::SpiritField);
+}
+
+FImmortalFarmingSettlementResult AImmortalPlayerCharacter::SettleFarmingGrowth(const int64 CurrentUtcTicks)
+{
+	const int64 SettlementTicks = CurrentUtcTicks > 0 ? CurrentUtcTicks : FDateTime::UtcNow().GetTicks();
+	const FImmortalFarmingSettlementResult Result = UImmortalFarmingLibrary::SettleGrowth(
+		FarmingState, GetSpiritFieldLevel(), SettlementTicks);
+	if (Result.bClockRollbackDetected)
+	{
+		UE_LOG(LogTemp, VeryVerbose,
+			TEXT("Farming growth paused because UTC moved backwards: saved=%lld current=%lld"),
+			FarmingState.LastSettlementUtcTicks, SettlementTicks);
+	}
+	return Result;
+}
+
+void AImmortalPlayerCharacter::HandleCaveProductionTick()
+{
+	SettleCaveProduction();
+}
+
+void AImmortalPlayerCharacter::RecalculateCaveBonuses()
+{
+	if (CultivationComponent)
+	{
+		CultivationComponent->SetCaveRateMultiplier(GetCaveCultivationMultiplier());
+	}
+}
+
+FImmortalCaveUpgradeResult AImmortalPlayerCharacter::UpgradeCaveBuilding(
+	const EImmortalCaveBuildingType BuildingType)
+{
+	const int64 OperationUtcTicks = FDateTime::UtcNow().GetTicks();
+	SettleCaveProduction(OperationUtcTicks);
+	// Settle existing crops with the old spirit-field level so an upgrade only
+	// accelerates growth after the moment it succeeds.
+	SettleFarmingGrowth(OperationUtcTicks);
+	const FImmortalCaveState PreviousCaveState = CaveState;
+	const TArray<FImmortalMaterialStack> PreviousMaterials = MaterialInventory;
+	const int32 PreviousGold = CurrentGold;
+	const int32 PreviousMaterialRevision = MaterialInventoryRevision;
+
+	FImmortalCaveUpgradeResult Result = UImmortalCaveLibrary::TryUpgradeBuilding(
+		CaveState, BuildingType, MaterialInventory, CurrentGold);
+	if (!Result.bSucceeded)
+	{
+		return Result;
+	}
+
+	++MaterialInventoryRevision;
+	RecalculateCaveBonuses();
+	if (!SaveProgress())
+	{
+		CaveState = PreviousCaveState;
+		MaterialInventory = PreviousMaterials;
+		CurrentGold = PreviousGold;
+		MaterialInventoryRevision = PreviousMaterialRevision;
+		RecalculateCaveBonuses();
+		Result.bSucceeded = false;
+		Result.bCanUpgrade = false;
+		Result.Message = FText::FromString(TEXT("洞府升级存档失败，资源与建筑等级已完整回滚"));
+		return Result;
+	}
+
+	BP_OnRewardsChanged(CurrentCultivation, CurrentGold, 0, CurrentGold - PreviousGold);
+	for (const FImmortalCraftingMaterialCost& MaterialCost : Result.Cost.Materials)
+	{
+		BP_OnMaterialInventoryChanged(
+			MaterialCost.MaterialId,
+			GetMaterialQuantity(MaterialCost.MaterialId),
+			-MaterialCost.Quantity);
+	}
+	UE_LOG(LogTemp, Display,
+		TEXT("Cave building upgraded: type=%d level=%d->%d | stones=%d | revision=%d"),
+		static_cast<int32>(BuildingType), Result.CurrentLevel, Result.TargetLevel, CurrentGold, CaveState.Revision);
+	return Result;
+}
+
+FImmortalCaveCollectionResult AImmortalPlayerCharacter::CollectCaveResources()
+{
+	SettleCaveProduction();
+	const FImmortalCaveState PreviousCaveState = CaveState;
+	const TArray<FImmortalMaterialStack> PreviousMaterials = MaterialInventory;
+	const int32 PreviousGold = CurrentGold;
+	const int32 PreviousMaterialRevision = MaterialInventoryRevision;
+
+	FImmortalCaveCollectionResult Result = UImmortalCaveLibrary::CollectStoredResources(
+		CaveState, MaterialInventory, CurrentGold);
+	if (!Result.bCollectedAnything)
+	{
+		return Result;
+	}
+
+	if (Result.SpiritGrassCollected > 0 || Result.OreCollected > 0)
+	{
+		++MaterialInventoryRevision;
+	}
+	if (!SaveProgress())
+	{
+		CaveState = PreviousCaveState;
+		MaterialInventory = PreviousMaterials;
+		CurrentGold = PreviousGold;
+		MaterialInventoryRevision = PreviousMaterialRevision;
+		FImmortalCaveCollectionResult Failure;
+		Failure.bPersistenceFailed = true;
+		Failure.Message = FText::FromString(TEXT("洞府资源收取存档失败，所有资源已安全回滚"));
+		return Failure;
+	}
+
+	if (Result.SpiritGrassCollected > 0)
+	{
+		BP_OnMaterialInventoryChanged(TEXT("SpiritGrass"), GetMaterialQuantity(TEXT("SpiritGrass")), Result.SpiritGrassCollected);
+	}
+	if (Result.OreCollected > 0)
+	{
+		BP_OnMaterialInventoryChanged(TEXT("Ore"), GetMaterialQuantity(TEXT("Ore")), Result.OreCollected);
+	}
+	BP_OnRewardsChanged(CurrentCultivation, CurrentGold, 0, Result.SpiritStonesCollected);
+	UE_LOG(LogTemp, Display,
+		TEXT("Cave resources collected: stones=%d grass=%d ore=%d | remaining=%d/%d/%d | revision=%d"),
+		Result.SpiritStonesCollected, Result.SpiritGrassCollected, Result.OreCollected,
+		CaveState.StoredSpiritStones, CaveState.StoredSpiritGrass, CaveState.StoredOre, CaveState.Revision);
+	return Result;
+}
+
+FImmortalFarmingPlantResult AImmortalPlayerCharacter::EvaluatePlantCrop(
+	const int32 PlotIndex,
+	const FName CropId) const
+{
+	return UImmortalFarmingLibrary::EvaluatePlant(
+		FarmingState,
+		PlotIndex,
+		CropId,
+		GetSpiritFieldLevel(),
+		MaterialInventory,
+		CurrentGold,
+		FDateTime::UtcNow().GetTicks());
+}
+
+FImmortalFarmingPlantResult AImmortalPlayerCharacter::PlantCrop(
+	const int32 PlotIndex,
+	const FName CropId)
+{
+	const int64 OperationUtcTicks = FDateTime::UtcNow().GetTicks();
+	SettleCaveProduction(OperationUtcTicks);
+	SettleFarmingGrowth(OperationUtcTicks);
+	const FImmortalCaveState PreviousCaveState = CaveState;
+	const FImmortalFarmingState PreviousFarmingState = FarmingState;
+	const TArray<FImmortalMaterialStack> PreviousMaterials = MaterialInventory;
+	const int32 PreviousGold = CurrentGold;
+	const int32 PreviousMaterialRevision = MaterialInventoryRevision;
+
+	FImmortalFarmingPlantResult Result = UImmortalFarmingLibrary::TryPlantCrop(
+		FarmingState,
+		PlotIndex,
+		CropId,
+		GetSpiritFieldLevel(),
+		MaterialInventory,
+		CurrentGold,
+		OperationUtcTicks);
+	if (!Result.bSucceeded) return Result;
+
+	const bool bMaterialsChanged = !HaveSameMaterialQuantities(PreviousMaterials, MaterialInventory);
+	if (bMaterialsChanged) ++MaterialInventoryRevision;
+	if (ShouldForceFarmingPersistenceFailure(TEXT("Plant")) || !SaveProgress())
+	{
+		CaveState = PreviousCaveState;
+		FarmingState = PreviousFarmingState;
+		MaterialInventory = PreviousMaterials;
+		CurrentGold = PreviousGold;
+		MaterialInventoryRevision = PreviousMaterialRevision;
+		Result.bSucceeded = false;
+		Result.bPersistenceFailed = true;
+		Result.Message = FText::FromString(TEXT("播种存档失败，灵石、材料和田块均已安全回滚"));
+		return Result;
+	}
+
+	if (bMaterialsChanged) PublishMaterialInventoryDiff(PreviousMaterials);
+	if (CurrentGold != PreviousGold)
+	{
+		BP_OnRewardsChanged(CurrentCultivation, CurrentGold, 0, CurrentGold - PreviousGold);
+	}
+	UE_LOG(LogTemp, Display,
+		TEXT("Farming crop planted: plot=%d crop=%s yield=%d stones=%d revision=%d"),
+		PlotIndex, *CropId.ToString(), Result.FrozenYield, CurrentGold, FarmingState.Revision);
+	return Result;
+}
+
+FImmortalFarmingBatchPlantResult AImmortalPlayerCharacter::PlantCropInAllEmptyPlots(const FName CropId)
+{
+	const int64 OperationUtcTicks = FDateTime::UtcNow().GetTicks();
+	SettleCaveProduction(OperationUtcTicks);
+	SettleFarmingGrowth(OperationUtcTicks);
+	const FImmortalCaveState PreviousCaveState = CaveState;
+	const FImmortalFarmingState PreviousFarmingState = FarmingState;
+	const TArray<FImmortalMaterialStack> PreviousMaterials = MaterialInventory;
+	const int32 PreviousGold = CurrentGold;
+	const int32 PreviousMaterialRevision = MaterialInventoryRevision;
+
+	FImmortalFarmingBatchPlantResult Result = UImmortalFarmingLibrary::TryPlantAllEmpty(
+		FarmingState,
+		CropId,
+		GetSpiritFieldLevel(),
+		MaterialInventory,
+		CurrentGold,
+		OperationUtcTicks);
+	if (!Result.bSucceeded) return Result;
+
+	const bool bMaterialsChanged = !HaveSameMaterialQuantities(PreviousMaterials, MaterialInventory);
+	if (bMaterialsChanged) ++MaterialInventoryRevision;
+	if (ShouldForceFarmingPersistenceFailure(TEXT("Plant")) || !SaveProgress())
+	{
+		CaveState = PreviousCaveState;
+		FarmingState = PreviousFarmingState;
+		MaterialInventory = PreviousMaterials;
+		CurrentGold = PreviousGold;
+		MaterialInventoryRevision = PreviousMaterialRevision;
+		Result.bSucceeded = false;
+		Result.bPersistenceFailed = true;
+		Result.bAllEligiblePlotsPlanted = false;
+		Result.PlantedPlotCount = 0;
+		for (FImmortalFarmingPlantResult& PlantResult : Result.PlantResults)
+		{
+			if (PlantResult.bSucceeded)
+			{
+				PlantResult.bSucceeded = false;
+				PlantResult.bPersistenceFailed = true;
+				PlantResult.Message = FText::FromString(TEXT("存档失败，本次播种已回滚"));
+			}
+		}
+		Result.Message = FText::FromString(TEXT("批量播种存档失败，全部操作已安全回滚"));
+		return Result;
+	}
+
+	if (bMaterialsChanged) PublishMaterialInventoryDiff(PreviousMaterials);
+	if (CurrentGold != PreviousGold)
+	{
+		BP_OnRewardsChanged(CurrentCultivation, CurrentGold, 0, CurrentGold - PreviousGold);
+	}
+	UE_LOG(LogTemp, Display,
+		TEXT("Farming batch planted: crop=%s plots=%d/%d stones=%d revision=%d"),
+		*CropId.ToString(), Result.PlantedPlotCount, Result.EligiblePlotCount, CurrentGold, FarmingState.Revision);
+	return Result;
+}
+
+FImmortalFarmingHarvestResult AImmortalPlayerCharacter::HarvestCrop(const int32 PlotIndex)
+{
+	const int64 OperationUtcTicks = FDateTime::UtcNow().GetTicks();
+	SettleCaveProduction(OperationUtcTicks);
+	SettleFarmingGrowth(OperationUtcTicks);
+	const FImmortalCaveState PreviousCaveState = CaveState;
+	const FImmortalFarmingState PreviousFarmingState = FarmingState;
+	const TArray<FImmortalMaterialStack> PreviousMaterials = MaterialInventory;
+	const int32 PreviousMaterialRevision = MaterialInventoryRevision;
+
+	FImmortalFarmingHarvestResult Result = UImmortalFarmingLibrary::TryHarvestPlot(
+		FarmingState,
+		PlotIndex,
+		GetSpiritFieldLevel(),
+		MaterialInventory,
+		OperationUtcTicks);
+	if (!Result.bSucceeded) return Result;
+
+	const bool bMaterialsChanged = !HaveSameMaterialQuantities(PreviousMaterials, MaterialInventory);
+	if (bMaterialsChanged) ++MaterialInventoryRevision;
+	if (ShouldForceFarmingPersistenceFailure(TEXT("Harvest")) || !SaveProgress())
+	{
+		CaveState = PreviousCaveState;
+		FarmingState = PreviousFarmingState;
+		MaterialInventory = PreviousMaterials;
+		MaterialInventoryRevision = PreviousMaterialRevision;
+		Result.bSucceeded = false;
+		Result.bPersistenceFailed = true;
+		Result.bFullyHarvested = false;
+		Result.bPartiallyHarvested = false;
+		Result.HarvestedQuantity = 0;
+		Result.RemainingQuantity = Result.RequestedQuantity;
+		Result.Message = FText::FromString(TEXT("收获存档失败，作物和材料均已安全回滚"));
+		return Result;
+	}
+
+	if (bMaterialsChanged) PublishMaterialInventoryDiff(PreviousMaterials);
+	UE_LOG(LogTemp, Display,
+		TEXT("Farming crop harvested: plot=%d crop=%s material=%s amount=%d remaining=%d revision=%d"),
+		PlotIndex, *Result.CropId.ToString(), *Result.OutputMaterialId.ToString(),
+		Result.HarvestedQuantity, Result.RemainingQuantity, FarmingState.Revision);
+	return Result;
+}
+
+FImmortalFarmingBatchHarvestResult AImmortalPlayerCharacter::HarvestAllReadyCrops()
+{
+	const int64 OperationUtcTicks = FDateTime::UtcNow().GetTicks();
+	SettleCaveProduction(OperationUtcTicks);
+	SettleFarmingGrowth(OperationUtcTicks);
+	const FImmortalCaveState PreviousCaveState = CaveState;
+	const FImmortalFarmingState PreviousFarmingState = FarmingState;
+	const TArray<FImmortalMaterialStack> PreviousMaterials = MaterialInventory;
+	const int32 PreviousMaterialRevision = MaterialInventoryRevision;
+
+	FImmortalFarmingBatchHarvestResult Result = UImmortalFarmingLibrary::TryHarvestAllReady(
+		FarmingState,
+		GetSpiritFieldLevel(),
+		MaterialInventory,
+		OperationUtcTicks);
+	if (!Result.bSucceeded) return Result;
+
+	const bool bMaterialsChanged = !HaveSameMaterialQuantities(PreviousMaterials, MaterialInventory);
+	if (bMaterialsChanged) ++MaterialInventoryRevision;
+	if (ShouldForceFarmingPersistenceFailure(TEXT("Harvest")) || !SaveProgress())
+	{
+		CaveState = PreviousCaveState;
+		FarmingState = PreviousFarmingState;
+		MaterialInventory = PreviousMaterials;
+		MaterialInventoryRevision = PreviousMaterialRevision;
+		Result.bSucceeded = false;
+		Result.bPersistenceFailed = true;
+		Result.FullyHarvestedPlotCount = 0;
+		Result.PartiallyHarvestedPlotCount = 0;
+		Result.HarvestedItemCount = 0;
+		for (FImmortalFarmingHarvestResult& HarvestResult : Result.HarvestResults)
+		{
+			if (HarvestResult.bSucceeded)
+			{
+				HarvestResult.bSucceeded = false;
+				HarvestResult.bPersistenceFailed = true;
+				HarvestResult.bFullyHarvested = false;
+				HarvestResult.bPartiallyHarvested = false;
+				HarvestResult.HarvestedQuantity = 0;
+				HarvestResult.RemainingQuantity = HarvestResult.RequestedQuantity;
+				HarvestResult.Message = FText::FromString(TEXT("存档失败，本次收获已回滚"));
+			}
+		}
+		Result.Message = FText::FromString(TEXT("批量收获存档失败，全部作物和材料均已安全回滚"));
+		return Result;
+	}
+
+	if (bMaterialsChanged) PublishMaterialInventoryDiff(PreviousMaterials);
+	UE_LOG(LogTemp, Display,
+		TEXT("Farming batch harvested: ready=%d full=%d partial=%d items=%d revision=%d"),
+		Result.ReadyPlotCount, Result.FullyHarvestedPlotCount,
+		Result.PartiallyHarvestedPlotCount, Result.HarvestedItemCount, FarmingState.Revision);
+	return Result;
+}
+
+AImmortalMonsterSpawner* AImmortalPlayerCharacter::FindMapSpawner() const
+{
+	if (CachedMapSpawner.IsValid())
+	{
+		return CachedMapSpawner.Get();
+	}
+	AImmortalMonsterSpawner* Found = GetWorld()
+		? Cast<AImmortalMonsterSpawner>(UGameplayStatics::GetActorOfClass(
+			GetWorld(), AImmortalMonsterSpawner::StaticClass()))
+		: nullptr;
+	CachedMapSpawner = Found;
+	return Found;
+}
+
+FImmortalMapSystemState AImmortalPlayerCharacter::GetMapSystemState() const
+{
+	if (const AImmortalMonsterSpawner* Spawner = FindMapSpawner())
+	{
+		const FImmortalMapSystemState SpawnerState = Spawner->GetMapSystemState();
+		if (SpawnerState.bInitialized)
+		{
+			return SpawnerState;
+		}
+	}
+	FImmortalMapSystemState Fallback = CachedMapSystemState;
+	if (!Fallback.bInitialized)
+	{
+		Fallback = UImmortalMapLibrary::CreateMigratedState(1, 0, false);
+	}
+	UImmortalMapLibrary::NormalizeState(Fallback);
+	return Fallback;
+}
+
+int32 AImmortalPlayerCharacter::GetMapRevision() const
+{
+	if (const AImmortalMonsterSpawner* Spawner = FindMapSpawner())
+	{
+		return Spawner->GetMapRevision();
+	}
+	return 0;
+}
+
+FName AImmortalPlayerCharacter::GetActiveMapId() const
+{
+	if (const AImmortalMonsterSpawner* Spawner = FindMapSpawner())
+	{
+		if (Spawner->GetMapSystemState().bInitialized)
+		{
+			return Spawner->GetActiveMapId();
+		}
+	}
+	return CachedMapSystemState.bInitialized && !CachedMapSystemState.ActiveMapId.IsNone()
+		? CachedMapSystemState.ActiveMapId
+		: (DisplayedMapId.IsNone() ? UImmortalMapLibrary::GetQingyunMountainId() : DisplayedMapId);
+}
+
+int32 AImmortalPlayerCharacter::GetActiveMapStage() const
+{
+	FImmortalMapProgress Progress;
+	return UImmortalMapLibrary::GetMapProgress(GetMapSystemState(), GetActiveMapId(), Progress)
+		? Progress.Stage
+		: FMath::Max(DisplayedStage, 1);
+}
+
+int32 AImmortalPlayerCharacter::GetQingyunStage() const
+{
+	FImmortalMapProgress Progress;
+	return UImmortalMapLibrary::GetMapProgress(
+		GetMapSystemState(), UImmortalMapLibrary::GetQingyunMountainId(), Progress)
+		? Progress.Stage
+		: (DisplayedMapId == UImmortalMapLibrary::GetQingyunMountainId() ? FMath::Max(DisplayedStage, 1) : 1);
+}
+
+bool AImmortalPlayerCharacter::IsMapUnlocked(const FName MapId) const
+{
+	return UImmortalMapLibrary::IsMapUnlocked(MapId, static_cast<int32>(GetCultivationRealm()));
+}
+
+FImmortalMapTravelResult AImmortalPlayerCharacter::TravelToMap(const FName MapId)
+{
+	if (AImmortalMonsterSpawner* Spawner = FindMapSpawner())
+	{
+		FImmortalMapTravelResult Result = Spawner->TravelToMap(MapId);
+		if (Result.bSucceeded)
+		{
+			CachedMapSystemState = Spawner->GetMapSystemState();
+			if (PlayerMapWidget) PlayerMapWidget->RefreshFromPlayer();
+		}
+		return Result;
+	}
+	FImmortalMapTravelResult Result;
+	Result.DestinationMapId = MapId;
+	Result.Message = FText::FromString(TEXT("地图控制器尚未就绪，请稍后再试"));
+	return Result;
+}
+
 void AImmortalPlayerCharacter::CloseAllModalWidgetsExcept(const UUserWidget* ExceptWidget)
 {
 	auto Close = [ExceptWidget](UUserWidget* Widget, bool& bOpen)
@@ -1118,6 +3107,10 @@ void AImmortalPlayerCharacter::CloseAllModalWidgetsExcept(const UUserWidget* Exc
 	Close(PlayerTechniqueWidget, bTechniqueOpen);
 	Close(PlayerCharacterBuildWidget, bCharacterBuildOpen);
 	Close(PlayerShopWidget, bShopOpen);
+	Close(PlayerMapWidget, bMapSelectionOpen);
+	Close(PlayerCaveWidget, bCaveOpen);
+	Close(PlayerFarmingWidget, bFarmingOpen);
+	Close(PlayerSectWidget, bSectOpen);
 }
 
 void AImmortalPlayerCharacter::ConfigureModalWidget(UUserWidget* Widget, const bool bOpen)
@@ -1138,17 +3131,40 @@ void AImmortalPlayerCharacter::ConfigureModalWidget(UUserWidget* Widget, const b
 		int32 ViewportWidth = 0;
 		int32 ViewportHeight = 0;
 		PlayerController->GetViewportSize(ViewportWidth, ViewportHeight);
-		const FVector2D InventorySize(900.0f, 600.0f);
+		const bool bIsTaskbarStripWidget = Widget == PlayerInventoryWidget
+			|| Widget == PlayerFarmingWidget || Widget == PlayerSectWidget;
+		const FVector2D InventorySize = bIsTaskbarStripWidget
+			? FVector2D(1600.0f, 300.0f)
+			: FVector2D(900.0f, 600.0f);
+		const float AvailableWidth = FMath::Max(static_cast<float>(ViewportWidth) - 16.0f, 1.0f);
+		const float AvailableHeight = FMath::Max(static_cast<float>(ViewportHeight) - 16.0f, 1.0f);
+		const float FitScale = ViewportWidth > 0 && ViewportHeight > 0
+			? FMath::Clamp(FMath::Min(
+				AvailableWidth / InventorySize.X,
+				AvailableHeight / InventorySize.Y), 0.1f, 1.0f)
+			: 1.0f;
+		const float DpiScale = FMath::Max(UWidgetLayoutLibrary::GetViewportScale(this), 0.01f);
+		// UMG applies the viewport DPI curve after the viewport slot is laid out.
+		// Compensate it here so InventorySize and CentredPosition remain physical
+		// TBH-window pixels (1707x320 currently uses roughly 0.44 DPI scale).
+		const float RenderScale = FitScale / DpiScale;
+		const FVector2D RenderedSize = InventorySize * FitScale;
 		const FVector2D CentredPosition(
-			FMath::Max((static_cast<float>(ViewportWidth) - InventorySize.X) * 0.5f, 0.0f),
-			FMath::Max((static_cast<float>(ViewportHeight) - InventorySize.Y) * 0.5f, 0.0f));
+			FMath::Max((static_cast<float>(ViewportWidth) - RenderedSize.X) * 0.5f, 0.0f),
+			FMath::Max((static_cast<float>(ViewportHeight) - RenderedSize.Y) * 0.5f, 0.0f));
 		// Apply layout only after AddToViewport has registered the widget with
 		// UE 5.7's GameViewportSubsystem; early consecutive setters can replace
 		// one another while the viewport slot is still unmanaged.
 		Widget->SetDesiredSizeInViewport(InventorySize);
+		Widget->SetRenderTransformPivot(FVector2D::ZeroVector);
+		Widget->SetRenderScale(FVector2D(RenderScale, RenderScale));
 		Widget->SetAnchorsInViewport(FAnchors(0.0f, 0.0f));
 		Widget->SetAlignmentInViewport(FVector2D::ZeroVector);
-		Widget->SetPositionInViewport(CentredPosition, false);
+		Widget->SetPositionInViewport(CentredPosition, true);
+		UE_LOG(LogTemp, Display,
+			TEXT("Modal viewport fit applied: taskbarStrip=%s logical=%.0fx%.0f viewport=%dx%d fit=%.3f dpi=%.3f render=%.3f"),
+			bIsTaskbarStripWidget ? TEXT("true") : TEXT("false"), InventorySize.X, InventorySize.Y,
+			ViewportWidth, ViewportHeight, FitScale, DpiScale, RenderScale);
 		FInputModeGameAndUI InputMode;
 		InputMode.SetWidgetToFocus(Widget->TakeWidget());
 		InputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
@@ -1196,7 +3212,8 @@ bool AImmortalPlayerCharacter::EnsureDailyShopRefresh()
 	const int32 CurrentDayKey = UImmortalShopLibrary::GetDayKeyFromUtcTicks(
 		FDateTime::UtcNow().GetTicks(), ShopUtcOffsetMinutes);
 	if (!UImmortalShopLibrary::NeedsDailyRefresh(ShopState, CurrentDayKey)) return false;
-	if (!RefreshShopForDay(CurrentDayKey, FMath::Max(DisplayedStage, 1), true)) return false;
+	if (!RefreshShopForDay(CurrentDayKey,
+		UImmortalMapLibrary::GetEffectiveAdventureStage(GetActiveMapId(), GetActiveMapStage()), true)) return false;
 	SaveProgress();
 	return true;
 }
@@ -1204,6 +3221,13 @@ bool AImmortalPlayerCharacter::EnsureDailyShopRefresh()
 void AImmortalPlayerCharacter::CheckDailyShopRefresh()
 {
 	EnsureDailyShopRefresh();
+	const int64 CurrentUtcTicks = FDateTime::UtcNow().GetTicks();
+	const int32 CurrentSectDayKey = UImmortalSectLibrary::GetDayKeyFromUtcTicks(
+		CurrentUtcTicks, SectUtcOffsetMinutes);
+	if (CurrentSectDayKey > SectState.TaskDayKey)
+	{
+		EnsureSectDailyState(CurrentUtcTicks);
+	}
 }
 
 bool AImmortalPlayerCharacter::CanBuyShopListing(const FGuid ListingId) const
@@ -1216,7 +3240,13 @@ bool AImmortalPlayerCharacter::CanBuyShopListing(const FGuid ListingId) const
 	switch (Listing->ProductType)
 	{
 	case EImmortalShopProductType::Equipment:
-		return InventoryItems.Num() < FMath::Max(InventoryCapacity, 1);
+		if (InventoryItems.Num() < FMath::Max(InventoryCapacity, 1)) return true;
+		return bAutoEquipNewItems
+			&& IsEquipmentCompatibleWithPath(Listing->EquipmentItem)
+			&& !EquippedItems.ContainsByPredicate([Listing](const FImmortalEquipmentItem& Item)
+			{
+				return Item.Slot == Listing->EquipmentItem.Slot;
+			});
 	case EImmortalShopProductType::Material:
 	{
 		FImmortalMaterialDefinition Definition;
@@ -1300,10 +3330,30 @@ FImmortalShopTransactionResult AImmortalPlayerCharacter::BuyShopListing(const FG
 		});
 		const bool bCompatible = UImmortalCharacterPathLibrary::IsEquipmentCompatible(
 			CultivationPathState.Path, PurchasedItem.Discipline);
-		const float ExistingPower = EquippedIndex == INDEX_NONE ? -1.0f
-			: UImmortalEquipmentLibrary::CalculateEquipmentPower(EquippedItems[EquippedIndex]);
+		auto CalculateCompatibleLoadoutPower = [this](const TArray<FImmortalEquipmentItem>& Loadout)
+		{
+			TArray<FImmortalEquipmentItem> CompatibleLoadout;
+			for (const FImmortalEquipmentItem& Candidate : Loadout)
+			{
+				if (IsEquipmentCompatibleWithPath(Candidate)) CompatibleLoadout.Add(Candidate);
+			}
+			const float CultivationAttack = CultivationComponent ? CultivationComponent->GetAttackBonus() : 0.0f;
+			const float CultivationDefense = CultivationComponent ? CultivationComponent->GetDefenseBonus() : 0.0f;
+			const float CultivationHealth = CultivationComponent ? CultivationComponent->GetHealthBonus() : 0.0f;
+			return UImmortalEquipmentLibrary::CalculateLoadoutPowerWithBaseStats(
+				CompatibleLoadout,
+				AttackDamage + CultivationAttack,
+				Defense + CultivationDefense,
+				MaxHealth + CultivationHealth);
+		};
+		const float ExistingLoadoutPower = CalculateCompatibleLoadoutPower(EquippedItems);
+		TArray<FImmortalEquipmentItem> CandidateLoadout = EquippedItems;
+		if (EquippedIndex == INDEX_NONE) CandidateLoadout.Add(PurchasedItem);
+		else CandidateLoadout[EquippedIndex] = PurchasedItem;
+		const float CandidateLoadoutPower = CalculateCompatibleLoadoutPower(CandidateLoadout);
 		if (bAutoEquipNewItems && bCompatible
-			&& UImmortalEquipmentLibrary::CalculateEquipmentPower(PurchasedItem) > ExistingPower)
+			&& (EquippedIndex == INDEX_NONE || !EquippedItems[EquippedIndex].bLocked)
+			&& CandidateLoadoutPower > ExistingLoadoutPower + KINDA_SMALL_NUMBER)
 		{
 			const int32 PurchasedIndex = InventoryItems.IndexOfByPredicate([&PurchasedItem](const FImmortalEquipmentItem& Item)
 			{
@@ -1436,7 +3486,8 @@ FImmortalShopTransactionResult AImmortalPlayerCharacter::RefreshShopInventory()
 	const int32 DayKey = FMath::Max(ShopState.RefreshDayKey,
 		UImmortalShopLibrary::GetDayKeyFromUtcTicks(FDateTime::UtcNow().GetTicks(), ShopUtcOffsetMinutes));
 	FImmortalShopState Candidate = UImmortalShopLibrary::GenerateStock(
-		FMath::Max(DisplayedStage, 1), static_cast<int32>(GetCultivationRealm()), GetCultivationMinorStage(),
+		UImmortalMapLibrary::GetEffectiveAdventureStage(GetActiveMapId(), GetActiveMapStage()),
+		static_cast<int32>(GetCultivationRealm()), GetCultivationMinorStage(),
 		DayKey, ShopState.RefreshSerial + 1);
 	if (Candidate.Listings.IsEmpty())
 	{
@@ -1474,7 +3525,7 @@ int32 AImmortalPlayerCharacter::GetEquipmentShopSellPrice(const FGuid ItemId) co
 	{
 		return Entry.ItemId == ItemId;
 	});
-	return Item ? UImmortalShopLibrary::GetEquipmentSellPrice(*Item) : 0;
+	return Item && !Item->bLocked ? UImmortalShopLibrary::GetEquipmentSellPrice(*Item) : 0;
 }
 
 FImmortalShopTransactionResult AImmortalPlayerCharacter::SellEquipmentToShop(const FGuid ItemId)
@@ -1490,19 +3541,29 @@ FImmortalShopTransactionResult AImmortalPlayerCharacter::SellEquipmentToShop(con
 		return Result;
 	}
 	const FImmortalEquipmentItem SoldItem = InventoryItems[Index];
+	if (SoldItem.bLocked)
+	{
+		Result.Message = FText::FromString(TEXT("该装备已锁定，请先在背包中解锁"));
+		return Result;
+	}
 	const int32 Price = UImmortalShopLibrary::GetEquipmentSellPrice(SoldItem);
 	if (Price <= 0)
 	{
 		Result.Message = FText::FromString(TEXT("该装备无法估价"));
 		return Result;
 	}
+	if (!UImmortalInventoryLibrary::CanReceiveSpiritStones(CurrentGold, Price))
+	{
+		Result.Message = FText::FromString(TEXT("灵石接近上限，无法完整接收售价；装备未出售"));
+		return Result;
+	}
 	const TArray<FImmortalEquipmentItem> PreviousInventory = InventoryItems;
 	const int32 PreviousGold = CurrentGold;
 	const int32 PreviousRevision = EquipmentInventoryRevision;
 	InventoryItems.RemoveAt(Index);
-	CurrentGold = static_cast<int32>(FMath::Min<int64>(static_cast<int64>(CurrentGold) + Price, MAX_int32));
+	CurrentGold += Price;
 	++EquipmentInventoryRevision;
-	if (!SaveProgress())
+	if (ShouldForceInventoryPersistenceFailure(TEXT("Sell")) || !SaveProgress())
 	{
 		InventoryItems = PreviousInventory;
 		CurrentGold = PreviousGold;
@@ -1676,6 +3737,10 @@ void AImmortalPlayerCharacter::ApplyTaskbarWindowPlacement()
 	else if (bTechniqueOpen) ConfigureModalWidget(PlayerTechniqueWidget, true);
 	else if (bCharacterBuildOpen) ConfigureModalWidget(PlayerCharacterBuildWidget, true);
 	else if (bShopOpen) ConfigureModalWidget(PlayerShopWidget, true);
+	else if (bMapSelectionOpen) ConfigureModalWidget(PlayerMapWidget, true);
+	else if (bCaveOpen) ConfigureModalWidget(PlayerCaveWidget, true);
+	else if (bFarmingOpen) ConfigureModalWidget(PlayerFarmingWidget, true);
+	else if (bSectOpen) ConfigureModalWidget(PlayerSectWidget, true);
 #endif
 }
 
@@ -1697,8 +3762,11 @@ float AImmortalPlayerCharacter::TakeDamage(
 	const float EngineAcceptedDamage = Super::TakeDamage(DamageAmount, DamageEvent, EventInstigator, DamageCauser);
 	const float RequestedDamage = EngineAcceptedDamage > 0.0f ? EngineAcceptedDamage : DamageAmount;
 	const float AfterDefense = FMath::Max(RequestedDamage - FMath::Max(GetTotalDefense(), 0.0f), 0.0f);
+	const float CombinedReduction = 1.0f
+		- (1.0f - FMath::Clamp(CharacterPathDamageReduction, 0.0f, 0.75f))
+		* (1.0f - FMath::Clamp(EquipmentDamageReduction, 0.0f, 0.75f));
 	const float ReducedDamage = FMath::Max(
-		AfterDefense * (1.0f - FMath::Clamp(CharacterPathDamageReduction, 0.0f, 0.75f)), 1.0f);
+		AfterDefense * (1.0f - FMath::Clamp(CombinedReduction, 0.0f, 0.85f)), 1.0f);
 	const float ArtifactShieldAbsorbed = FMath::Min(FMath::Max(ArtifactShield, 0.0f), ReducedDamage);
 	ArtifactShield = FMath::Max(ArtifactShield - ArtifactShieldAbsorbed, 0.0f);
 	const float AfterArtifactShield = FMath::Max(ReducedDamage - ArtifactShieldAbsorbed, 0.0f);
@@ -1746,7 +3814,7 @@ float AImmortalPlayerCharacter::GetMaxHealth() const
 {
 	const float CultivationBonus = CultivationComponent ? CultivationComponent->GetHealthBonus() : 0.0f;
 	return FMath::Max((MaxHealth + EquippedHealthBonus + CultivationBonus)
-		* ArtifactHealthMultiplier * TechniqueHealthMultiplier * CharacterPathHealthMultiplier, 1.0f);
+		* EquipmentHealthMultiplier * ArtifactHealthMultiplier * TechniqueHealthMultiplier * CharacterPathHealthMultiplier, 1.0f);
 }
 
 float AImmortalPlayerCharacter::GetMaxMana() const
@@ -1764,14 +3832,14 @@ float AImmortalPlayerCharacter::GetTotalAttackDamage() const
 {
 	const float CultivationBonus = CultivationComponent ? CultivationComponent->GetAttackBonus() : 0.0f;
 	return (AttackDamage + EquippedAttackBonus + CultivationBonus)
-		* ArtifactAttackMultiplier * TechniqueAttackMultiplier * CharacterPathAttackMultiplier;
+		* EquipmentAttackMultiplier * ArtifactAttackMultiplier * TechniqueAttackMultiplier * CharacterPathAttackMultiplier;
 }
 
 float AImmortalPlayerCharacter::GetTotalDefense() const
 {
 	const float CultivationBonus = CultivationComponent ? CultivationComponent->GetDefenseBonus() : 0.0f;
 	return (Defense + EquippedDefenseBonus + CultivationBonus)
-		* ArtifactDefenseMultiplier * TechniqueDefenseMultiplier * CharacterPathDefenseMultiplier;
+		* EquipmentDefenseMultiplier * ArtifactDefenseMultiplier * TechniqueDefenseMultiplier * CharacterPathDefenseMultiplier;
 }
 
 float AImmortalPlayerCharacter::GetEffectiveAttackInterval() const
@@ -1785,7 +3853,22 @@ float AImmortalPlayerCharacter::GetCombatPower() const
 		+ GetTotalAttackDamage() * 5.0f
 		+ GetTotalDefense() * 4.0f
 		+ GetTotalAttackSpeedMultiplier() * 20.0f
-		+ GetTotalCriticalChance() * 100.0f;
+		+ GetTotalCriticalChance() * 100.0f
+		+ (GetTotalCriticalDamageMultiplier() - 1.0f) * 70.0f
+		+ (EquippedFireDamageBonus + EquippedThunderDamageBonus + EquippedIceDamageBonus) * 55.0f
+		+ EquippedLifeStealBonus * 160.0f + EquippedCultivationGainBonus * 60.0f
+		+ EquippedLootFindBonus * 80.0f + EquippedBossDamageBonus * 70.0f
+		+ EquipmentFinalDamageBonus * 90.0f + EquipmentDamageReduction * 120.0f;
+}
+
+FText AImmortalPlayerCharacter::GetEquipmentSetSummaryText() const
+{
+	TArray<FImmortalEquipmentItem> CompatibleItems;
+	for (const FImmortalEquipmentItem& Item : EquippedItems)
+	{
+		if (IsEquipmentCompatibleWithPath(Item)) CompatibleItems.Add(Item);
+	}
+	return UImmortalEquipmentLibrary::GetSetSummaryText(CompatibleItems);
 }
 
 EImmortalCultivationRealm AImmortalPlayerCharacter::GetCultivationRealm() const
@@ -1843,20 +3926,35 @@ void AImmortalPlayerCharacter::ReceiveSpiritStones(const int32 Amount, const FVe
 }
 
 void AImmortalPlayerCharacter::UpdateStageProgress(
+	const FName MapId,
+	const FText& MapDisplayName,
+	const int32 MaximumStage,
 	const int32 Stage,
 	const int32 Kills,
 	const int32 RequiredKills,
 	const bool bBossStage,
 	const bool bMapCompleted)
 {
-	DisplayedStage = FMath::Clamp(Stage, 1, 999);
+	DisplayedMapId = MapId.IsNone() ? UImmortalMapLibrary::GetQingyunMountainId() : MapId;
+	DisplayedMapName = MapDisplayName.IsEmpty() ? FText::FromName(DisplayedMapId) : MapDisplayName;
+	DisplayedMapMaximumStage = FMath::Clamp(MaximumStage, 1, 999);
+	DisplayedStage = FMath::Clamp(Stage, 1, DisplayedMapMaximumStage);
 	DisplayedStageKills = FMath::Max(Kills, 0);
 	DisplayedStageRequiredKills = FMath::Max(RequiredKills, 1);
 	bDisplayedBossStage = bBossStage;
 	bDisplayedMapCompleted = bMapCompleted;
+	CachedMapSystemState.ActiveMapId = DisplayedMapId;
+	FImmortalMapProgress CachedProgress;
+	CachedProgress.MapId = DisplayedMapId;
+	CachedProgress.Stage = DisplayedStage;
+	CachedProgress.StageKills = DisplayedStageKills;
+	CachedProgress.bCompleted = bDisplayedMapCompleted;
+	UImmortalMapLibrary::SetMapProgress(CachedMapSystemState, CachedProgress);
 	if (CombatFeedbackWidget)
 	{
 		CombatFeedbackWidget->SetStageProgress(
+			DisplayedMapName,
+			DisplayedMapMaximumStage,
 			DisplayedStage,
 			DisplayedStageKills,
 			DisplayedStageRequiredKills,
@@ -1963,6 +4061,391 @@ bool AImmortalPlayerCharacter::ReceiveEquipmentItem(const FImmortalEquipmentItem
 	return ProcessEquipmentItem(Item, true, true);
 }
 
+bool AImmortalPlayerCharacter::IsEquipmentLocked(const FGuid ItemId) const
+{
+	FImmortalEquipmentItem Item;
+	bool bEquipped = false;
+	return GetEquipmentItemById(ItemId, Item, bEquipped) && Item.bLocked;
+}
+
+FImmortalInventoryOperationResult AImmortalPlayerCharacter::SetEquipmentLocked(
+	const FGuid ItemId,
+	const bool bLocked)
+{
+	FImmortalInventoryOperationResult Result;
+	bool bEquipped = false;
+	FImmortalEquipmentItem* Item = FindMutableEquipmentItem(ItemId, bEquipped);
+	if (!Item)
+	{
+		Result.Message = FText::FromString(TEXT("未找到需要锁定的装备"));
+		return Result;
+	}
+	if (Item->bLocked == bLocked)
+	{
+		Result.bSucceeded = true;
+		Result.Message = FText::FromString(bLocked ? TEXT("装备已经锁定") : TEXT("装备已经解锁"));
+		return Result;
+	}
+
+	const int32 PreviousRevision = EquipmentInventoryRevision;
+	Item->bLocked = bLocked;
+	++EquipmentInventoryRevision;
+	if (ShouldForceInventoryPersistenceFailure(TEXT("Lock")) || !SaveProgress())
+	{
+		Item->bLocked = !bLocked;
+		EquipmentInventoryRevision = PreviousRevision;
+		Result.bPersistenceFailed = true;
+		Result.Message = FText::FromString(TEXT("存档写入失败，装备锁定状态已回滚"));
+		return Result;
+	}
+
+	Result.bSucceeded = true;
+	Result.AffectedItemCount = 1;
+	Result.Message = FText::FromString(bLocked ? TEXT("装备已锁定，不会被出售、分解或自动替换") : TEXT("装备已解锁"));
+	BP_OnInventoryChanged(InventoryItems.Num(), GetInventoryCapacity());
+	if (bEquipped) BP_OnEquipmentChanged(Item->Slot, *Item, false, GetCombatPower());
+	BP_OnInventoryOperation(Result);
+	UE_LOG(LogTemp, Display, TEXT("Inventory equipment lock changed: %s | locked=%s | equipped=%s | revision=%d"),
+		*ItemId.ToString(), bLocked ? TEXT("true") : TEXT("false"), bEquipped ? TEXT("true") : TEXT("false"),
+		EquipmentInventoryRevision);
+	return Result;
+}
+
+bool AImmortalPlayerCharacter::IsArtifactLocked(const FGuid InstanceId) const
+{
+	const FImmortalArtifactItem* Item = ArtifactInventory.FindByPredicate([InstanceId](const FImmortalArtifactItem& Entry)
+	{
+		return Entry.InstanceId == InstanceId;
+	});
+	return Item && Item->bLocked;
+}
+
+FImmortalInventoryOperationResult AImmortalPlayerCharacter::SetArtifactLocked(
+	const FGuid InstanceId,
+	const bool bLocked)
+{
+	FImmortalInventoryOperationResult Result;
+	FImmortalArtifactItem* Item = FindMutableArtifact(InstanceId);
+	if (!Item)
+	{
+		Result.Message = FText::FromString(TEXT("未找到需要锁定的法宝"));
+		return Result;
+	}
+	if (Item->bLocked == bLocked)
+	{
+		Result.bSucceeded = true;
+		Result.Message = FText::FromString(bLocked ? TEXT("法宝已经锁定") : TEXT("法宝已经解锁"));
+		return Result;
+	}
+
+	const int32 PreviousRevision = ArtifactInventoryRevision;
+	Item->bLocked = bLocked;
+	++ArtifactInventoryRevision;
+	if (ShouldForceInventoryPersistenceFailure(TEXT("Lock")) || !SaveProgress())
+	{
+		Item->bLocked = !bLocked;
+		ArtifactInventoryRevision = PreviousRevision;
+		Result.bPersistenceFailed = true;
+		Result.Message = FText::FromString(TEXT("存档写入失败，法宝锁定状态已回滚"));
+		return Result;
+	}
+
+	Result.bSucceeded = true;
+	Result.AffectedItemCount = 1;
+	Result.Message = FText::FromString(bLocked ? TEXT("法宝已锁定") : TEXT("法宝已解锁"));
+	BP_OnArtifactChanged(*Item, Item->InstanceId == EquippedArtifactInstanceId);
+	BP_OnInventoryOperation(Result);
+	UE_LOG(LogTemp, Display, TEXT("Inventory artifact lock changed: %s | locked=%s | equipped=%s | revision=%d"),
+		*InstanceId.ToString(), bLocked ? TEXT("true") : TEXT("false"),
+		InstanceId == EquippedArtifactInstanceId ? TEXT("true") : TEXT("false"), ArtifactInventoryRevision);
+	return Result;
+}
+
+FImmortalInventoryOperationResult AImmortalPlayerCharacter::OrganizeInventory()
+{
+	FImmortalInventoryOperationResult Result;
+	const TArray<FImmortalEquipmentItem> PreviousEquipment = InventoryItems;
+	const TArray<FImmortalMaterialStack> PreviousMaterials = MaterialInventory;
+	const TArray<FImmortalPillStack> PreviousPills = PillInventory;
+	const TArray<FImmortalArtifactItem> PreviousArtifacts = ArtifactInventory;
+	const TArray<FImmortalQuestItemStack> PreviousQuestItems = QuestItemInventory;
+	const int32 PreviousEquipmentRevision = EquipmentInventoryRevision;
+	const int32 PreviousMaterialRevision = MaterialInventoryRevision;
+	const int32 PreviousPillRevision = PillInventoryRevision;
+	const int32 PreviousArtifactRevision = ArtifactInventoryRevision;
+	const int32 PreviousQuestRevision = QuestItemInventoryRevision;
+
+	UImmortalInventoryLibrary::SortEquipmentInventory(InventoryItems);
+	UImmortalMaterialLibrary::NormalizeInventory(MaterialInventory);
+	UImmortalAlchemyLibrary::NormalizePillInventory(PillInventory);
+	UImmortalInventoryLibrary::SortArtifactInventory(ArtifactInventory, EquippedArtifactInstanceId);
+	UImmortalInventoryLibrary::NormalizeQuestItemInventory(QuestItemInventory);
+	const bool bEquipmentChanged = !HaveSameEquipmentOrder(PreviousEquipment, InventoryItems);
+	const bool bMaterialsChanged = !HaveSameMaterialOrder(PreviousMaterials, MaterialInventory);
+	const bool bPillsChanged = !HaveSamePillOrder(PreviousPills, PillInventory);
+	const bool bArtifactsChanged = !HaveSameArtifactOrder(PreviousArtifacts, ArtifactInventory);
+	const bool bQuestItemsChanged = !HaveSameQuestItemOrder(PreviousQuestItems, QuestItemInventory);
+	if (!bEquipmentChanged && !bMaterialsChanged && !bPillsChanged && !bArtifactsChanged && !bQuestItemsChanged)
+	{
+		Result.bSucceeded = true;
+		Result.Message = FText::FromString(TEXT("背包已经整理完毕"));
+		return Result;
+	}
+
+	if (bEquipmentChanged) ++EquipmentInventoryRevision;
+	if (bMaterialsChanged) ++MaterialInventoryRevision;
+	if (bPillsChanged) ++PillInventoryRevision;
+	if (bArtifactsChanged) ++ArtifactInventoryRevision;
+	if (bQuestItemsChanged) ++QuestItemInventoryRevision;
+	if (ShouldForceInventoryPersistenceFailure(TEXT("Sort")) || !SaveProgress())
+	{
+		InventoryItems = PreviousEquipment;
+		MaterialInventory = PreviousMaterials;
+		PillInventory = PreviousPills;
+		ArtifactInventory = PreviousArtifacts;
+		QuestItemInventory = PreviousQuestItems;
+		EquipmentInventoryRevision = PreviousEquipmentRevision;
+		MaterialInventoryRevision = PreviousMaterialRevision;
+		PillInventoryRevision = PreviousPillRevision;
+		ArtifactInventoryRevision = PreviousArtifactRevision;
+		QuestItemInventoryRevision = PreviousQuestRevision;
+		Result.bPersistenceFailed = true;
+		Result.Message = FText::FromString(TEXT("存档写入失败，背包顺序已回滚"));
+		return Result;
+	}
+
+	Result.bSucceeded = true;
+	Result.AffectedItemCount =
+		(bEquipmentChanged ? InventoryItems.Num() : 0)
+		+ (bMaterialsChanged ? MaterialInventory.Num() : 0)
+		+ (bPillsChanged ? PillInventory.Num() : 0)
+		+ (bArtifactsChanged ? ArtifactInventory.Num() : 0)
+		+ (bQuestItemsChanged ? QuestItemInventory.Num() : 0);
+	Result.Message = FText::FromString(TEXT("背包已按锁定、类型、品质和等级整理"));
+	BP_OnInventoryChanged(InventoryItems.Num(), GetInventoryCapacity());
+	BP_OnInventoryOperation(Result);
+	UE_LOG(LogTemp, Display,
+		TEXT("Inventory organized: equipment=%s materials=%s pills=%s artifacts=%s quest=%s | affected=%d"),
+		bEquipmentChanged ? TEXT("true") : TEXT("false"), bMaterialsChanged ? TEXT("true") : TEXT("false"),
+		bPillsChanged ? TEXT("true") : TEXT("false"), bArtifactsChanged ? TEXT("true") : TEXT("false"),
+		bQuestItemsChanged ? TEXT("true") : TEXT("false"), Result.AffectedItemCount);
+	return Result;
+}
+
+int32 AImmortalPlayerCharacter::GetBulkEquipmentCount(const EImmortalEquipmentQuality MaximumQuality) const
+{
+	return UImmortalInventoryLibrary::GetBulkEligibleEquipmentCount(InventoryItems, MaximumQuality);
+}
+
+int32 AImmortalPlayerCharacter::GetBulkEquipmentSellValue(const EImmortalEquipmentQuality MaximumQuality) const
+{
+	return UImmortalInventoryLibrary::GetBulkEquipmentSellValue(InventoryItems, MaximumQuality);
+}
+
+TArray<FImmortalMaterialStack> AImmortalPlayerCharacter::GetBulkEquipmentDismantleYield(
+	const EImmortalEquipmentQuality MaximumQuality) const
+{
+	return UImmortalInventoryLibrary::GetBulkEquipmentDismantleYield(InventoryItems, MaximumQuality);
+}
+
+FImmortalInventoryOperationResult AImmortalPlayerCharacter::BatchSellEquipment(
+	const EImmortalEquipmentQuality MaximumQuality)
+{
+	FImmortalInventoryOperationResult Result;
+	int64 TotalPrice = 0;
+	for (const FImmortalEquipmentItem& Item : InventoryItems)
+	{
+		const bool bWithinThreshold = Item.IsValid()
+			&& static_cast<int32>(Item.Quality) <= static_cast<int32>(MaximumQuality);
+		if (bWithinThreshold && Item.bLocked) ++Result.SkippedLockedItemCount;
+		if (UImmortalInventoryLibrary::IsEligibleForBulkAction(Item, MaximumQuality))
+		{
+			TotalPrice += UImmortalShopLibrary::GetEquipmentSellPrice(Item);
+			++Result.AffectedItemCount;
+		}
+	}
+	if (Result.AffectedItemCount <= 0 || TotalPrice <= 0)
+	{
+		Result.AffectedItemCount = 0;
+		Result.Message = FText::FromString(Result.SkippedLockedItemCount > 0
+			? TEXT("符合品质的装备都已锁定，没有出售任何物品")
+			: TEXT("没有符合当前品质条件的可出售装备"));
+		return Result;
+	}
+	if (!UImmortalInventoryLibrary::CanReceiveSpiritStones(CurrentGold, TotalPrice))
+	{
+		Result.AffectedItemCount = 0;
+		Result.Message = FText::FromString(TEXT("灵石接近上限，无法完整接收出售所得；本次未出售"));
+		return Result;
+	}
+
+	const TArray<FImmortalEquipmentItem> PreviousInventory = InventoryItems;
+	const int32 PreviousGold = CurrentGold;
+	const int32 PreviousRevision = EquipmentInventoryRevision;
+	InventoryItems.RemoveAll([MaximumQuality](const FImmortalEquipmentItem& Item)
+	{
+		return UImmortalInventoryLibrary::IsEligibleForBulkAction(Item, MaximumQuality);
+	});
+	CurrentGold += static_cast<int32>(TotalPrice);
+	++EquipmentInventoryRevision;
+	if (ShouldForceInventoryPersistenceFailure(TEXT("Sell")) || !SaveProgress())
+	{
+		InventoryItems = PreviousInventory;
+		CurrentGold = PreviousGold;
+		EquipmentInventoryRevision = PreviousRevision;
+		Result.bPersistenceFailed = true;
+		Result.SpiritStoneDelta = 0;
+		Result.AffectedItemCount = 0;
+		Result.Message = FText::FromString(TEXT("存档写入失败，批量出售已完整回滚"));
+		return Result;
+	}
+
+	Result.bSucceeded = true;
+	Result.SpiritStoneDelta = static_cast<int32>(TotalPrice);
+	Result.Message = FText::FromString(FString::Printf(TEXT("已批量出售 %d 件装备，获得灵石 %d；跳过锁定 %d 件"),
+		Result.AffectedItemCount, Result.SpiritStoneDelta, Result.SkippedLockedItemCount));
+	BP_OnInventoryChanged(InventoryItems.Num(), GetInventoryCapacity());
+	BP_OnRewardsChanged(CurrentCultivation, CurrentGold, 0, Result.SpiritStoneDelta);
+	BP_OnInventoryOperation(Result);
+	UE_LOG(LogTemp, Display, TEXT("Inventory batch sale succeeded: count=%d lockedSkipped=%d stones=+%d => %d backpack=%d"),
+		Result.AffectedItemCount, Result.SkippedLockedItemCount, Result.SpiritStoneDelta, CurrentGold, InventoryItems.Num());
+	return Result;
+}
+
+FImmortalInventoryOperationResult AImmortalPlayerCharacter::DismantleEquipment(const FGuid ItemId)
+{
+	return DismantleEquipmentInternal(ItemId, EImmortalEquipmentQuality::Divine, false);
+}
+
+FImmortalInventoryOperationResult AImmortalPlayerCharacter::BatchDismantleEquipment(
+	const EImmortalEquipmentQuality MaximumQuality)
+{
+	return DismantleEquipmentInternal(FGuid(), MaximumQuality, true);
+}
+
+FImmortalInventoryOperationResult AImmortalPlayerCharacter::DismantleEquipmentInternal(
+	const FGuid ItemId,
+	const EImmortalEquipmentQuality MaximumQuality,
+	const bool bBatch)
+{
+	FImmortalInventoryOperationResult Result;
+	TSet<FGuid> RemovedIds;
+	TArray<FImmortalMaterialStack> Rewards;
+	for (const FImmortalEquipmentItem& Item : InventoryItems)
+	{
+		const bool bSelected = bBatch
+			? UImmortalInventoryLibrary::IsEligibleForBulkAction(Item, MaximumQuality)
+			: Item.ItemId == ItemId && Item.IsValid() && !Item.bLocked;
+		if (bBatch && Item.IsValid()
+			&& static_cast<int32>(Item.Quality) <= static_cast<int32>(MaximumQuality)
+			&& Item.bLocked)
+		{
+			++Result.SkippedLockedItemCount;
+		}
+		if (!bSelected) continue;
+		RemovedIds.Add(Item.ItemId);
+		for (const FImmortalMaterialStack& Stack : UImmortalInventoryLibrary::GetEquipmentDismantleYield(Item))
+		{
+			UImmortalMaterialLibrary::AddMaterialStack(Rewards, Stack.MaterialId, Stack.Quantity);
+		}
+	}
+	if (!bBatch && RemovedIds.IsEmpty())
+	{
+		const FImmortalEquipmentItem* Locked = InventoryItems.FindByPredicate([ItemId](const FImmortalEquipmentItem& Item)
+		{
+			return Item.ItemId == ItemId;
+		});
+		const bool bEquipped = EquippedItems.ContainsByPredicate([ItemId](const FImmortalEquipmentItem& Item)
+		{
+			return Item.ItemId == ItemId;
+		});
+		Result.Message = FText::FromString(Locked && Locked->bLocked
+			? TEXT("该装备已锁定，请先解锁")
+			: (bEquipped ? TEXT("已装备物品不能分解，请先更换装备") : TEXT("未在背包中找到该装备")));
+		return Result;
+	}
+	if (bBatch && RemovedIds.IsEmpty())
+	{
+		Result.Message = FText::FromString(Result.SkippedLockedItemCount > 0
+			? TEXT("符合品质的装备都已锁定，没有分解任何物品")
+			: TEXT("没有符合当前品质条件的可分解装备"));
+		return Result;
+	}
+
+	TArray<FImmortalMaterialStack> CandidateMaterials = MaterialInventory;
+	if (!UImmortalInventoryLibrary::TryAddMaterialRewards(CandidateMaterials, Rewards))
+	{
+		Result.Message = FText::FromString(TEXT("分解材料堆叠空间不足，本次没有消耗装备"));
+		return Result;
+	}
+
+	const TArray<FImmortalEquipmentItem> PreviousInventory = InventoryItems;
+	const TArray<FImmortalMaterialStack> PreviousMaterials = MaterialInventory;
+	const int32 PreviousEquipmentRevision = EquipmentInventoryRevision;
+	const int32 PreviousMaterialRevision = MaterialInventoryRevision;
+	InventoryItems.RemoveAll([&RemovedIds](const FImmortalEquipmentItem& Item)
+	{
+		return RemovedIds.Contains(Item.ItemId);
+	});
+	MaterialInventory = MoveTemp(CandidateMaterials);
+	++EquipmentInventoryRevision;
+	++MaterialInventoryRevision;
+	if (ShouldForceInventoryPersistenceFailure(TEXT("Salvage")) || !SaveProgress())
+	{
+		InventoryItems = PreviousInventory;
+		MaterialInventory = PreviousMaterials;
+		EquipmentInventoryRevision = PreviousEquipmentRevision;
+		MaterialInventoryRevision = PreviousMaterialRevision;
+		Result.bPersistenceFailed = true;
+		Result.Message = FText::FromString(TEXT("存档写入失败，装备与分解材料已完整回滚"));
+		return Result;
+	}
+
+	Result.bSucceeded = true;
+	Result.AffectedItemCount = RemovedIds.Num();
+	Result.MaterialRewards = Rewards;
+	Result.Message = FText::FromString(FString::Printf(TEXT("已分解 %d 件装备：%s；跳过锁定 %d 件"),
+		Result.AffectedItemCount, *FormatInventoryMaterials(Rewards), Result.SkippedLockedItemCount));
+	BP_OnInventoryChanged(InventoryItems.Num(), GetInventoryCapacity());
+	PublishMaterialInventoryDiff(PreviousMaterials);
+	BP_OnInventoryOperation(Result);
+	UE_LOG(LogTemp, Display, TEXT("Inventory dismantle succeeded: batch=%s count=%d lockedSkipped=%d rewards=%s backpack=%d"),
+		bBatch ? TEXT("true") : TEXT("false"), Result.AffectedItemCount, Result.SkippedLockedItemCount,
+		*FormatInventoryMaterials(Rewards), InventoryItems.Num());
+	return Result;
+}
+
+int32 AImmortalPlayerCharacter::GetQuestItemQuantity(const FName QuestItemId) const
+{
+	return UImmortalInventoryLibrary::GetQuestItemQuantity(QuestItemInventory, QuestItemId);
+}
+
+int32 AImmortalPlayerCharacter::AddQuestItemInternal(const FName QuestItemId, const int32 Amount)
+{
+	const int32 Added = UImmortalInventoryLibrary::AddQuestItemStack(QuestItemInventory, QuestItemId, Amount);
+	if (Added > 0) ++QuestItemInventoryRevision;
+	return Added;
+}
+
+int32 AImmortalPlayerCharacter::ReceiveQuestItem(const FName QuestItemId, const int32 Amount)
+{
+	const TArray<FImmortalQuestItemStack> PreviousInventory = QuestItemInventory;
+	const int32 PreviousRevision = QuestItemInventoryRevision;
+	const int32 Added = AddQuestItemInternal(QuestItemId, Amount);
+	if (Added <= 0) return 0;
+	if (ShouldForceInventoryPersistenceFailure(TEXT("Quest")) || !SaveProgress())
+	{
+		QuestItemInventory = PreviousInventory;
+		QuestItemInventoryRevision = PreviousRevision;
+		return 0;
+	}
+	const int32 NewQuantity = GetQuestItemQuantity(QuestItemId);
+	BP_OnQuestItemInventoryChanged(QuestItemId, NewQuantity, Added);
+	UE_LOG(LogTemp, Display, TEXT("Quest item received: %s x%d => %d | task types=%d"),
+		*QuestItemId.ToString(), Added, NewQuantity, QuestItemInventory.Num());
+	return Added;
+}
+
 int32 AImmortalPlayerCharacter::GetMaterialQuantity(const FName MaterialId) const
 {
 	return UImmortalMaterialLibrary::GetMaterialQuantity(MaterialInventory, MaterialId);
@@ -1976,6 +4459,29 @@ int32 AImmortalPlayerCharacter::AddMaterialInternal(const FName MaterialId, cons
 		++MaterialInventoryRevision;
 	}
 	return Added;
+}
+
+void AImmortalPlayerCharacter::PublishMaterialInventoryDiff(
+	const TArray<FImmortalMaterialStack>& PreviousInventory)
+{
+	TSet<FName> MaterialIds;
+	for (const FImmortalMaterialStack& Stack : PreviousInventory)
+	{
+		if (!Stack.MaterialId.IsNone()) MaterialIds.Add(Stack.MaterialId);
+	}
+	for (const FImmortalMaterialStack& Stack : MaterialInventory)
+	{
+		if (!Stack.MaterialId.IsNone()) MaterialIds.Add(Stack.MaterialId);
+	}
+	for (const FName MaterialId : MaterialIds)
+	{
+		const int32 PreviousQuantity = UImmortalMaterialLibrary::GetMaterialQuantity(PreviousInventory, MaterialId);
+		const int32 NewQuantity = GetMaterialQuantity(MaterialId);
+		if (NewQuantity != PreviousQuantity)
+		{
+			BP_OnMaterialInventoryChanged(MaterialId, NewQuantity, NewQuantity - PreviousQuantity);
+		}
+	}
 }
 
 int32 AImmortalPlayerCharacter::ReceiveMaterial(
@@ -2081,7 +4587,11 @@ FImmortalAlchemyCraftResult AImmortalPlayerCharacter::CraftPillInternal(
 	++MaterialInventoryRevision;
 
 	const float Roll = ForcedRoll.IsSet() ? ForcedRoll.GetValue() : FMath::FRand();
-	Result.Outcome = UImmortalAlchemyLibrary::CalculateOutcome(Definition, Roll);
+	Result.Outcome = UImmortalAlchemyLibrary::CalculateOutcome(
+		Definition,
+		Roll,
+		GetCaveAlchemySuccessBonus(),
+		GetCaveAlchemyExceptionalBonus());
 	if (Result.Outcome == EImmortalAlchemyOutcome::Failure)
 	{
 		Result.Message = FText::FromString(FString::Printf(
@@ -2273,15 +4783,50 @@ void AImmortalPlayerCharacter::ClearAlchemyCultivationBoost()
 bool AImmortalPlayerCharacter::ProcessEquipmentItem(
 	const FImmortalEquipmentItem& Item,
 	const bool bShowFeedback,
-	const bool bSaveAfter)
+	const bool bSaveAfter,
+	const bool bNotifyChanges)
 {
+	bLastEquipmentReceivePersistenceFailure = false;
 	if (!Item.IsValid())
 	{
 		return false;
 	}
-
-	++EquipmentDropCount;
-	BP_OnEquipmentPickedUp(EquipmentDropCount, 1);
+	TArray<FImmortalEquipmentItem> PreviousInventory;
+	TArray<FImmortalEquipmentItem> PreviousEquipped;
+	int32 PreviousDropCount = EquipmentDropCount;
+	int32 PreviousRevision = EquipmentInventoryRevision;
+	float PreviousHealth = CurrentHealth;
+	float PreviousMana = CurrentMana;
+	if (bSaveAfter)
+	{
+		PreviousInventory = InventoryItems;
+		PreviousEquipped = EquippedItems;
+	}
+	auto RollbackAcquisition = [this, bSaveAfter, &PreviousInventory, &PreviousEquipped,
+		PreviousDropCount, PreviousRevision, PreviousHealth, PreviousMana]
+	{
+		if (!bSaveAfter) return;
+		InventoryItems = PreviousInventory;
+		EquippedItems = PreviousEquipped;
+		EquipmentDropCount = PreviousDropCount;
+		EquipmentInventoryRevision = PreviousRevision;
+		RecalculateEquipmentBonuses();
+		CurrentHealth = FMath::Clamp(PreviousHealth, 0.0f, GetMaxHealth());
+		CurrentMana = FMath::Clamp(PreviousMana, 0.0f, GetMaxMana());
+	};
+	auto FinalizeAcquisition = [this, bSaveAfter, bNotifyChanges, &RollbackAcquisition]()
+	{
+		++EquipmentDropCount;
+		if (bSaveAfter && !SaveProgress())
+		{
+			bLastEquipmentReceivePersistenceFailure = true;
+			RollbackAcquisition();
+			UE_LOG(LogTemp, Error, TEXT("Equipment acquisition rolled back because the save failed"));
+			return false;
+		}
+		if (bNotifyChanges) BP_OnEquipmentPickedUp(EquipmentDropCount, 1);
+		return true;
+	};
 
 	const float NewPower = UImmortalEquipmentLibrary::CalculateEquipmentPower(Item);
 	const int32 EquippedIndex = EquippedItems.IndexOfByPredicate([&Item](const FImmortalEquipmentItem& Existing)
@@ -2294,7 +4839,30 @@ bool AImmortalPlayerCharacter::ProcessEquipmentItem(
 		: -1.0f;
 	const bool bCompatible = UImmortalCharacterPathLibrary::IsEquipmentCompatible(
 		CultivationPathState.Path, Item.Discipline);
-	bool bShouldEquip = bAutoEquipNewItems && bCompatible && (!bHasEquippedItem || NewPower > ExistingPower);
+	const bool bCurrentEquipmentProtected = bHasEquippedItem && EquippedItems[EquippedIndex].bLocked;
+	auto CalculateCompatibleLoadoutPower = [this](const TArray<FImmortalEquipmentItem>& Loadout)
+	{
+		TArray<FImmortalEquipmentItem> CompatibleLoadout;
+		for (const FImmortalEquipmentItem& Candidate : Loadout)
+		{
+			if (IsEquipmentCompatibleWithPath(Candidate)) CompatibleLoadout.Add(Candidate);
+		}
+		const float CultivationAttack = CultivationComponent ? CultivationComponent->GetAttackBonus() : 0.0f;
+		const float CultivationDefense = CultivationComponent ? CultivationComponent->GetDefenseBonus() : 0.0f;
+		const float CultivationHealth = CultivationComponent ? CultivationComponent->GetHealthBonus() : 0.0f;
+		return UImmortalEquipmentLibrary::CalculateLoadoutPowerWithBaseStats(
+			CompatibleLoadout,
+			AttackDamage + CultivationAttack,
+			Defense + CultivationDefense,
+			MaxHealth + CultivationHealth);
+	};
+	const float ExistingLoadoutPower = CalculateCompatibleLoadoutPower(EquippedItems);
+	TArray<FImmortalEquipmentItem> CandidateLoadout = EquippedItems;
+	if (bHasEquippedItem) CandidateLoadout[EquippedIndex] = Item;
+	else CandidateLoadout.Add(Item);
+	const float CandidateLoadoutPower = CalculateCompatibleLoadoutPower(CandidateLoadout);
+	bool bShouldEquip = bAutoEquipNewItems && bCompatible && !bCurrentEquipmentProtected
+		&& CandidateLoadoutPower > ExistingLoadoutPower + KINDA_SMALL_NUMBER;
 	if (bShouldEquip && bHasEquippedItem)
 	{
 		// Replacing an equipped item needs one real backpack slot. Never discard the
@@ -2315,47 +4883,50 @@ bool AImmortalPlayerCharacter::ProcessEquipmentItem(
 
 		++EquipmentInventoryRevision;
 		RecalculateEquipmentBonuses();
+		if (!FinalizeAcquisition()) return false;
 		if (bShowFeedback && !bDead && bAutoAttackOnBeginPlay)
 		{
 			StartAutoAttack();
 		}
-		UE_LOG(LogTemp, Display, TEXT("Equipment auto-equipped: %s | item power %.2f | combat power %.2f"),
-			*Item.DisplayName.ToString(), NewPower, GetCombatPower());
-		BP_OnEquipmentChanged(Item.Slot, Item, true, GetCombatPower());
-		BP_OnInventoryChanged(InventoryItems.Num(), FMath::Max(InventoryCapacity, 1));
+		UE_LOG(LogTemp, Display, TEXT("Equipment auto-equipped: %s | item power %.2f vs %.2f | loadout %.2f -> %.2f | combat power %.2f"),
+			*Item.DisplayName.ToString(), NewPower, ExistingPower, ExistingLoadoutPower, CandidateLoadoutPower, GetCombatPower());
+		if (bNotifyChanges)
+		{
+			BP_OnEquipmentChanged(Item.Slot, Item, true, GetCombatPower());
+			BP_OnInventoryChanged(InventoryItems.Num(), FMath::Max(InventoryCapacity, 1));
+		}
 		if (bShowFeedback && CombatFeedbackWidget)
 		{
 			CombatFeedbackWidget->ShowEquipmentPickup(FText::FromName(Item.DisplayName), UImmortalEquipmentLibrary::GetQualityColor(Item.Quality), true);
-		}
-		if (bSaveAfter)
-		{
-			SaveProgress();
 		}
 		return true;
 	}
 
 	const bool bStored = AddItemToInventory(Item);
 	if (bStored) ++EquipmentInventoryRevision;
+	if (bStored && !FinalizeAcquisition()) return false;
 	UE_LOG(LogTemp, Display, TEXT("Equipment stored=%s: %s | compatible %s | item power %.2f | backpack %d/%d"),
 		bStored ? TEXT("true") : TEXT("false"), *Item.DisplayName.ToString(),
 		bCompatible ? TEXT("true") : TEXT("false"), NewPower, InventoryItems.Num(), FMath::Max(InventoryCapacity, 1));
-	BP_OnInventoryChanged(InventoryItems.Num(), FMath::Max(InventoryCapacity, 1));
+	if (bStored && bNotifyChanges) BP_OnInventoryChanged(InventoryItems.Num(), FMath::Max(InventoryCapacity, 1));
 	if (bStored && bShowFeedback && CombatFeedbackWidget)
 	{
 		CombatFeedbackWidget->ShowEquipmentPickup(FText::FromName(Item.DisplayName), UImmortalEquipmentLibrary::GetQualityColor(Item.Quality), false);
-	}
-	if (bStored && bSaveAfter)
-	{
-		SaveProgress();
 	}
 	return bStored;
 }
 
 bool AImmortalPlayerCharacter::SaveProgress()
 {
+	const FImmortalCaveState CaveBeforeSettlement = CaveState;
+	const FImmortalFarmingState FarmingBeforeSettlement = FarmingState;
+	SettleCaveProduction();
+	SettleFarmingGrowth();
 	UImmortalPathSaveGame* SaveGame = UImmortalPathSaveGame::LoadOrCreate(this);
 	if (!SaveGame)
 	{
+		CaveState = CaveBeforeSettlement;
+		FarmingState = FarmingBeforeSettlement;
 		return false;
 	}
 
@@ -2378,12 +4949,27 @@ bool AImmortalPlayerCharacter::SaveProgress()
 	SaveGame->PillInventory = PillInventory;
 	SaveGame->ArtifactInventory = ArtifactInventory;
 	SaveGame->EquippedArtifactInstanceId = EquippedArtifactInstanceId;
+	SaveGame->QuestItemInventory = QuestItemInventory;
+	SaveGame->bInventoryManagementInitialized = true;
+	SaveGame->bEquipmentExpansionInitialized = true;
+#if !UE_BUILD_SHIPPING
+	int32 TestLegacySaveVersion = 0;
+	if (FParse::Value(FCommandLine::Get(), TEXT("ImmortalTestLegacySaveVersion="), TestLegacySaveVersion)
+		&& TestLegacySaveVersion > 0)
+	{
+		if (TestLegacySaveVersion < 16) SaveGame->bInventoryManagementInitialized = false;
+		if (TestLegacySaveVersion < 17) SaveGame->bEquipmentExpansionInitialized = false;
+	}
+#endif
 	SaveGame->TechniqueLibrary = TechniqueLibrary;
 	SaveGame->EquippedTechniqueIds = EquippedTechniqueIds;
 	SaveGame->TechniqueInsightPoints = TechniqueInsightPoints;
 	SaveGame->SpiritRootState = SpiritRootState;
 	SaveGame->CultivationPathState = CultivationPathState;
 	SaveGame->ShopState = ShopState;
+	SaveGame->CaveState = CaveState;
+	SaveGame->FarmingState = FarmingState;
+	SaveGame->SectState = SectState;
 	SaveGame->AlchemyCultivationBoostMultiplier = AlchemyCultivationBoostMultiplier;
 	SaveGame->AlchemyCultivationBoostRemainingSeconds = GetAlchemyBoostRemainingSeconds();
 	SaveGame->LastOfflineClaimUtcTicks = LastOfflineClaimUtcTicks;
@@ -2394,15 +4980,34 @@ bool AImmortalPlayerCharacter::SaveProgress()
 	{
 		int32 SoldOutListings = 0;
 		for (const FImmortalShopListing& Listing : ShopState.Listings) SoldOutListings += Listing.bSoldOut ? 1 : 0;
-		UE_LOG(LogTemp, Display, TEXT("Player progress saved: realm %s | cultivation %d/%d | spirit stones %d | equipped %d | backpack %d | material types %d | pill stacks %d | artifacts %d | artifact equipped %s | techniques %d/%d | insight %d | root %d/%.2f | path %d/switches %d | shop %d/%d/%d/%d | alchemy boost %.0fs"),
+		int32 LockedEquipment = 0;
+		for (const FImmortalEquipmentItem& Item : InventoryItems) LockedEquipment += Item.bLocked ? 1 : 0;
+		int32 LockedArtifacts = 0;
+		for (const FImmortalArtifactItem& Item : ArtifactInventory) LockedArtifacts += Item.bLocked ? 1 : 0;
+		UE_LOG(LogTemp, Display, TEXT("Player progress saved: realm %s | cultivation %d/%d | spirit stones %d | equipped %d | backpack %d/locked%d | material types %d | pill stacks %d | artifacts %d/locked%d | quest types %d | artifact equipped %s | techniques %d/%d | insight %d | root %d/%.2f | path %d/switches %d | shop %d/%d/%d/%d | alchemy boost %.0fs"),
 			*GetFullCultivationRealmName().ToString(), CurrentCultivation, GetRequiredCultivation(),
-			CurrentGold, EquippedItems.Num(), InventoryItems.Num(), MaterialInventory.Num(), PillInventory.Num(),
-			ArtifactInventory.Num(), EquippedArtifactInstanceId.IsValid() ? TEXT("true") : TEXT("false"),
+			CurrentGold, EquippedItems.Num(), InventoryItems.Num(), LockedEquipment, MaterialInventory.Num(), PillInventory.Num(),
+			ArtifactInventory.Num(), LockedArtifacts, QuestItemInventory.Num(), EquippedArtifactInstanceId.IsValid() ? TEXT("true") : TEXT("false"),
 			TechniqueLibrary.Num(), EquippedTechniqueIds.Num(), TechniqueInsightPoints,
 			static_cast<int32>(SpiritRootState.Root), SpiritRootState.Purity,
 			static_cast<int32>(CultivationPathState.Path), CultivationPathState.SwitchCount,
 			ShopState.RefreshDayKey, ShopState.RefreshSerial, ShopState.Listings.Num(), SoldOutListings,
 			GetAlchemyBoostRemainingSeconds());
+		FString SetSummary = GetEquipmentSetSummaryText().ToString();
+		SetSummary.ReplaceInline(TEXT("\n"), TEXT("; "));
+		UE_LOG(LogTemp, Display,
+			TEXT("Equipment expansion saved: version=%d initialized=%s ordinarySlots=%d equipped=%d artifact=%s sets=%s"),
+			SaveGame->SaveVersion, SaveGame->bEquipmentExpansionInitialized ? TEXT("true") : TEXT("false"),
+			static_cast<int32>(EImmortalEquipmentSlot::MAX), EquippedItems.Num(),
+			EquippedArtifactInstanceId.IsValid() ? TEXT("equipped") : TEXT("empty"), *SetSummary);
+	}
+	else
+	{
+		// Settlement is part of the persisted snapshot. If the write fails, keep
+		// the old high-water marks so the next successful save can settle the
+		// complete interval instead of losing cave or crop growth.
+		CaveState = CaveBeforeSettlement;
+		FarmingState = FarmingBeforeSettlement;
 	}
 	return bSaved;
 }
@@ -2415,11 +5020,13 @@ bool AImmortalPlayerCharacter::LoadProgress()
 		UE_LOG(LogTemp, Display, TEXT("No saved player progress found; starting with defaults"));
 		return false;
 	}
+	const int32 LoadedSaveVersion = SaveGame->SaveVersion;
+	const int64 CurrentUtcTicks = FDateTime::UtcNow().GetTicks();
 
 	InventoryItems = SaveGame->InventoryItems;
 	EquippedItems = SaveGame->EquippedItems;
-	for (FImmortalEquipmentItem& Item : InventoryItems) UImmortalEquipmentLibrary::NormalizeForgingState(Item);
-	for (FImmortalEquipmentItem& Item : EquippedItems) UImmortalEquipmentLibrary::NormalizeForgingState(Item);
+	const bool bEquipmentCollectionsNormalized = UImmortalInventoryLibrary::NormalizeEquipmentCollections(
+		InventoryItems, EquippedItems);
 	++EquipmentInventoryRevision;
 	MaterialInventory = SaveGame->MaterialInventory;
 	UImmortalMaterialLibrary::NormalizeInventory(MaterialInventory);
@@ -2431,6 +5038,9 @@ bool AImmortalPlayerCharacter::LoadProgress()
 	EquippedArtifactInstanceId = SaveGame->EquippedArtifactInstanceId;
 	UImmortalArtifactLibrary::NormalizeInventory(ArtifactInventory, EquippedArtifactInstanceId);
 	++ArtifactInventoryRevision;
+	QuestItemInventory = SaveGame->QuestItemInventory;
+	UImmortalInventoryLibrary::NormalizeQuestItemInventory(QuestItemInventory);
+	++QuestItemInventoryRevision;
 	ArtifactAttackCounter = 0;
 	ArtifactShield = 0.0f;
 	TechniqueLibrary = SaveGame->TechniqueLibrary;
@@ -2441,8 +5051,11 @@ bool AImmortalPlayerCharacter::LoadProgress()
 	TechniqueAttackCounters.Reset();
 	TechniqueActiveCounters.Reset();
 	TechniqueShield = 0.0f;
-	const int32 LoadedSaveVersion = SaveGame->SaveVersion;
 	SpiritRootState = SaveGame->SpiritRootState;
+	const bool bNeedsInventoryMigration =
+		LoadedSaveVersion < 16 || !SaveGame->bInventoryManagementInitialized;
+	const bool bNeedsEquipmentExpansionMigration =
+		LoadedSaveVersion < 17 || !SaveGame->bEquipmentExpansionInitialized || bEquipmentCollectionsNormalized;
 	const bool bNeedsCharacterBuildMigration =
 		LoadedSaveVersion < 10
 		|| !SpiritRootState.IsAwakened();
@@ -2477,24 +5090,99 @@ bool AImmortalPlayerCharacter::LoadProgress()
 		CurrentCultivation = FMath::Max(SaveGame->Cultivation, 0);
 	}
 	CurrentGold = FMath::Max(SaveGame->SpiritStones, 0);
-	if (SaveGame->bHasStageData)
+	if (SaveGame->bHasStageData || SaveGame->MapSystemState.bInitialized)
 	{
-		DisplayedStage = FMath::Clamp(SaveGame->QingyunStage, 1, 999);
-		DisplayedStageKills = FMath::Max(SaveGame->QingyunStageKills, 0);
-		bDisplayedMapCompleted = SaveGame->bQingyunMountainCompleted;
+		FImmortalMapSystemState LoadedMapState = SaveGame->MapSystemState;
+		if (!LoadedMapState.bInitialized)
+		{
+			LoadedMapState = UImmortalMapLibrary::CreateMigratedState(
+				SaveGame->QingyunStage, SaveGame->QingyunStageKills, SaveGame->bQingyunMountainCompleted);
+		}
+		UImmortalMapLibrary::NormalizeState(LoadedMapState);
+		CachedMapSystemState = LoadedMapState;
+		DisplayedMapId = LoadedMapState.ActiveMapId;
+		FImmortalMapDefinition Definition;
+		FImmortalMapProgress Progress;
+		if (UImmortalMapLibrary::GetMapDefinition(DisplayedMapId, Definition)
+			&& UImmortalMapLibrary::GetMapProgress(LoadedMapState, DisplayedMapId, Progress))
+		{
+			DisplayedMapName = Definition.DisplayName;
+			DisplayedMapMaximumStage = Definition.MaximumStage;
+			DisplayedStage = Progress.Stage;
+			DisplayedStageKills = Progress.StageKills;
+			bDisplayedMapCompleted = Progress.bCompleted;
+			bDisplayedBossStage = !Progress.bCompleted
+				&& (Progress.Stage >= Definition.MaximumStage
+					|| Progress.Stage % FMath::Max(Definition.BossStageInterval, 2) == 0);
+			DisplayedStageRequiredKills = bDisplayedBossStage || bDisplayedMapCompleted ? 1 : 10;
+		}
 	}
 	ShopState = SaveGame->ShopState;
-	UImmortalShopLibrary::NormalizeState(ShopState);
+	const bool bShopStateNormalized = UImmortalShopLibrary::NormalizeState(ShopState);
 	++ShopRevision;
 	const int32 CurrentShopDayKey = UImmortalShopLibrary::GetDayKeyFromUtcTicks(
 		FDateTime::UtcNow().GetTicks(), ShopUtcOffsetMinutes);
-	bool bNeedsShopMigration = LoadedSaveVersion < 11 || ShopState.Listings.IsEmpty();
-	if (bNeedsShopMigration || UImmortalShopLibrary::NeedsDailyRefresh(ShopState, CurrentShopDayKey))
+	const bool bShopNeedsRegeneration = LoadedSaveVersion < 11
+		|| ShopState.Listings.IsEmpty()
+		|| UImmortalShopLibrary::NeedsDailyRefresh(ShopState, CurrentShopDayKey);
+	bool bNeedsShopMigration = bShopStateNormalized;
+	if (bShopNeedsRegeneration)
 	{
 		bNeedsShopMigration = RefreshShopForDay(
 			CurrentShopDayKey,
 			SaveGame->bHasStageData ? FMath::Clamp(SaveGame->QingyunStage, 1, 999) : 1,
 			true) || bNeedsShopMigration;
+	}
+	const bool bNeedsCaveMigration = LoadedSaveVersion < 13 || !SaveGame->CaveState.bInitialized;
+	if (bNeedsCaveMigration)
+	{
+		// The cave did not exist before v13, so never manufacture resources for time
+		// elapsed before the feature was installed.
+		CaveState = UImmortalCaveLibrary::CreateDefaultState(CurrentUtcTicks);
+	}
+	else
+	{
+		CaveState = SaveGame->CaveState;
+		UImmortalCaveLibrary::NormalizeState(CaveState, CurrentUtcTicks);
+		SettleCaveProduction(CurrentUtcTicks);
+		// Existing v13 saves receive their persistent cave cultivation multiplier
+		// during the same offline interval. Temporary alchemy remains excluded.
+		RecalculateCaveBonuses();
+	}
+	const bool bNeedsFarmingMigration = LoadedSaveVersion < 14 || !SaveGame->FarmingState.bInitialized;
+	if (bNeedsFarmingMigration)
+	{
+		// Farming did not exist before v14. Old saves begin with empty plots at
+		// the current time and never receive retroactive crops or harvests.
+		FarmingState = UImmortalFarmingLibrary::CreateDefaultState(CurrentUtcTicks);
+	}
+	else
+	{
+		FarmingState = SaveGame->FarmingState;
+		UImmortalFarmingLibrary::NormalizeState(FarmingState, CurrentUtcTicks);
+		SettleFarmingGrowth(CurrentUtcTicks);
+	}
+	const bool bNeedsSectMigration = LoadedSaveVersion < 15 || !SaveGame->SectState.bInitialized;
+	bool bNeedsSectStateSave = bNeedsSectMigration;
+	if (bNeedsSectMigration)
+	{
+		// Sect progression did not exist before v15. Old saves begin unaligned at
+		// the current CST day and never receive historical tasks or contribution.
+		SectState = UImmortalSectLibrary::CreateDefaultState(CurrentUtcTicks, SectUtcOffsetMinutes);
+	}
+	else
+	{
+		SectState = SaveGame->SectState;
+		bNeedsSectStateSave = UImmortalSectLibrary::NormalizeState(
+			SectState, CurrentUtcTicks, SectUtcOffsetMinutes);
+		const int32 PreviousSectDayKey = SectState.TaskDayKey;
+		const FImmortalSectDailyRefreshResult SectRefresh = UImmortalSectLibrary::EnsureDailyState(
+			SectState, CurrentUtcTicks, SectUtcOffsetMinutes);
+		// A timestamp-only high-water advance can ride the next normal autosave.
+		// Only canonical repairs or an actual daily reset require an immediate
+		// startup write, avoiding a redundant synchronous save on every launch.
+		bNeedsSectStateSave = bNeedsSectStateSave
+			|| (SectRefresh.bStateChanged && SectState.TaskDayKey != PreviousSectDayKey);
 	}
 	EquipmentDropCount = FMath::Max(SaveGame->EquipmentDropCount, 0);
 	LastOfflineClaimUtcTicks = FMath::Max<int64>(SaveGame->LastOfflineClaimUtcTicks, 0);
@@ -2510,26 +5198,70 @@ bool AImmortalPlayerCharacter::LoadProgress()
 		FMath::Max(SaveGame->AlchemyCultivationBoostMultiplier, 1.0f),
 		FMath::Max(SaveGame->AlchemyCultivationBoostRemainingSeconds, 0.0f));
 	ApplyOfflineRewards(SaveGame);
-	if (bNeedsCharacterBuildMigration || bNeedsShopMigration)
+	if (bNeedsCaveMigration)
+	{
+		// v12 offline cultivation was calculated above without retroactively applying
+		// a cave that did not exist during that interval.
+		RecalculateCaveBonuses();
+	}
+	if (bNeedsInventoryMigration || bNeedsEquipmentExpansionMigration || bNeedsCharacterBuildMigration || bNeedsShopMigration || bNeedsCaveMigration || bNeedsFarmingMigration
+		|| bNeedsSectStateSave)
 	{
 		// Persist one-time version migrations and the current day's stock together.
-		SaveProgress();
-		UE_LOG(LogTemp, Display, TEXT("Save migration completed at version %d | character build %s | shop %s"),
-			UImmortalPathSaveGame::CurrentSaveVersion,
-			bNeedsCharacterBuildMigration ? TEXT("true") : TEXT("false"),
-			bNeedsShopMigration ? TEXT("true") : TEXT("false"));
+		const bool bMigrationSaved = SaveProgress();
+		const TCHAR* MigrationMessage = bMigrationSaved
+			? TEXT("completed")
+			: TEXT("remains pending because persistence failed");
+		if (bMigrationSaved)
+		{
+			UE_LOG(LogTemp, Display,
+				TEXT("Save migration/state refresh %s | loaded version %d -> current version %d | inventory %s | equipment expansion %s | character build %s | shop %s | cave %s | farming %s | sect %s"),
+				MigrationMessage, LoadedSaveVersion, UImmortalPathSaveGame::CurrentSaveVersion,
+				bNeedsInventoryMigration ? TEXT("true") : TEXT("false"),
+				bNeedsEquipmentExpansionMigration ? TEXT("true") : TEXT("false"),
+				bNeedsCharacterBuildMigration ? TEXT("true") : TEXT("false"),
+				bNeedsShopMigration ? TEXT("true") : TEXT("false"),
+				bNeedsCaveMigration ? TEXT("true") : TEXT("false"),
+				bNeedsFarmingMigration ? TEXT("true") : TEXT("false"),
+				bNeedsSectStateSave ? TEXT("true") : TEXT("false"));
+		}
+		else
+		{
+			UE_LOG(LogTemp, Error,
+				TEXT("Save migration/state refresh %s | loaded version %d -> current version %d | inventory %s | equipment expansion %s | character build %s | shop %s | cave %s | farming %s | sect %s"),
+				MigrationMessage, LoadedSaveVersion, UImmortalPathSaveGame::CurrentSaveVersion,
+				bNeedsInventoryMigration ? TEXT("true") : TEXT("false"),
+				bNeedsEquipmentExpansionMigration ? TEXT("true") : TEXT("false"),
+				bNeedsCharacterBuildMigration ? TEXT("true") : TEXT("false"),
+				bNeedsShopMigration ? TEXT("true") : TEXT("false"),
+				bNeedsCaveMigration ? TEXT("true") : TEXT("false"),
+				bNeedsFarmingMigration ? TEXT("true") : TEXT("false"),
+				bNeedsSectStateSave ? TEXT("true") : TEXT("false"));
+		}
 	}
 	int32 SoldOutListings = 0;
 	for (const FImmortalShopListing& Listing : ShopState.Listings) SoldOutListings += Listing.bSoldOut ? 1 : 0;
-	UE_LOG(LogTemp, Display, TEXT("Player progress loaded: realm %s | cultivation %d/%d | spirit stones %d | equipped %d | backpack %d | material types %d | pill stacks %d | artifacts %d | artifact equipped %s | techniques %d/%d | insight %d | root %d/%.2f | path %d/switches %d | shop %d/%d/%d/%d | boost %.0fs | combat power %.2f"),
+	int32 LockedEquipment = 0;
+	for (const FImmortalEquipmentItem& Item : InventoryItems) LockedEquipment += Item.bLocked ? 1 : 0;
+	int32 LockedArtifacts = 0;
+	for (const FImmortalArtifactItem& Item : ArtifactInventory) LockedArtifacts += Item.bLocked ? 1 : 0;
+	UE_LOG(LogTemp, Display, TEXT("Player progress loaded: realm %s | cultivation %d/%d | spirit stones %d | equipped %d | backpack %d/locked%d | material types %d | pill stacks %d | artifacts %d/locked%d | quest types %d | artifact equipped %s | techniques %d/%d | insight %d | root %d/%.2f | path %d/switches %d | shop %d/%d/%d/%d | boost %.0fs | combat power %.2f"),
 		*GetFullCultivationRealmName().ToString(), CurrentCultivation, GetRequiredCultivation(),
-		CurrentGold, EquippedItems.Num(), InventoryItems.Num(), MaterialInventory.Num(), PillInventory.Num(),
-		ArtifactInventory.Num(), EquippedArtifactInstanceId.IsValid() ? TEXT("true") : TEXT("false"),
+		CurrentGold, EquippedItems.Num(), InventoryItems.Num(), LockedEquipment, MaterialInventory.Num(), PillInventory.Num(),
+		ArtifactInventory.Num(), LockedArtifacts, QuestItemInventory.Num(), EquippedArtifactInstanceId.IsValid() ? TEXT("true") : TEXT("false"),
 		TechniqueLibrary.Num(), EquippedTechniqueIds.Num(), TechniqueInsightPoints,
 		static_cast<int32>(SpiritRootState.Root), SpiritRootState.Purity,
 		static_cast<int32>(CultivationPathState.Path), CultivationPathState.SwitchCount,
 		ShopState.RefreshDayKey, ShopState.RefreshSerial, ShopState.Listings.Num(), SoldOutListings,
 		GetAlchemyBoostRemainingSeconds(), GetCombatPower());
+	FString LoadedSetSummary = GetEquipmentSetSummaryText().ToString();
+	LoadedSetSummary.ReplaceInline(TEXT("\n"), TEXT("; "));
+	UE_LOG(LogTemp, Display,
+		TEXT("Equipment expansion loaded: diskVersion=%d currentVersion=%d initialized=%s ordinarySlots=%d equipped=%d artifact=%s sets=%s"),
+		LoadedSaveVersion, UImmortalPathSaveGame::CurrentSaveVersion,
+		SaveGame->bEquipmentExpansionInitialized ? TEXT("true") : TEXT("false"),
+		static_cast<int32>(EImmortalEquipmentSlot::MAX), EquippedItems.Num(),
+		EquippedArtifactInstanceId.IsValid() ? TEXT("equipped") : TEXT("empty"), *LoadedSetSummary);
 	return true;
 }
 
@@ -2539,6 +5271,7 @@ void AImmortalPlayerCharacter::ApplyOfflineRewards(UImmortalPathSaveGame* SaveGa
 	{
 		return;
 	}
+	const FImmortalOfflineRewardResult PreviousOfflineRewardResult = LastOfflineRewardResult;
 
 	int64 DevelopmentOverrideSeconds = -1;
 #if !UE_BUILD_SHIPPING
@@ -2551,6 +5284,24 @@ void AImmortalPlayerCharacter::ApplyOfflineRewards(UImmortalPathSaveGame* SaveGa
 	}
 #endif
 
+	FImmortalMapSystemState OfflineMapState = SaveGame->MapSystemState;
+	if (!OfflineMapState.bInitialized)
+	{
+		OfflineMapState = UImmortalMapLibrary::CreateMigratedState(
+			SaveGame->QingyunStage, SaveGame->QingyunStageKills, SaveGame->bQingyunMountainCompleted);
+	}
+	UImmortalMapLibrary::NormalizeState(OfflineMapState);
+	FImmortalMapProgress OfflineMapProgress;
+	FImmortalMapDefinition OfflineMapDefinition;
+	if (!UImmortalMapLibrary::GetMapProgress(
+			OfflineMapState, OfflineMapState.ActiveMapId, OfflineMapProgress)
+		|| !UImmortalMapLibrary::GetMapDefinition(OfflineMapState.ActiveMapId, OfflineMapDefinition))
+	{
+		OfflineMapState.ActiveMapId = UImmortalMapLibrary::GetQingyunMountainId();
+		UImmortalMapLibrary::GetMapProgress(OfflineMapState, OfflineMapState.ActiveMapId, OfflineMapProgress);
+		UImmortalMapLibrary::GetMapDefinition(OfflineMapState.ActiveMapId, OfflineMapDefinition);
+	}
+
 	const int64 CurrentUtcTicks = FDateTime::UtcNow().GetTicks();
 	LastOfflineRewardResult = UImmortalOfflineRewardLibrary::Calculate(
 		SaveGame->LastSavedUtcTicks,
@@ -2559,7 +5310,7 @@ void AImmortalPlayerCharacter::ApplyOfflineRewards(UImmortalPathSaveGame* SaveGa
 		MaximumOfflineHours,
 		CultivationComponent->HasReachedAscension() ? 0.0f : CultivationComponent->GetCultivationPerSecondWithoutAlchemyBoost(),
 		OfflineCultivationEfficiency,
-		OfflineSpiritStonesPerMinute,
+		OfflineSpiritStonesPerMinute * FMath::Max(OfflineMapDefinition.SpiritStoneMultiplier, 0.1f),
 		OfflineEquipmentIntervalSeconds,
 		MaximumOfflineEquipmentCount,
 		OfflineMaterialIntervalSeconds,
@@ -2582,6 +5333,26 @@ void AImmortalPlayerCharacter::ApplyOfflineRewards(UImmortalPathSaveGame* SaveGa
 		return;
 	}
 
+	// Offline rewards are one persistent transaction. Any write failure restores
+	// every runtime authority so the same interval cannot be duplicated on restart.
+	const EImmortalCultivationRealm PreviousRealm = CultivationComponent->GetCurrentRealm();
+	const int32 PreviousMinorStage = CultivationComponent->GetCurrentMinorStage();
+	const int32 PreviousCultivation = CultivationComponent->GetCurrentCultivation();
+	const int32 PreviousGold = CurrentGold;
+	const int32 PreviousEquipmentDropCount = EquipmentDropCount;
+	const TArray<FImmortalEquipmentItem> PreviousInventoryItems = InventoryItems;
+	const TArray<FImmortalEquipmentItem> PreviousEquippedItems = EquippedItems;
+	const TArray<FImmortalMaterialStack> PreviousMaterialInventory = MaterialInventory;
+	const int32 PreviousEquipmentRevision = EquipmentInventoryRevision;
+	const int32 PreviousMaterialRevision = MaterialInventoryRevision;
+	const float PreviousHealth = CurrentHealth;
+	const float PreviousMana = CurrentMana;
+	const int64 PreviousOfflineClaimTicks = LastOfflineClaimUtcTicks;
+	const int64 PreviousTotalRewardedSeconds = TotalRewardedOfflineSeconds;
+	const int32 PreviousTotalOfflineClaims = TotalOfflineClaims;
+	const bool bPreviouslyHadUnshownOfflineReward = bHasUnshownOfflineReward;
+	const FImmortalCaveState PreviousCaveState = CaveState;
+
 	if (LastOfflineRewardResult.Cultivation > 0)
 	{
 		CultivationComponent->AddCultivation(LastOfflineRewardResult.Cultivation);
@@ -2591,12 +5362,19 @@ void AImmortalPlayerCharacter::ApplyOfflineRewards(UImmortalPathSaveGame* SaveGa
 		static_cast<int64>(CurrentGold) + LastOfflineRewardResult.SpiritStones,
 		MAX_int32));
 
-	const int32 OfflineItemLevel = 1 + (FMath::Clamp(SaveGame->QingyunStage, 1, 999) - 1) / 5;
+	const int32 OfflineItemLevel = 1 + (FMath::Clamp(OfflineMapProgress.Stage, 1, 999) - 1) / 5
+		+ FMath::Max(OfflineMapDefinition.EquipmentLevelBonus, 0);
+	const int32 BaseOfflineEquipmentCount = LastOfflineRewardResult.EquipmentCount;
+	LastOfflineRewardResult.EquipmentCount = FMath::Clamp(
+		FMath::FloorToInt(static_cast<float>(BaseOfflineEquipmentCount) * GetEquipmentDropChanceMultiplier()),
+		0,
+		FMath::Max(MaximumOfflineEquipmentCount, 0));
 	int32 EquipmentGranted = 0;
 	for (int32 Index = 0; Index < LastOfflineRewardResult.EquipmentCount; ++Index)
 	{
-		const FImmortalEquipmentItem Item = UImmortalEquipmentLibrary::GenerateRandomEquipment(OfflineItemLevel);
-		if (ProcessEquipmentItem(Item, false, false))
+		const FImmortalEquipmentItem Item = UImmortalEquipmentLibrary::GenerateRandomEquipmentWithMinimumQuality(
+			OfflineItemLevel, OfflineMapDefinition.MinimumEquipmentQuality);
+		if (ProcessEquipmentItem(Item, false, false, false))
 		{
 			++EquipmentGranted;
 		}
@@ -2606,8 +5384,8 @@ void AImmortalPlayerCharacter::ApplyOfflineRewards(UImmortalPathSaveGame* SaveGa
 	int32 MaterialsGranted = 0;
 	for (int32 Index = 0; Index < LastOfflineRewardResult.MaterialBundleCount; ++Index)
 	{
-		const FImmortalMaterialStack Material = UImmortalMaterialLibrary::GenerateStageDrop(
-			FMath::Clamp(SaveGame->QingyunStage, 1, 999), false, Index);
+		const FImmortalMaterialStack Material = UImmortalMaterialLibrary::GenerateMapDrop(
+			OfflineMapState.ActiveMapId, OfflineMapProgress.Stage, false, Index);
 		MaterialsGranted += AddMaterialInternal(Material.MaterialId, Material.Quantity);
 	}
 	LastOfflineRewardResult.MaterialCount = MaterialsGranted;
@@ -2624,11 +5402,54 @@ void AImmortalPlayerCharacter::ApplyOfflineRewards(UImmortalPathSaveGame* SaveGa
 	}
 	bHasUnshownOfflineReward = true;
 
+	GetWorldTimerManager().ClearTimer(CultivationBreakthroughSaveTimerHandle);
+	if (!SaveProgress())
+	{
+		CaveState = PreviousCaveState;
+		InventoryItems = PreviousInventoryItems;
+		EquippedItems = PreviousEquippedItems;
+		MaterialInventory = PreviousMaterialInventory;
+		CurrentGold = PreviousGold;
+		EquipmentDropCount = PreviousEquipmentDropCount;
+		EquipmentInventoryRevision = PreviousEquipmentRevision;
+		MaterialInventoryRevision = PreviousMaterialRevision;
+		LastOfflineClaimUtcTicks = PreviousOfflineClaimTicks;
+		TotalRewardedOfflineSeconds = PreviousTotalRewardedSeconds;
+		TotalOfflineClaims = PreviousTotalOfflineClaims;
+		bHasUnshownOfflineReward = bPreviouslyHadUnshownOfflineReward;
+		LastOfflineRewardResult = PreviousOfflineRewardResult;
+		CultivationComponent->InitializeProgress(PreviousRealm, PreviousMinorStage, PreviousCultivation);
+		CurrentCultivation = CultivationComponent->GetCurrentCultivation();
+		RecalculateEquipmentBonuses();
+		CurrentHealth = FMath::Clamp(PreviousHealth, 0.0f, GetMaxHealth());
+		CurrentMana = FMath::Clamp(PreviousMana, 0.0f, GetMaxMana());
+		BP_OnRewardsChanged(CurrentCultivation, CurrentGold, 0, 0);
+		BP_OnInventoryChanged(InventoryItems.Num(), FMath::Max(InventoryCapacity, 1));
+		RefreshCultivationHud();
+		UE_LOG(LogTemp, Error,
+			TEXT("Offline reward transaction rolled back because the save could not be persisted"));
+		return;
+	}
+
 	BP_OnRewardsChanged(
 		CurrentCultivation,
 		CurrentGold,
 		LastOfflineRewardResult.Cultivation,
 		LastOfflineRewardResult.SpiritStones);
+	if (LastOfflineRewardResult.EquipmentCount > 0)
+	{
+		BP_OnEquipmentPickedUp(EquipmentDropCount, LastOfflineRewardResult.EquipmentCount);
+		BP_OnInventoryChanged(InventoryItems.Num(), FMath::Max(InventoryCapacity, 1));
+		for (const FImmortalEquipmentItem& Equipped : EquippedItems)
+		{
+			const FImmortalEquipmentItem* Previous = PreviousEquippedItems.FindByPredicate(
+				[&Equipped](const FImmortalEquipmentItem& Item) { return Item.Slot == Equipped.Slot; });
+			if (!Previous || Previous->ItemId != Equipped.ItemId)
+			{
+				BP_OnEquipmentChanged(Equipped.Slot, Equipped, true, GetCombatPower());
+			}
+		}
+	}
 	BP_OnOfflineRewardsClaimed(
 		LastOfflineRewardResult.RewardedOfflineSeconds,
 		LastOfflineRewardResult.Cultivation,
@@ -2636,11 +5457,10 @@ void AImmortalPlayerCharacter::ApplyOfflineRewards(UImmortalPathSaveGame* SaveGa
 		LastOfflineRewardResult.EquipmentCount,
 		LastOfflineRewardResult.bCappedByMaximum);
 	BP_OnOfflineMaterialsGranted(LastOfflineRewardResult.MaterialCount);
-
-	GetWorldTimerManager().ClearTimer(CultivationBreakthroughSaveTimerHandle);
-	SaveProgress();
 	UE_LOG(LogTemp, Display,
-		TEXT("Offline rewards claimed once: raw=%llds rewarded=%llds%s | cultivation +%d | spirit stones +%d | equipment %d | materials %d | total claims %d"),
+		TEXT("Offline rewards claimed once: map=%s stage=%d | raw=%llds rewarded=%llds%s | cultivation +%d | spirit stones +%d | equipment %d | materials %d | total claims %d"),
+		*OfflineMapState.ActiveMapId.ToString(),
+		OfflineMapProgress.Stage,
 		LastOfflineRewardResult.RawOfflineSeconds,
 		LastOfflineRewardResult.RewardedOfflineSeconds,
 		LastOfflineRewardResult.bCappedByMaximum ? TEXT(" (capped)") : TEXT(""),
@@ -2720,15 +5540,26 @@ bool AImmortalPlayerCharacter::IsCraftingRecipeUnlocked(const FName RecipeId) co
 {
 	FImmortalCraftingRecipeDefinition Definition;
 	return UImmortalCraftingLibrary::GetRecipeDefinition(RecipeId, Definition)
-		&& UImmortalCraftingLibrary::IsRecipeUnlocked(Definition, DisplayedStage);
+		&& UImmortalCraftingLibrary::IsRecipeUnlocked(Definition, GetQingyunStage());
 }
 
 bool AImmortalPlayerCharacter::CanCraftEquipment(const FName RecipeId) const
 {
 	FImmortalCraftingRecipeDefinition Definition;
-	return IsCraftingRecipeUnlocked(RecipeId)
-		&& UImmortalCraftingLibrary::GetRecipeDefinition(RecipeId, Definition)
-		&& UImmortalCraftingLibrary::CanAfford(MaterialInventory, CurrentGold, Definition.Cost);
+	if (!IsCraftingRecipeUnlocked(RecipeId)
+		|| !UImmortalCraftingLibrary::GetRecipeDefinition(RecipeId, Definition)
+		|| !UImmortalCraftingLibrary::CanAfford(
+			MaterialInventory, CurrentGold, ApplyCaveForgeDiscount(Definition.Cost)))
+	{
+		return false;
+	}
+	const bool bOutputSlotOccupied = EquippedItems.ContainsByPredicate([&Definition](const FImmortalEquipmentItem& Item)
+	{
+		return Item.Slot == Definition.OutputSlot;
+	});
+	return (bAutoEquipNewItems && !bOutputSlotOccupied)
+		|| InventoryItems.Num() < FMath::Max(InventoryCapacity, 1)
+		|| FindWeakestReplaceableInventoryItem() != INDEX_NONE;
 }
 
 FImmortalCraftingResult AImmortalPlayerCharacter::CraftEquipment(const FName RecipeId)
@@ -2741,13 +5572,14 @@ FImmortalCraftingResult AImmortalPlayerCharacter::CraftEquipment(const FName Rec
 		Result.Message = FText::FromString(TEXT("未找到炼器配方"));
 		return Result;
 	}
-	Result.bUnlocked = UImmortalCraftingLibrary::IsRecipeUnlocked(Definition, DisplayedStage);
+	Result.bUnlocked = UImmortalCraftingLibrary::IsRecipeUnlocked(Definition, GetQingyunStage());
 	if (!Result.bUnlocked)
 	{
 		Result.Message = FText::FromString(TEXT("当前青云山关卡尚未解锁此配方"));
 		return Result;
 	}
-	Result.bAffordable = UImmortalCraftingLibrary::CanAfford(MaterialInventory, CurrentGold, Definition.Cost);
+	const FImmortalCraftingCost EffectiveCost = ApplyCaveForgeDiscount(Definition.Cost);
+	Result.bAffordable = UImmortalCraftingLibrary::CanAfford(MaterialInventory, CurrentGold, EffectiveCost);
 	if (!Result.bAffordable)
 	{
 		Result.Message = FText::FromString(TEXT("打造材料或灵石不足"));
@@ -2755,43 +5587,94 @@ FImmortalCraftingResult AImmortalPlayerCharacter::CraftEquipment(const FName Rec
 	}
 
 	FImmortalEquipmentItem CraftedItem = UImmortalEquipmentLibrary::GenerateCraftedEquipment(
-		FMath::Max(DisplayedStage, 1), Definition.OutputSlot, Definition.OutputQuality);
-	if (!CraftedItem.IsValid()
-		|| !UImmortalCraftingLibrary::ConsumeCost(MaterialInventory, CurrentGold, Definition.Cost))
+		FMath::Max(GetQingyunStage(), 1), Definition.OutputSlot, Definition.OutputQuality,
+		EImmortalEquipmentDiscipline::Universal, Definition.OutputSetId);
+	if (!CraftedItem.IsValid())
+	{
+		Result.Message = FText::FromString(TEXT("炼器结果生成失败，资源未被扣除"));
+		return Result;
+	}
+
+	const TArray<FImmortalMaterialStack> PreviousMaterials = MaterialInventory;
+	const TArray<FImmortalEquipmentItem> PreviousInventory = InventoryItems;
+	const TArray<FImmortalEquipmentItem> PreviousEquipped = EquippedItems;
+	const int32 PreviousGold = CurrentGold;
+	const int32 PreviousDropCount = EquipmentDropCount;
+	const int32 PreviousMaterialRevision = MaterialInventoryRevision;
+	const int32 PreviousEquipmentRevision = EquipmentInventoryRevision;
+	const float PreviousHealth = CurrentHealth;
+	const float PreviousMana = CurrentMana;
+	if (!UImmortalCraftingLibrary::ConsumeCost(MaterialInventory, CurrentGold, EffectiveCost))
 	{
 		Result.Message = FText::FromString(TEXT("炼器事务未完成，资源未被部分扣除"));
 		return Result;
 	}
 	++MaterialInventoryRevision;
-	BP_OnRewardsChanged(CurrentCultivation, CurrentGold, 0, 0);
 
-	bool bStored = ProcessEquipmentItem(CraftedItem, true, false);
+	bool bStored = ProcessEquipmentItem(CraftedItem, false, false, false);
 	if (!bStored)
 	{
-		if (InventoryItems.IsEmpty()) InventoryItems.Add(CraftedItem);
-		else
+		const int32 WeakestIndex = FindWeakestReplaceableInventoryItem();
+		if (WeakestIndex != INDEX_NONE)
 		{
-			int32 WeakestIndex = 0;
-			for (int32 Index = 1; Index < InventoryItems.Num(); ++Index)
-			{
-				if (UImmortalEquipmentLibrary::CalculateEquipmentPower(InventoryItems[Index])
-					< UImmortalEquipmentLibrary::CalculateEquipmentPower(InventoryItems[WeakestIndex]))
-				{
-					WeakestIndex = Index;
-				}
-			}
 			InventoryItems[WeakestIndex] = CraftedItem;
+			++EquipmentInventoryRevision;
+			bStored = true;
 		}
-		++EquipmentInventoryRevision;
-		bStored = true;
-		BP_OnInventoryChanged(InventoryItems.Num(), FMath::Max(InventoryCapacity, 1));
+	}
+	if (!bStored)
+	{
+		MaterialInventory = PreviousMaterials;
+		InventoryItems = PreviousInventory;
+		EquippedItems = PreviousEquipped;
+		CurrentGold = PreviousGold;
+		EquipmentDropCount = PreviousDropCount;
+		MaterialInventoryRevision = PreviousMaterialRevision;
+		EquipmentInventoryRevision = PreviousEquipmentRevision;
+		RecalculateEquipmentBonuses();
+		CurrentHealth = FMath::Clamp(PreviousHealth, 0.0f, GetMaxHealth());
+		CurrentMana = FMath::Clamp(PreviousMana, 0.0f, GetMaxMana());
+		Result.Message = FText::FromString(TEXT("装备背包已满且没有可替换的未锁定装备，打造未消耗资源"));
+		return Result;
 	}
 
-	Result.bSucceeded = bStored;
+	const bool bAutoEquipped = EquippedItems.ContainsByPredicate([&CraftedItem](const FImmortalEquipmentItem& Item)
+	{
+		return Item.ItemId == CraftedItem.ItemId;
+	});
+	if (ShouldForceInventoryPersistenceFailure(TEXT("Craft")) || !SaveProgress())
+	{
+		MaterialInventory = PreviousMaterials;
+		InventoryItems = PreviousInventory;
+		EquippedItems = PreviousEquipped;
+		CurrentGold = PreviousGold;
+		EquipmentDropCount = PreviousDropCount;
+		MaterialInventoryRevision = PreviousMaterialRevision;
+		EquipmentInventoryRevision = PreviousEquipmentRevision;
+		RecalculateEquipmentBonuses();
+		CurrentHealth = FMath::Clamp(PreviousHealth, 0.0f, GetMaxHealth());
+		CurrentMana = FMath::Clamp(PreviousMana, 0.0f, GetMaxMana());
+		Result.Message = FText::FromString(TEXT("存档写入失败，打造消耗与装备结果已完整回滚"));
+		return Result;
+	}
+
+	Result.bSucceeded = true;
 	Result.ItemId = CraftedItem.ItemId;
 	Result.Message = FText::FromString(FString::Printf(TEXT("打造成功：%s（%d 条词条）"),
 		*CraftedItem.DisplayName.ToString(), CraftedItem.Affixes.Num()));
-	SaveProgress();
+	BP_OnEquipmentPickedUp(EquipmentDropCount, 1);
+	BP_OnInventoryChanged(InventoryItems.Num(), GetInventoryCapacity());
+	BP_OnRewardsChanged(CurrentCultivation, CurrentGold, 0, 0);
+	if (bAutoEquipped)
+	{
+		BP_OnEquipmentChanged(CraftedItem.Slot, CraftedItem, true, GetCombatPower());
+		if (GetWorldTimerManager().IsTimerActive(AutoAttackTimerHandle)) StartAutoAttack();
+	}
+	if (CombatFeedbackWidget)
+	{
+		CombatFeedbackWidget->ShowEquipmentPickup(
+			FText::FromName(CraftedItem.DisplayName), UImmortalEquipmentLibrary::GetQualityColor(CraftedItem.Quality), bAutoEquipped);
+	}
 	BP_OnCraftingCompleted(Result);
 	UE_LOG(LogTemp, Display, TEXT("Equipment crafted: recipe %s | item %s | affixes %d | stones %d | materials %d"),
 		*RecipeId.ToString(), *CraftedItem.DisplayName.ToString(), CraftedItem.Affixes.Num(), CurrentGold, MaterialInventory.Num());
@@ -2805,7 +5688,8 @@ bool AImmortalPlayerCharacter::CanEnhanceEquipment(const FGuid ItemId) const
 	return GetEquipmentItemById(ItemId, Item, bEquipped)
 		&& Item.EnhancementLevel < 15
 		&& UImmortalCraftingLibrary::CanAfford(
-			MaterialInventory, CurrentGold, UImmortalCraftingLibrary::GetEnhancementCost(Item));
+			MaterialInventory, CurrentGold,
+			ApplyCaveForgeDiscount(UImmortalCraftingLibrary::GetEnhancementCost(Item)));
 }
 
 FImmortalCraftingResult AImmortalPlayerCharacter::EnhanceEquipment(const FGuid ItemId)
@@ -2819,7 +5703,7 @@ FImmortalCraftingResult AImmortalPlayerCharacter::EnhanceEquipment(const FGuid I
 		Result.Message = FText::FromString(TEXT("装备不存在或已经强化至 +15"));
 		return Result;
 	}
-	const FImmortalCraftingCost Cost = UImmortalCraftingLibrary::GetEnhancementCost(*Item);
+	const FImmortalCraftingCost Cost = ApplyCaveForgeDiscount(UImmortalCraftingLibrary::GetEnhancementCost(*Item));
 	Result.bUnlocked = true;
 	Result.bAffordable = UImmortalCraftingLibrary::CanAfford(MaterialInventory, CurrentGold, Cost);
 	if (!Result.bAffordable)
@@ -2860,7 +5744,8 @@ bool AImmortalPlayerCharacter::CanRefineEquipment(const FGuid ItemId) const
 	bool bEquipped = false;
 	return GetEquipmentItemById(ItemId, Item, bEquipped)
 		&& UImmortalCraftingLibrary::CanAfford(
-			MaterialInventory, CurrentGold, UImmortalCraftingLibrary::GetRefinementCost(Item));
+			MaterialInventory, CurrentGold,
+			ApplyCaveForgeDiscount(UImmortalCraftingLibrary::GetRefinementCost(Item)));
 }
 
 FImmortalCraftingResult AImmortalPlayerCharacter::RefineEquipment(const FGuid ItemId)
@@ -2874,7 +5759,7 @@ FImmortalCraftingResult AImmortalPlayerCharacter::RefineEquipment(const FGuid It
 		Result.Message = FText::FromString(TEXT("未找到需要洗炼的装备"));
 		return Result;
 	}
-	const FImmortalCraftingCost Cost = UImmortalCraftingLibrary::GetRefinementCost(*Item);
+	const FImmortalCraftingCost Cost = ApplyCaveForgeDiscount(UImmortalCraftingLibrary::GetRefinementCost(*Item));
 	Result.bUnlocked = true;
 	Result.bAffordable = UImmortalCraftingLibrary::CanAfford(MaterialInventory, CurrentGold, Cost);
 	if (!Result.bAffordable)
@@ -2931,7 +5816,7 @@ bool AImmortalPlayerCharacter::IsArtifactUnlocked(const FName ArtifactId) const
 {
 	FImmortalArtifactDefinition Definition;
 	return UImmortalArtifactLibrary::GetArtifactDefinition(ArtifactId, Definition)
-		&& DisplayedStage >= FMath::Max(Definition.MinimumQingyunStage, 1);
+		&& GetQingyunStage() >= FMath::Max(Definition.MinimumQingyunStage, 1);
 }
 
 bool AImmortalPlayerCharacter::CanCraftArtifact(const FName ArtifactId) const
@@ -2939,7 +5824,8 @@ bool AImmortalPlayerCharacter::CanCraftArtifact(const FName ArtifactId) const
 	FImmortalArtifactDefinition Definition;
 	return IsArtifactUnlocked(ArtifactId)
 		&& UImmortalArtifactLibrary::GetArtifactDefinition(ArtifactId, Definition)
-		&& UImmortalCraftingLibrary::CanAfford(MaterialInventory, CurrentGold, Definition.CraftingCost);
+		&& UImmortalCraftingLibrary::CanAfford(
+			MaterialInventory, CurrentGold, ApplyCaveForgeDiscount(Definition.CraftingCost));
 }
 
 FImmortalArtifactOperationResult AImmortalPlayerCharacter::CraftArtifact(const FName ArtifactId)
@@ -2951,13 +5837,14 @@ FImmortalArtifactOperationResult AImmortalPlayerCharacter::CraftArtifact(const F
 		Result.Message = FText::FromString(TEXT("未找到法宝炼制图谱"));
 		return Result;
 	}
-	Result.bUnlocked = DisplayedStage >= FMath::Max(Definition.MinimumQingyunStage, 1);
+	Result.bUnlocked = GetQingyunStage() >= FMath::Max(Definition.MinimumQingyunStage, 1);
 	if (!Result.bUnlocked)
 	{
 		Result.Message = FText::FromString(FString::Printf(TEXT("青云山第 %d 关解锁此法宝"), Definition.MinimumQingyunStage));
 		return Result;
 	}
-	Result.bAffordable = UImmortalCraftingLibrary::CanAfford(MaterialInventory, CurrentGold, Definition.CraftingCost);
+	const FImmortalCraftingCost EffectiveCost = ApplyCaveForgeDiscount(Definition.CraftingCost);
+	Result.bAffordable = UImmortalCraftingLibrary::CanAfford(MaterialInventory, CurrentGold, EffectiveCost);
 	if (!Result.bAffordable)
 	{
 		Result.Message = FText::FromString(TEXT("炼制法宝所需灵石或材料不足"));
@@ -2966,7 +5853,7 @@ FImmortalArtifactOperationResult AImmortalPlayerCharacter::CraftArtifact(const F
 
 	FImmortalArtifactItem Crafted = UImmortalArtifactLibrary::CreateArtifact(ArtifactId);
 	if (!Crafted.IsValid()
-		|| !UImmortalCraftingLibrary::ConsumeCost(MaterialInventory, CurrentGold, Definition.CraftingCost))
+		|| !UImmortalCraftingLibrary::ConsumeCost(MaterialInventory, CurrentGold, EffectiveCost))
 	{
 		Result.Message = FText::FromString(TEXT("法宝炼制事务未完成，资源未被部分扣除"));
 		return Result;
@@ -3037,7 +5924,9 @@ bool AImmortalPlayerCharacter::CanUpgradeArtifact(const FGuid InstanceId) const
 		return Entry.InstanceId == InstanceId;
 	});
 	return Item && Item->Level < 50
-		&& UImmortalCraftingLibrary::CanAfford(MaterialInventory, CurrentGold, UImmortalArtifactLibrary::GetUpgradeCost(*Item));
+		&& UImmortalCraftingLibrary::CanAfford(
+			MaterialInventory, CurrentGold,
+			ApplyCaveForgeDiscount(UImmortalArtifactLibrary::GetUpgradeCost(*Item)));
 }
 
 FImmortalArtifactOperationResult AImmortalPlayerCharacter::UpgradeArtifact(const FGuid InstanceId)
@@ -3049,7 +5938,7 @@ FImmortalArtifactOperationResult AImmortalPlayerCharacter::UpgradeArtifact(const
 		Result.Message = FText::FromString(TEXT("法宝不存在或已达到 50 级"));
 		return Result;
 	}
-	const FImmortalCraftingCost Cost = UImmortalArtifactLibrary::GetUpgradeCost(*Item);
+	const FImmortalCraftingCost Cost = ApplyCaveForgeDiscount(UImmortalArtifactLibrary::GetUpgradeCost(*Item));
 	Result.bUnlocked = true;
 	Result.bAffordable = UImmortalCraftingLibrary::CanAfford(MaterialInventory, CurrentGold, Cost);
 	if (!Result.bAffordable)
@@ -3089,7 +5978,9 @@ bool AImmortalPlayerCharacter::CanStarUpArtifact(const FGuid InstanceId) const
 		return Entry.InstanceId == InstanceId;
 	});
 	return Item && Item->Stars < 5
-		&& UImmortalCraftingLibrary::CanAfford(MaterialInventory, CurrentGold, UImmortalArtifactLibrary::GetStarUpCost(*Item));
+		&& UImmortalCraftingLibrary::CanAfford(
+			MaterialInventory, CurrentGold,
+			ApplyCaveForgeDiscount(UImmortalArtifactLibrary::GetStarUpCost(*Item)));
 }
 
 FImmortalArtifactOperationResult AImmortalPlayerCharacter::StarUpArtifact(const FGuid InstanceId)
@@ -3101,7 +5992,7 @@ FImmortalArtifactOperationResult AImmortalPlayerCharacter::StarUpArtifact(const 
 		Result.Message = FText::FromString(TEXT("法宝不存在或已达到五星"));
 		return Result;
 	}
-	const FImmortalCraftingCost Cost = UImmortalArtifactLibrary::GetStarUpCost(*Item);
+	const FImmortalCraftingCost Cost = ApplyCaveForgeDiscount(UImmortalArtifactLibrary::GetStarUpCost(*Item));
 	Result.bUnlocked = true;
 	Result.bAffordable = UImmortalCraftingLibrary::CanAfford(MaterialInventory, CurrentGold, Cost);
 	if (!Result.bAffordable)
@@ -3169,7 +6060,7 @@ bool AImmortalPlayerCharacter::IsTechniqueUnlocked(const FName TechniqueId) cons
 {
 	FImmortalTechniqueDefinition Definition;
 	return UImmortalTechniqueLibrary::GetTechniqueDefinition(TechniqueId, Definition)
-		&& DisplayedStage >= FMath::Max(Definition.MinimumQingyunStage, 1)
+		&& GetQingyunStage() >= FMath::Max(Definition.MinimumQingyunStage, 1)
 		&& static_cast<int32>(GetCultivationRealm()) >= FMath::Max(Definition.MinimumRealmIndex, 0);
 }
 
@@ -3469,17 +6360,10 @@ bool AImmortalPlayerCharacter::AddItemToInventory(const FImmortalEquipmentItem& 
 		return true;
 	}
 
-	int32 WeakestIndex = INDEX_NONE;
-	float WeakestPower = TNumericLimits<float>::Max();
-	for (int32 Index = 0; Index < InventoryItems.Num(); ++Index)
-	{
-		const float Power = UImmortalEquipmentLibrary::CalculateEquipmentPower(InventoryItems[Index]);
-		if (Power < WeakestPower)
-		{
-			WeakestPower = Power;
-			WeakestIndex = Index;
-		}
-	}
+	const int32 WeakestIndex = FindWeakestReplaceableInventoryItem();
+	const float WeakestPower = WeakestIndex == INDEX_NONE
+		? TNumericLimits<float>::Max()
+		: UImmortalEquipmentLibrary::CalculateEquipmentPower(InventoryItems[WeakestIndex]);
 
 	if (WeakestIndex != INDEX_NONE && UImmortalEquipmentLibrary::CalculateEquipmentPower(Item) > WeakestPower)
 	{
@@ -3487,6 +6371,23 @@ bool AImmortalPlayerCharacter::AddItemToInventory(const FImmortalEquipmentItem& 
 		return true;
 	}
 	return false;
+}
+
+int32 AImmortalPlayerCharacter::FindWeakestReplaceableInventoryItem() const
+{
+	int32 WeakestIndex = INDEX_NONE;
+	float WeakestPower = TNumericLimits<float>::Max();
+	for (int32 Index = 0; Index < InventoryItems.Num(); ++Index)
+	{
+		if (!InventoryItems[Index].IsValid() || InventoryItems[Index].bLocked) continue;
+		const float Power = UImmortalEquipmentLibrary::CalculateEquipmentPower(InventoryItems[Index]);
+		if (Power < WeakestPower)
+		{
+			WeakestPower = Power;
+			WeakestIndex = Index;
+		}
+	}
+	return WeakestIndex;
 }
 
 void AImmortalPlayerCharacter::RecalculateEquipmentBonuses()
@@ -3498,15 +6399,57 @@ void AImmortalPlayerCharacter::RecalculateEquipmentBonuses()
 	EquippedHealthBonus = 0.0f;
 	EquippedAttackSpeedBonus = 0.0f;
 	EquippedCriticalChanceBonus = 0.0f;
+	EquippedCriticalDamageBonus = 0.0f;
+	EquippedFireDamageBonus = 0.0f;
+	EquippedThunderDamageBonus = 0.0f;
+	EquippedIceDamageBonus = 0.0f;
+	EquippedLifeStealBonus = 0.0f;
+	EquippedCultivationGainBonus = 0.0f;
+	EquippedLootFindBonus = 0.0f;
+	EquippedBossDamageBonus = 0.0f;
+	EquipmentAttackMultiplier = 1.0f;
+	EquipmentDefenseMultiplier = 1.0f;
+	EquipmentHealthMultiplier = 1.0f;
+	EquipmentFinalDamageBonus = 0.0f;
+	EquipmentDamageReduction = 0.0f;
+	TArray<FImmortalEquipmentItem> CompatibleItems;
 
 	for (const FImmortalEquipmentItem& Item : EquippedItems)
 	{
 		if (!IsEquipmentCompatibleWithPath(Item)) continue;
+		CompatibleItems.Add(Item);
 		EquippedAttackBonus += FMath::Max(Item.AttackBonus, 0.0f);
 		EquippedDefenseBonus += FMath::Max(Item.DefenseBonus, 0.0f);
 		EquippedHealthBonus += FMath::Max(Item.HealthBonus, 0.0f);
 		EquippedAttackSpeedBonus += FMath::Max(Item.AttackSpeedBonus, 0.0f);
 		EquippedCriticalChanceBonus += FMath::Max(Item.CriticalChanceBonus, 0.0f);
+		EquippedCriticalDamageBonus += FMath::Max(Item.CriticalDamageBonus, 0.0f);
+		EquippedFireDamageBonus += FMath::Max(Item.FireDamageBonus, 0.0f);
+		EquippedThunderDamageBonus += FMath::Max(Item.ThunderDamageBonus, 0.0f);
+		EquippedIceDamageBonus += FMath::Max(Item.IceDamageBonus, 0.0f);
+		EquippedLifeStealBonus += FMath::Max(Item.LifeStealBonus, 0.0f);
+		EquippedCultivationGainBonus += FMath::Max(Item.CultivationGainBonus, 0.0f);
+		EquippedLootFindBonus += FMath::Max(Item.LootFindBonus, 0.0f);
+		EquippedBossDamageBonus += FMath::Max(Item.BossDamageBonus, 0.0f);
+	}
+	ActiveEquipmentSetBonuses = UImmortalEquipmentLibrary::CalculateSetBonuses(CompatibleItems);
+	EquipmentAttackMultiplier = 1.0f + FMath::Max(ActiveEquipmentSetBonuses.AttackMultiplierBonus, 0.0f);
+	EquipmentDefenseMultiplier = 1.0f + FMath::Max(ActiveEquipmentSetBonuses.DefenseMultiplierBonus, 0.0f);
+	EquipmentHealthMultiplier = 1.0f + FMath::Max(ActiveEquipmentSetBonuses.HealthMultiplierBonus, 0.0f);
+	EquippedAttackSpeedBonus += FMath::Max(ActiveEquipmentSetBonuses.AttackSpeedBonus, 0.0f);
+	EquippedCriticalChanceBonus += FMath::Max(ActiveEquipmentSetBonuses.CriticalChanceBonus, 0.0f);
+	EquippedCriticalDamageBonus += FMath::Max(ActiveEquipmentSetBonuses.CriticalDamageBonus, 0.0f);
+	EquippedThunderDamageBonus += FMath::Max(ActiveEquipmentSetBonuses.ThunderDamageBonus, 0.0f);
+	EquippedCultivationGainBonus += FMath::Max(ActiveEquipmentSetBonuses.CultivationGainBonus, 0.0f);
+	EquippedBossDamageBonus += FMath::Max(ActiveEquipmentSetBonuses.BossDamageBonus, 0.0f);
+	EquipmentFinalDamageBonus = FMath::Clamp(ActiveEquipmentSetBonuses.FinalDamageBonus, 0.0f, 3.0f);
+	EquipmentDamageReduction = FMath::Clamp(ActiveEquipmentSetBonuses.DamageReductionBonus, 0.0f, 0.75f);
+	EquippedLifeStealBonus = FMath::Clamp(EquippedLifeStealBonus, 0.0f, 0.75f);
+	EquippedLootFindBonus = FMath::Clamp(EquippedLootFindBonus, 0.0f, 4.0f);
+	EquippedBossDamageBonus = FMath::Clamp(EquippedBossDamageBonus, 0.0f, 4.0f);
+	if (CultivationComponent)
+	{
+		CultivationComponent->SetEquipmentRateMultiplier(1.0f + FMath::Clamp(EquippedCultivationGainBonus, 0.0f, 4.0f));
 	}
 	RecalculateArtifactBonuses();
 	RecalculateTechniqueBonuses();
@@ -3583,7 +6526,16 @@ void AImmortalPlayerCharacter::AwakenSpiritRootIfNeeded()
 
 float AImmortalPlayerCharacter::GetElementDamageMultiplier(const EImmortalElementType Element) const
 {
-	return UImmortalCharacterPathLibrary::CalculateElementDamageMultiplier(SpiritRootState, Element);
+	float EquipmentElementBonus = 0.0f;
+	switch (Element)
+	{
+	case EImmortalElementType::Fire: EquipmentElementBonus = EquippedFireDamageBonus; break;
+	case EImmortalElementType::Thunder: EquipmentElementBonus = EquippedThunderDamageBonus; break;
+	case EImmortalElementType::Ice: EquipmentElementBonus = EquippedIceDamageBonus; break;
+	default: break;
+	}
+	return UImmortalCharacterPathLibrary::CalculateElementDamageMultiplier(SpiritRootState, Element)
+		* (1.0f + FMath::Clamp(EquipmentElementBonus, 0.0f, 5.0f));
 }
 
 bool AImmortalPlayerCharacter::IsEquipmentCompatibleWithPath(const FImmortalEquipmentItem& Item) const
@@ -3762,6 +6714,7 @@ void AImmortalPlayerCharacter::EndPlay(const EEndPlayReason::Type EndPlayReason)
 	GetWorldTimerManager().ClearTimer(CultivationBreakthroughSaveTimerHandle);
 	GetWorldTimerManager().ClearTimer(AlchemyBoostTimerHandle);
 	GetWorldTimerManager().ClearTimer(ShopDailyRefreshTimerHandle);
+	GetWorldTimerManager().ClearTimer(CaveProductionTimerHandle);
 	bInventoryOpen = false;
 	bAlchemyOpen = false;
 	bCraftingOpen = false;
@@ -3769,6 +6722,10 @@ void AImmortalPlayerCharacter::EndPlay(const EEndPlayReason::Type EndPlayReason)
 	bTechniqueOpen = false;
 	bCharacterBuildOpen = false;
 	bShopOpen = false;
+	bMapSelectionOpen = false;
+	bCaveOpen = false;
+	bFarmingOpen = false;
+	bSectOpen = false;
 	if (PlayerInventoryWidget)
 	{
 		PlayerInventoryWidget->RemoveFromParent();
@@ -3803,6 +6760,26 @@ void AImmortalPlayerCharacter::EndPlay(const EEndPlayReason::Type EndPlayReason)
 	{
 		PlayerShopWidget->RemoveFromParent();
 		PlayerShopWidget = nullptr;
+	}
+	if (PlayerMapWidget)
+	{
+		PlayerMapWidget->RemoveFromParent();
+		PlayerMapWidget = nullptr;
+	}
+	if (PlayerCaveWidget)
+	{
+		PlayerCaveWidget->RemoveFromParent();
+		PlayerCaveWidget = nullptr;
+	}
+	if (PlayerFarmingWidget)
+	{
+		PlayerFarmingWidget->RemoveFromParent();
+		PlayerFarmingWidget = nullptr;
+	}
+	if (PlayerSectWidget)
+	{
+		PlayerSectWidget->RemoveFromParent();
+		PlayerSectWidget = nullptr;
 	}
 	if (CombatFeedbackWidget)
 	{
@@ -3978,6 +6955,30 @@ FVector AImmortalPlayerCharacter::GetAutoAttackLocation(const AActor* Target) co
 	return Target ? Target->GetActorLocation() : FVector::ZeroVector;
 }
 
+float AImmortalPlayerCharacter::ApplyOutgoingDamage(AActor* Target, const float RequestedDamage)
+{
+	if (!IsTargetAttackable(Target, false) || RequestedDamage <= 0.0f) return 0.0f;
+	float DamageMultiplier = 1.0f + FMath::Clamp(EquipmentFinalDamageBonus, 0.0f, 3.0f);
+	if (const AImmortalMonsterCharacter* Monster = Cast<AImmortalMonsterCharacter>(Target); Monster && Monster->IsBoss())
+	{
+		DamageMultiplier *= 1.0f + FMath::Clamp(EquippedBossDamageBonus, 0.0f, 4.0f);
+	}
+	const float AppliedDamage = UGameplayStatics::ApplyDamage(
+		Target,
+		FMath::Max(RequestedDamage * DamageMultiplier, 0.0f),
+		GetController(),
+		this,
+		DamageTypeClass);
+	if (AppliedDamage > 0.0f && EquippedLifeStealBonus > 0.0f && !bDead)
+	{
+		CurrentHealth = FMath::Clamp(
+			CurrentHealth + AppliedDamage * FMath::Clamp(EquippedLifeStealBonus, 0.0f, 0.75f),
+			0.0f,
+			GetMaxHealth());
+	}
+	return AppliedDamage;
+}
+
 void AImmortalPlayerCharacter::ResolvePendingAttack()
 {
 	AActor* Target = CurrentAttackTarget.Get();
@@ -3992,9 +6993,9 @@ void AImmortalPlayerCharacter::ResolvePendingAttack()
 		TryTriggerEquippedTechniques(Target);
 		TryTriggerEquippedArtifact(Target);
 		const bool bCriticalHit = FMath::FRand() < GetTotalCriticalChance();
-		const float CriticalMultiplier = bCriticalHit ? FMath::Max(CriticalDamageMultiplier, 1.0f) : 1.0f;
+		const float CriticalMultiplier = bCriticalHit ? GetTotalCriticalDamageMultiplier() : 1.0f;
 		const float RequestedDamage = FMath::Max(GetTotalAttackDamage(), 0.0f) * CriticalMultiplier;
-		DamageDealt = UGameplayStatics::ApplyDamage(Target, RequestedDamage, GetController(), this, DamageTypeClass);
+		DamageDealt = ApplyOutgoingDamage(Target, RequestedDamage);
 		if (DamageDealt > 0.0f && CombatFeedbackWidget)
 		{
 			CombatFeedbackWidget->ShowDamage(Target->GetActorLocation() + FVector(0.0f, 0.0f, 115.0f), DamageDealt, bCriticalHit, false);
@@ -4032,8 +7033,7 @@ void AImmortalPlayerCharacter::TryTriggerEquippedArtifact(AActor* PrimaryTarget)
 	auto ApplyArtifactDamage = [this, &TotalEffect](AActor* DamageTarget, const float RequestedDamage)
 	{
 		if (!IsTargetAttackable(DamageTarget, false)) return;
-		const float Applied = UGameplayStatics::ApplyDamage(
-			DamageTarget, FMath::Max(RequestedDamage, 0.0f), GetController(), this, DamageTypeClass);
+		const float Applied = ApplyOutgoingDamage(DamageTarget, FMath::Max(RequestedDamage, 0.0f));
 		if (Applied <= 0.0f) return;
 		TotalEffect += Applied;
 		if (CombatFeedbackWidget)
@@ -4140,8 +7140,7 @@ float AImmortalPlayerCharacter::ExecuteTechniqueSkill(
 	auto ApplyTechniqueDamage = [this, &TotalEffect](AActor* DamageTarget, const float RequestedDamage)
 	{
 		if (!IsTargetAttackable(DamageTarget, false)) return;
-		const float Applied = UGameplayStatics::ApplyDamage(
-			DamageTarget, FMath::Max(RequestedDamage, 0.0f), GetController(), this, DamageTypeClass);
+		const float Applied = ApplyOutgoingDamage(DamageTarget, FMath::Max(RequestedDamage, 0.0f));
 		if (Applied <= 0.0f) return;
 		TotalEffect += Applied;
 		if (CombatFeedbackWidget)
@@ -4269,8 +7268,7 @@ float AImmortalPlayerCharacter::ExecuteCultivationPathSkill(
 	auto ApplyPathDamage = [this, &TotalEffect](AActor* DamageTarget, const float RequestedDamage)
 	{
 		if (!IsTargetAttackable(DamageTarget, false)) return;
-		const float Applied = UGameplayStatics::ApplyDamage(
-			DamageTarget, FMath::Max(RequestedDamage, 0.0f), GetController(), this, DamageTypeClass);
+		const float Applied = ApplyOutgoingDamage(DamageTarget, FMath::Max(RequestedDamage, 0.0f));
 		if (Applied <= 0.0f) return;
 		TotalEffect += Applied;
 		if (CombatFeedbackWidget)
@@ -4336,8 +7334,7 @@ float AImmortalPlayerCharacter::ExecuteCultivationPathSkill(
 					{
 						AActor* PoisonedTarget = WeakTarget.Get();
 						if (!IsTargetAttackable(PoisonedTarget, false)) return;
-						const float Applied = UGameplayStatics::ApplyDamage(
-							PoisonedTarget, TickDamage, GetController(), this, DamageTypeClass);
+						const float Applied = ApplyOutgoingDamage(PoisonedTarget, TickDamage);
 						if (Applied > 0.0f && CombatFeedbackWidget)
 						{
 							CombatFeedbackWidget->ShowDamage(
