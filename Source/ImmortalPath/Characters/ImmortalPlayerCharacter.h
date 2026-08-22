@@ -5,19 +5,25 @@
 #include "CoreMinimal.h"
 #include "../Alchemy/ImmortalAlchemyTypes.h"
 #include "../Artifacts/ImmortalArtifactTypes.h"
+#include "../Ascension/ImmortalAscensionTypes.h"
 #include "../Cave/ImmortalCaveTypes.h"
 #include "../Crafting/ImmortalCraftingTypes.h"
+#include "../Endless/ImmortalEndlessDungeonTypes.h"
 #include "../Farming/ImmortalFarmingTypes.h"
 #include "../Items/ImmortalEquipmentTypes.h"
 #include "../Items/ImmortalMaterialTypes.h"
 #include "../Inventory/ImmortalInventoryTypes.h"
 #include "../Maps/ImmortalMapTypes.h"
+#include "../Pets/ImmortalPetTypes.h"
 #include "../Progression/ImmortalCultivationComponent.h"
 #include "../Progression/ImmortalCharacterPathTypes.h"
 #include "../Progression/ImmortalOfflineRewardTypes.h"
+#include "../Quests/ImmortalQuestTypes.h"
 #include "../Sects/ImmortalSectTypes.h"
 #include "../Shop/ImmortalShopTypes.h"
 #include "../Techniques/ImmortalTechniqueTypes.h"
+#include "../UI/ImmortalManagementTypes.h"
+#include "../WorldBoss/ImmortalWorldBossTypes.h"
 #include "PaperCharacter.h"
 #include "ImmortalPlayerCharacter.generated.h"
 
@@ -26,22 +32,33 @@ class UCameraComponent;
 class UDamageType;
 class UImmortalCombatFeedbackWidget;
 class AImmortalMonsterSpawner;
+class AImmortalMonsterCharacter;
+class AImmortalPetCharacter;
 class UImmortalAlchemyWidget;
 class UImmortalArtifactWidget;
+class UImmortalAscensionWidget;
 class UImmortalCraftingWidget;
 class UImmortalInventoryWidget;
 class UImmortalPlayerStatusWidget;
 class UImmortalTechniqueWidget;
 class UImmortalCharacterBuildWidget;
 class UImmortalCaveWidget;
+class UImmortalEndlessDungeonWidget;
 class UImmortalFarmingWidget;
 class UImmortalSectWidget;
+class UImmortalSettingsWidget;
 class UImmortalShopWidget;
 class UImmortalMapWidget;
+class UImmortalManagementWidget;
+class UImmortalCultivationWidget;
+class UImmortalWorldBossWidget;
+class UImmortalPetWidget;
+class UImmortalQuestWidget;
 class UInputComponent;
 class USpringArmComponent;
 class UUserWidget;
 class UImmortalPathSaveGame;
+class UPaperFlipbook;
 
 /**
  * C++ base for the 2D player character.
@@ -59,6 +76,7 @@ public:
 
 	virtual void BeginPlay() override;
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
+	virtual void Tick(float DeltaSeconds) override;
 	virtual void SetupPlayerInputComponent(UInputComponent* PlayerInputComponent) override;
 	virtual float TakeDamage(
 		float DamageAmount,
@@ -119,7 +137,7 @@ public:
 
 	/** Multiplier applied only to ordinary equipment-drop probability. Boss guaranteed counts remain fixed. */
 	UFUNCTION(BlueprintPure, Category = "Immortal Path|Equipment")
-	float GetEquipmentDropChanceMultiplier() const { return FMath::Clamp(1.0f + EquippedLootFindBonus, 0.0f, 5.0f); }
+	float GetEquipmentDropChanceMultiplier() const;
 
 	UFUNCTION(BlueprintPure, Category = "Immortal Path|Equipment")
 	FImmortalEquipmentSetBonuses GetActiveEquipmentSetBonuses() const { return ActiveEquipmentSetBonuses; }
@@ -180,6 +198,69 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "Immortal Path|Maps")
 	FImmortalMapTravelResult TravelToMap(FName MapId);
+
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|World Boss")
+	FImmortalWorldBossState GetWorldBossState() const { return WorldBossState; }
+
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|World Boss")
+	int32 GetWorldBossRevision() const { return WorldBossState.Revision; }
+
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|World Boss")
+	bool GetWorldBossProgress(FName BossId, FImmortalWorldBossProgress& OutProgress) const;
+
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|World Boss")
+	bool IsWorldBossUnlocked(FName BossId) const;
+
+	UFUNCTION(BlueprintCallable, Category = "Immortal Path|World Boss")
+	FImmortalWorldBossChallengeResult StartWorldBossChallenge(FName BossId);
+
+	UFUNCTION(BlueprintCallable, Category = "Immortal Path|World Boss")
+	FImmortalWorldBossChallengeResult CancelWorldBossChallenge();
+
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|World Boss")
+	FImmortalWorldBossRuntimeSnapshot GetWorldBossRuntimeSnapshot() const;
+
+	/** Called only by the authoritative encounter spawner after the Boss death callback. */
+	FImmortalWorldBossVictoryResult CommitWorldBossVictory(FName BossId, float ClearSeconds);
+
+	/** Re-attempts durable rewards retained by a full locked backpack or failed write. */
+	UFUNCTION(BlueprintCallable, Category = "Immortal Path|World Boss")
+	bool RetryPendingWorldBossRewards();
+
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|Endless Dungeon")
+	FImmortalEndlessDungeonState GetEndlessDungeonState() const
+	{
+		return EndlessDungeonState;
+	}
+
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|Endless Dungeon")
+	int32 GetEndlessDungeonRevision() const
+	{
+		return EndlessDungeonState.Revision;
+	}
+
+	/**
+	 * Starts at the durable ten-floor checkpoint when RequestedFloor is zero.
+	 * Explicit floors are accepted only inside the currently unlocked segment.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Immortal Path|Endless Dungeon")
+	FImmortalEndlessDungeonStartResult StartEndlessDungeon(
+		int32 RequestedFloor = 0);
+
+	UFUNCTION(BlueprintCallable, Category = "Immortal Path|Endless Dungeon")
+	FImmortalEndlessDungeonStartResult CancelEndlessDungeon();
+
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|Endless Dungeon")
+	FImmortalEndlessDungeonRuntimeSnapshot
+	GetEndlessDungeonRuntimeSnapshot() const;
+
+	/** Called only by the authoritative encounter spawner after a floor clears. */
+	FImmortalEndlessDungeonFloorClearResult CommitEndlessDungeonFloorClear(
+		int32 ClearedFloor,
+		float ClearSeconds);
+
+	UFUNCTION(BlueprintCallable, Category = "Immortal Path|Endless Dungeon")
+	bool RetryPendingEndlessDungeonRewards();
 
 	UFUNCTION(BlueprintPure, Category = "Immortal Path|Cave")
 	FImmortalCaveState GetCaveState() const { return CaveState; }
@@ -262,9 +343,29 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Immortal Path|Sect")
 	FImmortalSectExchangeResult ExchangeSectOffer(FName OfferId);
 
-	/** Records one resolved combat event for the active sect's daily tasks. */
+	/** Records one resolved combat event for generic quests and active sect tasks. */
 	UFUNCTION(BlueprintCallable, Category = "Immortal Path|Sect")
-	void NotifySectCombatProgress(int32 MonsterKills, int32 StageClears, int32 BossKills);
+	void NotifySectCombatProgress(
+		int32 MonsterKills,
+		int32 StageClears,
+		int32 BossKills,
+		int32 MapCompletions = 0);
+
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|Quest")
+	FImmortalQuestState GetQuestState() const { return QuestState; }
+
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|Quest")
+	int32 GetQuestRevision() const { return QuestState.Revision; }
+
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|Quest")
+	FImmortalQuestClaimResult EvaluateQuestClaim(FName QuestId) const;
+
+	UFUNCTION(BlueprintCallable, Category = "Immortal Path|Quest")
+	FImmortalQuestClaimResult ClaimQuest(FName QuestId);
+
+	/** Records one persistent gameplay metric and immediately commits it. */
+	UFUNCTION(BlueprintCallable, Category = "Immortal Path|Quest")
+	bool RecordQuestProgress(EImmortalQuestMetric Metric, int64 Amount = 1);
 
 	/** Adds the rewards granted by a killed monster. */
 	UFUNCTION(BlueprintCallable, Category = "Immortal Path|Progression")
@@ -288,6 +389,13 @@ public:
 
 	/** Displays a temporary boss spawn, phase or victory announcement. */
 	void ShowBossMessage(const FText& Message, const FLinearColor& Color);
+
+	/** Temporarily replaces the stage banner while an independent challenge is active. */
+	void UpdateWorldBossProgress(const FImmortalWorldBossRuntimeSnapshot& Snapshot);
+
+	/** Temporarily replaces the stage banner during an Endless Dungeon run. */
+	void UpdateEndlessDungeonProgress(
+		const FImmortalEndlessDungeonRuntimeSnapshot& Snapshot);
 
 	void ShowRewardFeedback(const FVector& WorldLocation, int32 Cultivation, int32 SpiritStones);
 
@@ -663,6 +771,181 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Immortal Path|UI")
 	bool IsSectOpen() const { return bSectOpen; }
 
+	/** Opens or closes the 1600x300 World Boss selector. Bound to V. */
+	UFUNCTION(BlueprintCallable, Category = "Immortal Path|UI")
+	void ToggleWorldBoss();
+
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|UI")
+	bool IsWorldBossScreenOpen() const { return bWorldBossOpen; }
+
+	/** Opens or closes the 1600x300 Endless Dungeon panel. Bound to N. */
+	UFUNCTION(BlueprintCallable, Category = "Immortal Path|UI")
+	void ToggleEndlessDungeon();
+
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|UI")
+	bool IsEndlessDungeonScreenOpen() const { return bEndlessDungeonOpen; }
+
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|Pet")
+	FImmortalPetState GetPetState() const { return PetState; }
+
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|Pet")
+	int32 GetPetRevision() const { return PetState.Revision; }
+
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|Pet")
+	bool GetPetProgress(
+		FName PetId,
+		FImmortalPetProgress& OutProgress) const;
+
+	UFUNCTION(BlueprintCallable, Category = "Immortal Path|Pet")
+	FImmortalPetOperationResult UnlockPet(FName PetId);
+
+	UFUNCTION(BlueprintCallable, Category = "Immortal Path|Pet")
+	FImmortalPetOperationResult SetActivePet(FName PetId);
+
+	UFUNCTION(BlueprintCallable, Category = "Immortal Path|Pet")
+	FImmortalPetOperationResult RaisePetStar(FName PetId);
+
+	/** Opens or closes the native 1600x300 pet panel. Bound to P. */
+	UFUNCTION(BlueprintCallable, Category = "Immortal Path|UI")
+	void TogglePet();
+
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|UI")
+	bool IsPetScreenOpen() const { return bPetOpen; }
+
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|Pet")
+	AImmortalPetCharacter* GetActivePetActor() const
+	{
+		return ActivePetActor;
+	}
+
+	/**
+	 * The only legal pet-to-monster damage path. DamageCauser remains the
+	 * player, preserving loot-find and every existing single-settlement guard.
+	 */
+	float ResolvePetAttack(
+		AImmortalPetCharacter* SourcePet,
+		AActor* Target,
+		float RequestedDamageOverride = 0.0f);
+
+	/**
+	 * Records one authoritative encounter kill for the active pet.
+	 * The caller includes the mutation in its existing settlement write.
+	 */
+	void NotifyPetCombatKill(AImmortalMonsterCharacter* DefeatedMonster);
+
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|Ascension")
+	FImmortalAscensionState GetAscensionState() const
+	{
+		return AscensionState;
+	}
+
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|Ascension")
+	int32 GetAscensionRevision() const
+	{
+		return AscensionState.Revision;
+	}
+
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|Ascension")
+	FImmortalAscensionEligibility EvaluateAscensionEligibility() const;
+
+	/**
+	 * Performs one durable prestige transaction. Realm/current cultivation and
+	 * the replayable eight-map cycle reset; permanent map records and every
+	 * inventory, currency and feature progression state remain.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Immortal Path|Ascension")
+	FImmortalAscensionOperationResult PerformAscension();
+
+	UFUNCTION(BlueprintCallable, Category = "Immortal Path|Ascension")
+	FImmortalAscensionPathResult InvestAscensionPath(
+		EImmortalAscensionPath Path);
+
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|Ascension")
+	float GetAscensionBattleMultiplier() const;
+
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|Ascension")
+	float GetAscensionCultivationMultiplier() const;
+
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|Ascension")
+	float GetAscensionEquipmentDropMultiplier() const;
+
+	/** Opens or closes the native 1600x300 ascension panel. Bound to U. */
+	UFUNCTION(BlueprintCallable, Category = "Immortal Path|UI")
+	void ToggleAscension();
+
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|UI")
+	bool IsAscensionScreenOpen() const { return bAscensionOpen; }
+
+	/** Opens settings when no modal is active; Escape closes the active modal first. */
+	UFUNCTION(BlueprintCallable, Category = "Immortal Path|UI")
+	void ToggleSettings();
+
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|UI")
+	bool IsSettingsScreenOpen() const { return bSettingsOpen; }
+
+	/** Opens the unified non-combat interface without pausing the running encounter. */
+	UFUNCTION(BlueprintCallable, Category = "Immortal Path|UI")
+	void OpenManagementInterface();
+
+	/** Returns to the health-bar-only combat view while combat keeps its state. */
+	UFUNCTION(BlueprintCallable, Category = "Immortal Path|UI")
+	void CloseManagementInterface();
+
+	/** Switches background and content inside the one management interface. */
+	UFUNCTION(BlueprintCallable, Category = "Immortal Path|UI")
+	void OpenManagementFeature(EImmortalManagementFeature Feature);
+
+	/** Opens ascension as a top-level interface rather than a combat overlay. */
+	UFUNCTION(BlueprintCallable, Category = "Immortal Path|UI")
+	void OpenAscensionInterface();
+
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|UI")
+	bool IsManagementInterfaceOpen() const
+	{
+		return bManagementInterfaceOpen;
+	}
+
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|UI")
+	EImmortalManagementFeature GetActiveManagementFeature() const
+	{
+		return ActiveManagementFeature;
+	}
+
+	/** True while death has closed adventure until cultivation recovery finishes. */
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|Cultivation")
+	bool IsDeathCultivationRecoveryRequired() const
+	{
+		return bDeathCultivationRecoveryRequired;
+	}
+
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|Settings")
+	bool IsDesktopAlwaysOnTopEnabled() const;
+
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|Settings")
+	bool IsDesktopMuted() const;
+
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|Settings")
+	int32 GetDesktopFrameRateLimit() const;
+
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|Settings")
+	int32 GetDesktopWindowHeight() const;
+
+	UFUNCTION(BlueprintCallable, Category = "Immortal Path|Settings")
+	void ToggleDesktopAlwaysOnTop();
+
+	UFUNCTION(BlueprintCallable, Category = "Immortal Path|Settings")
+	void ToggleDesktopMute();
+
+	UFUNCTION(BlueprintCallable, Category = "Immortal Path|Settings")
+	void CycleDesktopFrameRateLimit();
+
+	UFUNCTION(BlueprintCallable, Category = "Immortal Path|Settings")
+	bool MinimizeDesktopWindow();
+
+	/** Atomically writes player and current eight-map state, then exits on success. */
+	UFUNCTION(BlueprintCallable, Category = "Immortal Path|Settings")
+	bool SaveAndQuitDesktop();
+
 	/** Writes attributes, spirit stones, backpack and equipped items to the main slot. */
 	UFUNCTION(BlueprintCallable, Category = "Immortal Path|Save")
 	bool SaveProgress();
@@ -714,6 +997,37 @@ protected:
 	/** Automatically enable combat when play begins. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Immortal Path|Combat")
 	bool bAutoAttackOnBeginPlay = true;
+
+	/** C++-driven Mortal Realm sprite set. Ascension keeps its independent animation asset. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Immortal Path|Animation")
+	bool bUseMortalRealmAnimationSet = true;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Immortal Path|Animation")
+	TSoftObjectPtr<UPaperFlipbook> MortalRealmIdleFlipbookAsset;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Immortal Path|Animation")
+	TSoftObjectPtr<UPaperFlipbook> MortalRealmMoveFlipbookAsset;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Immortal Path|Animation")
+	TSoftObjectPtr<UPaperFlipbook> MortalRealmAttackFlipbookAsset;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Immortal Path|Animation")
+	TSoftObjectPtr<UPaperFlipbook> MortalRealmHurtFlipbookAsset;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Immortal Path|Animation")
+	TSoftObjectPtr<UPaperFlipbook> MortalRealmDeathFlipbookAsset;
+
+	/** Uniform multiplier applied to the existing Sprite component scale for Mortal Realm art. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Immortal Path|Animation", meta = (ClampMin = "0.1"))
+	float MortalRealmVisualScaleMultiplier = 2.0f;
+
+	/** Align the custom foot pivot to the bottom of the character capsule. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Immortal Path|Animation")
+	bool bGroundMortalRealmSpriteAtCapsuleBottom = true;
+
+	/** Fine adjustment above the capsule bottom after grounding the custom foot pivot. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Immortal Path|Animation", meta = (Units = "cm"))
+	float MortalRealmGroundOffset = -115.0f;
 
 	/** Draw the search radius while playing for quick editor verification. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Immortal Path|Combat|Debug")
@@ -897,17 +1211,54 @@ protected:
 	UFUNCTION(BlueprintImplementableEvent, Category = "Immortal Path|Sect", meta = (DisplayName = "On Sect State Changed"))
 	void BP_OnSectStateChanged(const FImmortalSectState& NewState);
 
+	UFUNCTION(BlueprintImplementableEvent, Category = "Immortal Path|Quest", meta = (DisplayName = "On Quest State Changed"))
+	void BP_OnQuestStateChanged(const FImmortalQuestState& NewState);
+
+	UFUNCTION(BlueprintImplementableEvent, Category = "Immortal Path|Pet", meta = (DisplayName = "On Pet State Changed"))
+	void BP_OnPetStateChanged(const FImmortalPetState& NewState);
+
+	UFUNCTION(BlueprintImplementableEvent, Category = "Immortal Path|Ascension", meta = (DisplayName = "On Ascension State Changed"))
+	void BP_OnAscensionStateChanged(
+		const FImmortalAscensionState& NewState);
+
 	UFUNCTION(BlueprintImplementableEvent, Category = "Immortal Path|Equipment", meta = (DisplayName = "On Equipment Changed"))
 	void BP_OnEquipmentChanged(EImmortalEquipmentSlot Slot, const FImmortalEquipmentItem& Item, bool bAutoEquipped, float NewCombatPower);
 
 private:
 	void ConfigureCombatCamera();
+	void ApplyDesktopSettings();
 	void ConfigureTaskbarWindow();
 	void ApplyTaskbarWindowPlacement();
+	void HandleEscapePressed();
+	void HandleManagementToggleInput();
+	void ToggleManagementFeature(EImmortalManagementFeature Feature);
+	void SetManagementFeatureOpenFlags(EImmortalManagementFeature Feature);
+	void RegisterManagementPages();
+	void QueueManagementNotification(
+		const FText& Message,
+		const FLinearColor& Color,
+		float DurationSeconds = 5.0f);
+	bool SaveProgressWithMapOverride(
+		const FImmortalMapSystemState* MapStateOverride);
 	AActor* FindNearestTarget() const;
 	bool IsTargetAttackable(const AActor* Target, bool bCheckRange) const;
 	FVector GetAutoAttackLocation(const AActor* Target) const;
 	void ResolvePendingAttack();
+	void LoadMortalRealmAnimationSet();
+	void ApplyMortalRealmSpritePresentation();
+	void UpdateMortalRealmLocomotionAnimation();
+	void PlayMortalRealmAttackAnimation();
+	void PlayMortalRealmHurtAnimation();
+	void PlayMortalRealmDeathAnimation();
+	void FinishMortalRealmOneShotAnimation();
+	void PlayMortalRealmFlipbook(UPaperFlipbook* Flipbook, bool bLooping);
+	float GetMortalRealmFlipbookDuration(UPaperFlipbook* Flipbook, float FallbackDuration) const;
+	void BeginDeathCultivationRecovery();
+	void SuspendAdventureForDeathRecovery();
+	void RedirectToCultivationAfterDeath();
+	void UnlockDeathCultivationRecovery(const TCHAR* Reason);
+	void ResumeAdventureAfterDeathRecovery();
+	void ApplyPersistedDeathCultivationRecovery();
 	float ApplyOutgoingDamage(AActor* Target, float RequestedDamage);
 	void AutoRevive();
 	void RecalculateEquipmentBonuses();
@@ -915,7 +1266,10 @@ private:
 	void RecalculateTechniqueBonuses();
 	void RecalculateCharacterPathBonuses();
 	void RecalculateCaveBonuses();
+	void RecalculateAscensionBonuses();
 	bool EnsureSectDailyState(int64 CurrentUtcTicks = 0);
+	bool EnsureQuestDailyState(int64 CurrentUtcTicks = 0);
+	bool RecordQuestProgressWithoutSave(EImmortalQuestMetric Metric, int64 Amount);
 	FImmortalCaveSettlementResult SettleCaveProduction(int64 CurrentUtcTicks = 0);
 	FImmortalFarmingSettlementResult SettleFarmingGrowth(int64 CurrentUtcTicks = 0);
 	void HandleCaveProductionTick();
@@ -945,6 +1299,9 @@ private:
 	void RestoreAlchemyCultivationBoost(float Multiplier, float RemainingSeconds);
 	void ConfigureModalWidget(UUserWidget* Widget, bool bOpen);
 	void CloseAllModalWidgetsExcept(const UUserWidget* ExceptWidget);
+	bool SpawnActivePetActor();
+	void DespawnActivePetActor();
+	void RefreshActivePetActor();
 	bool ProcessEquipmentItem(
 		const FImmortalEquipmentItem& Item,
 		bool bShowFeedback,
@@ -956,6 +1313,8 @@ private:
 	void AutosaveCultivationProgress();
 	void ApplyOfflineRewards(UImmortalPathSaveGame* SaveGame);
 	AImmortalMonsterSpawner* FindMapSpawner() const;
+	bool TryDeliverPendingWorldBossReward(FGuid RewardId);
+	bool TryDeliverPendingEndlessDungeonReward(FGuid RewardId);
 
 	UFUNCTION()
 	void HandleCultivationProgressChanged(int32 NewCultivation, int32 RequiredCultivation, FText FullRealmName);
@@ -972,6 +1331,11 @@ private:
 
 	FTimerHandle AutoAttackTimerHandle;
 	FTimerHandle AttackWindupTimerHandle;
+	FTimerHandle MortalRealmAttackAnimationTimerHandle;
+	FTimerHandle MortalRealmHurtAnimationTimerHandle;
+	FTimerHandle DeathCultivationRedirectTimerHandle;
+	FTimerHandle DeathCultivationStartupTimerHandle;
+	FTimerHandle AscensionRealmDeathRecoveryTimerHandle;
 	FTimerHandle TaskbarWindowTimerHandle;
 	FTimerHandle AutoReviveTimerHandle;
 	FTimerHandle CultivationAutosaveTimerHandle;
@@ -980,6 +1344,24 @@ private:
 	FTimerHandle ShopDailyRefreshTimerHandle;
 	FTimerHandle CaveProductionTimerHandle;
 	bool bAttackPending = false;
+	bool bMortalRealmOneShotAnimation = false;
+	bool bDeathCultivationRecoveryRequired = false;
+	bool bAdventureSuspendedForDeathRecovery = false;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UPaperFlipbook> MortalRealmIdleFlipbook;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UPaperFlipbook> MortalRealmMoveFlipbook;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UPaperFlipbook> MortalRealmAttackFlipbook;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UPaperFlipbook> MortalRealmHurtFlipbook;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UPaperFlipbook> MortalRealmDeathFlipbook;
 	float InvulnerableUntilTime = 0.0f;
 	FVector InitialSpawnLocation = FVector::ZeroVector;
 	mutable TWeakObjectPtr<AImmortalMonsterSpawner> CachedMapSpawner;
@@ -987,6 +1369,7 @@ private:
 	FImmortalCaveState CaveState;
 	FImmortalFarmingState FarmingState;
 	FImmortalSectState SectState;
+	FImmortalQuestState QuestState;
 	int32 DisplayedStage = 1;
 	FName DisplayedMapId = TEXT("QingyunMountain");
 	FText DisplayedMapName;
@@ -1165,6 +1548,12 @@ private:
 	TObjectPtr<UImmortalPlayerStatusWidget> PlayerStatusWidget;
 
 	UPROPERTY(Transient)
+	TObjectPtr<UImmortalManagementWidget> PlayerManagementWidget;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UImmortalCultivationWidget> PlayerCultivationWidget;
+
+	UPROPERTY(Transient)
 	TObjectPtr<UImmortalInventoryWidget> PlayerInventoryWidget;
 
 	UPROPERTY(Transient)
@@ -1198,6 +1587,24 @@ private:
 	TObjectPtr<UImmortalSectWidget> PlayerSectWidget;
 
 	UPROPERTY(Transient)
+	TObjectPtr<UImmortalQuestWidget> PlayerQuestWidget;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UImmortalWorldBossWidget> PlayerWorldBossWidget;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UImmortalEndlessDungeonWidget> PlayerEndlessDungeonWidget;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UImmortalPetWidget> PlayerPetWidget;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UImmortalAscensionWidget> PlayerAscensionWidget;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UImmortalSettingsWidget> PlayerSettingsWidget;
+
+	UPROPERTY(Transient)
 	TObjectPtr<UImmortalCombatFeedbackWidget> CombatFeedbackWidget;
 
 	bool bInventoryOpen = false;
@@ -1211,6 +1618,31 @@ private:
 	bool bCaveOpen = false;
 	bool bFarmingOpen = false;
 	bool bSectOpen = false;
+	bool bQuestOpen = false;
+	bool bWorldBossOpen = false;
+	bool bEndlessDungeonOpen = false;
+	bool bPetOpen = false;
+	bool bAscensionOpen = false;
+	bool bSettingsOpen = false;
+	bool bManagementInterfaceOpen = false;
+	EImmortalManagementFeature ActiveManagementFeature =
+		EImmortalManagementFeature::Home;
+	bool bSaveAndQuitRequested = false;
+
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Immortal Path|World Boss", meta = (AllowPrivateAccess = "true"))
+	FImmortalWorldBossState WorldBossState;
+
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Immortal Path|Endless Dungeon", meta = (AllowPrivateAccess = "true"))
+	FImmortalEndlessDungeonState EndlessDungeonState;
+
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Immortal Path|Pet", meta = (AllowPrivateAccess = "true"))
+	FImmortalPetState PetState;
+
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Immortal Path|Ascension", meta = (AllowPrivateAccess = "true"))
+	FImmortalAscensionState AscensionState;
+
+	UPROPERTY(Transient)
+	TObjectPtr<AImmortalPetCharacter> ActivePetActor;
 
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Immortal Path|Attributes", meta = (AllowPrivateAccess = "true"))
 	bool bDead = false;

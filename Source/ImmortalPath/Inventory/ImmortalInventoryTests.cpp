@@ -33,8 +33,8 @@ bool FImmortalInventoryOrganizationTest::RunTest(const FString& Parameters)
 {
 	TestEqual(TEXT("Inventory exposes five stable categories"),
 		static_cast<int32>(EImmortalInventoryCategory::QuestItem) + 1, 5);
-	TestEqual(TEXT("SaveGame version is v17 for equipment expansion"),
-		UImmortalPathSaveGame::CurrentSaveVersion, 17);
+	TestEqual(TEXT("SaveGame version is v23 after death recovery persistence was added"),
+		UImmortalPathSaveGame::CurrentSaveVersion, 23);
 	const TArray<FName> KnownQuestItems = UImmortalInventoryLibrary::GetKnownQuestItemIds();
 	TestTrue(TEXT("Catalog contains every built-in task item type"), KnownQuestItems.Num() >= 3);
 	TestTrue(TEXT("Catalog contains Qingyun trial slip"), KnownQuestItems.Contains(TEXT("QingyunTrialJadeSlip")));

@@ -2,11 +2,16 @@
 	"FileVersion": 3,
 	"EngineAssociation": "5.7",
 	"Category": "",
-	"Description": "",
+	"Description": "2D横版自动战斗挂机修仙ARPG",
 	"Modules": [
 		{
 			"Name": "ImmortalPath",
 			"Type": "Runtime",
+			"LoadingPhase": "Default"
+		},
+		{
+			"Name": "ImmortalPathEditor",
+			"Type": "Editor",
 			"LoadingPhase": "Default"
 		}
 	],
@@ -17,6 +22,22 @@
 			"TargetAllowList": [
 				"Editor"
 			]
+		},
+		{
+			"Name": "NNEDenoiser",
+			"Enabled": false
+		},
+		{
+			"Name": "NNERuntimeORT",
+			"Enabled": false
+		},
+		{
+			"Name": "NFORDenoise",
+			"Enabled": false
+		},
+		{
+			"Name": "RenderDocPlugin",
+			"Enabled": false
 		}
 	]
 }

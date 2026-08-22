@@ -67,8 +67,8 @@ bool FImmortalMapCatalogProgressAndMigrationTest::RunTest(const FString& Paramet
 	const TArray<int32> ExpectedRealmIndices = {0, 0, 1, 1, 2, 2, 3, 3};
 	const TArray<FName> MapIds = UImmortalMapLibrary::GetKnownMapIds();
 
-	TestEqual(TEXT("SaveGame version is v17 after equipment expansion was added"),
-		UImmortalPathSaveGame::CurrentSaveVersion, 17);
+	TestEqual(TEXT("SaveGame version is v23 after death recovery persistence was added"),
+		UImmortalPathSaveGame::CurrentSaveVersion, 23);
 	TestEqual(TEXT("The complete catalog contains eight maps"), MapIds.Num(), ExpectedMapIds.Num());
 	TestEqual(TEXT("Qingyun Mountain remains the stable default map ID"),
 		UImmortalMapLibrary::GetQingyunMountainId(), ExpectedMapIds[0]);

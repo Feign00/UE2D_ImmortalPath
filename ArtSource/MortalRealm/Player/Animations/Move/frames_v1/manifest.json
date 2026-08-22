@@ -1,0 +1,249 @@
+{
+  "source": "D:\\UE2D\\ImmortalPath\\ArtSource\\MortalRealm\\Player\\Animations\\Move\\Player_Mortal_Move_8f_raw_v1.png",
+  "sourceSize": [
+    1254,
+    1254
+  ],
+  "grid": [
+    4,
+    2
+  ],
+  "outputSize": [
+    384,
+    512
+  ],
+  "footY": 480,
+  "key": "auto-border-median",
+  "frames": [
+    {
+      "index": 0,
+      "output": "frame_00.png",
+      "sourceCell": [
+        0,
+        0,
+        314,
+        627
+      ],
+      "sampledKey": [
+        4,
+        248,
+        4
+      ],
+      "alphaBounds": [
+        25,
+        135,
+        271,
+        402
+      ],
+      "outputBounds": [
+        53,
+        64,
+        278,
+        412
+      ],
+      "opaquePixels": 52468
+    },
+    {
+      "index": 1,
+      "output": "frame_01.png",
+      "sourceCell": [
+        314,
+        0,
+        313,
+        627
+      ],
+      "sampledKey": [
+        4,
+        248,
+        5
+      ],
+      "alphaBounds": [
+        15,
+        182,
+        268,
+        360
+      ],
+      "outputBounds": [
+        55,
+        112,
+        275,
+        369
+      ],
+      "opaquePixels": 48928
+    },
+    {
+      "index": 2,
+      "output": "frame_02.png",
+      "sourceCell": [
+        627,
+        0,
+        314,
+        627
+      ],
+      "sampledKey": [
+        4,
+        248,
+        4
+      ],
+      "alphaBounds": [
+        24,
+        143,
+        255,
+        394
+      ],
+      "outputBounds": [
+        62,
+        72,
+        261,
+        404
+      ],
+      "opaquePixels": 48685
+    },
+    {
+      "index": 3,
+      "output": "frame_03.png",
+      "sourceCell": [
+        941,
+        0,
+        313,
+        627
+      ],
+      "sampledKey": [
+        4,
+        248,
+        4
+      ],
+      "alphaBounds": [
+        0,
+        137,
+        253,
+        410
+      ],
+      "outputBounds": [
+        63,
+        66,
+        259,
+        420
+      ],
+      "opaquePixels": 50456
+    },
+    {
+      "index": 4,
+      "output": "frame_04.png",
+      "sourceCell": [
+        0,
+        627,
+        314,
+        627
+      ],
+      "sampledKey": [
+        4,
+        249,
+        4
+      ],
+      "alphaBounds": [
+        41,
+        50,
+        242,
+        405
+      ],
+      "outputBounds": [
+        68,
+        61,
+        248,
+        415
+      ],
+      "opaquePixels": 51648
+    },
+    {
+      "index": 5,
+      "output": "frame_05.png",
+      "sourceCell": [
+        314,
+        627,
+        313,
+        627
+      ],
+      "sampledKey": [
+        4,
+        249,
+        5
+      ],
+      "alphaBounds": [
+        17,
+        93,
+        264,
+        369
+      ],
+      "outputBounds": [
+        57,
+        105,
+        270,
+        378
+      ],
+      "opaquePixels": 46529
+    },
+    {
+      "index": 6,
+      "output": "frame_06.png",
+      "sourceCell": [
+        627,
+        627,
+        314,
+        627
+      ],
+      "sampledKey": [
+        4,
+        249,
+        5
+      ],
+      "alphaBounds": [
+        11,
+        57,
+        249,
+        403
+      ],
+      "outputBounds": [
+        65,
+        68,
+        255,
+        413
+      ],
+      "opaquePixels": 51154
+    },
+    {
+      "index": 7,
+      "output": "frame_07.png",
+      "sourceCell": [
+        941,
+        627,
+        313,
+        627
+      ],
+      "sampledKey": [
+        4,
+        248,
+        4
+      ],
+      "alphaBounds": [
+        0,
+        52,
+        268,
+        395
+      ],
+      "outputBounds": [
+        55,
+        63,
+        275,
+        405
+      ],
+      "opaquePixels": 51088
+    }
+  ],
+  "normalization": "common-scale-centered-x-row-baseline-y",
+  "commonScale": 1.024390243902439,
+  "rowBaselines": [
+    542,
+    460
+  ]
+}

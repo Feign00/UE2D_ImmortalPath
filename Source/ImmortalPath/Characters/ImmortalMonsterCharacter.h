@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "../Combat/AutoAttackTarget.h"
 #include "../Maps/ImmortalMapTypes.h"
+#include "../WorldBoss/ImmortalWorldBossTypes.h"
 #include "PaperCharacter.h"
 #include "ImmortalMonsterCharacter.generated.h"
 
@@ -78,6 +79,24 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Immortal Path|Monster|Boss")
 	int32 GetBossPhase() const { return CurrentBossPhase; }
 
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|Monster|World Boss")
+	bool IsWorldBoss() const { return bIsWorldBoss; }
+
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|Monster|World Boss")
+	FName GetWorldBossId() const { return WorldBossId; }
+
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|Monster|Endless")
+	bool IsEndlessEnemy() const { return bIsEndlessEnemy; }
+
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|Monster|Endless")
+	int32 GetEndlessFloor() const { return EndlessFloor; }
+
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|Monster|Endless")
+	FGuid GetEndlessRunId() const { return EndlessRunId; }
+
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|Monster|Endless")
+	bool IsEndlessElite() const { return bIsEndlessElite; }
+
 	UFUNCTION(BlueprintPure, Category = "Immortal Path|Monster|Map")
 	FName GetConfiguredMapId() const { return CurrentMapId; }
 
@@ -92,12 +111,39 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Immortal Path|Monster|Map")
 	void ConfigureForMapStage(FName MapId, int32 Stage);
 
+	/** Configures an encounter-owned summon with combat scaling but no generic drops. */
+	UFUNCTION(BlueprintCallable, Category = "Immortal Path|Monster|World Boss")
+	void ConfigureAsWorldBossMinion(FName MapId, int32 Stage);
+
 	/** Promotes this already spawned monster into the current map's stage boss. */
 	UFUNCTION(BlueprintCallable, Category = "Immortal Path|Monster|Boss")
 	void ConfigureAsBoss(int32 Stage);
 
 	UFUNCTION(BlueprintCallable, Category = "Immortal Path|Monster|Boss")
 	void ConfigureAsMapBoss(FName MapId, int32 Stage);
+
+	/** Configures an independent challenge Boss that never uses the map-stage reward pool. */
+	UFUNCTION(BlueprintCallable, Category = "Immortal Path|Monster|World Boss")
+	void ConfigureAsWorldBoss(
+		const FImmortalWorldBossDefinition& Definition,
+		FName PresentationMapId);
+
+	/**
+	 * Configures an independently scaled Endless Dungeon combatant.
+	 *
+	 * PresentationMapId is retained only for scene/debug context. Endless
+	 * enemies never consume the active map's difficulty or generic drop pool.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Immortal Path|Monster|Endless")
+	void ConfigureForEndlessFloor(
+		int32 Floor,
+		bool bBoss,
+		bool bElite,
+		FGuid RunId,
+		FName PresentationMapId,
+		float RuleHealthMultiplier = -1.0f,
+		float RuleAttackMultiplier = -1.0f,
+		float RuleDefenseBonus = -1.0f);
 
 	/** Sent once when this monster reaches zero health. */
 	UPROPERTY(BlueprintAssignable, Category = "Immortal Path|Monster")
@@ -313,9 +359,17 @@ private:
 	bool bAttackInProgress = false;
 	bool bHurtReacting = false;
 	bool bIsBoss = false;
+	bool bIsWorldBoss = false;
+	bool bIsEndlessEnemy = false;
+	bool bIsEndlessElite = false;
 	bool bBossSkillAttack = false;
+	bool bForceWorldBossRangedSkill = false;
 	int32 BossAttackCounter = 0;
 	int32 CurrentBossPhase = 0;
+	float NextWorldBossRangedSkillTime = 0.0f;
+	FName WorldBossId = NAME_None;
+	int32 EndlessFloor = 0;
+	FGuid EndlessRunId;
 
 	UPROPERTY(VisibleAnywhere, Category = "Immortal Path|Monster|UI")
 	TObjectPtr<UWidgetComponent> HealthBarComponent;

@@ -1,0 +1,184 @@
+{
+  "ImportGroups": [
+    {
+      "GroupName": "MortalPlayerIdle",
+      "bEnabled": true,
+      "Filenames": [
+        "ArtSource/MortalRealm/Player/Animations/Idle/frames_final/frame_00.png",
+        "ArtSource/MortalRealm/Player/Animations/Idle/frames_final/frame_01.png",
+        "ArtSource/MortalRealm/Player/Animations/Idle/frames_final/frame_02.png",
+        "ArtSource/MortalRealm/Player/Animations/Idle/frames_final/frame_03.png",
+        "ArtSource/MortalRealm/Player/Animations/Idle/frames_final/frame_04.png",
+        "ArtSource/MortalRealm/Player/Animations/Idle/frames_final/frame_05.png",
+        "ArtSource/MortalRealm/Player/Animations/Idle/frames_final/frame_06.png",
+        "ArtSource/MortalRealm/Player/Animations/Idle/frames_final/frame_07.png"
+      ],
+      "DestinationPath": "/Game/GAME/Asset/Player/mortal/generated/idle/textures",
+      "FactoryName": "TextureFactory",
+      "bReplaceExisting": true,
+      "TextureUsage": "Sprite",
+      "ExpectedFrameCount": 8,
+      "ExpectedWidth": 512,
+      "ExpectedHeight": 512,
+      "bCreateSprites": true,
+      "SpriteDestinationPath": "/Game/GAME/Asset/Player/mortal/generated/idle/sprites",
+      "PixelsPerUnrealUnit": 2.56,
+      "PivotMode": "Custom",
+      "CustomPivot": [256, 448],
+      "MaterialMode": "Translucent"
+    },
+    {
+      "GroupName": "MortalPlayerMove",
+      "bEnabled": true,
+      "Filenames": [
+        "ArtSource/MortalRealm/Player/Animations/Move/frames_final/frame_00.png",
+        "ArtSource/MortalRealm/Player/Animations/Move/frames_final/frame_01.png",
+        "ArtSource/MortalRealm/Player/Animations/Move/frames_final/frame_02.png",
+        "ArtSource/MortalRealm/Player/Animations/Move/frames_final/frame_03.png",
+        "ArtSource/MortalRealm/Player/Animations/Move/frames_final/frame_04.png",
+        "ArtSource/MortalRealm/Player/Animations/Move/frames_final/frame_05.png",
+        "ArtSource/MortalRealm/Player/Animations/Move/frames_final/frame_06.png",
+        "ArtSource/MortalRealm/Player/Animations/Move/frames_final/frame_07.png"
+      ],
+      "DestinationPath": "/Game/GAME/Asset/Player/mortal/generated/move/textures",
+      "FactoryName": "TextureFactory",
+      "bReplaceExisting": true,
+      "TextureUsage": "Sprite",
+      "ExpectedFrameCount": 8,
+      "ExpectedWidth": 512,
+      "ExpectedHeight": 512,
+      "bCreateSprites": true,
+      "SpriteDestinationPath": "/Game/GAME/Asset/Player/mortal/generated/move/sprites",
+      "PixelsPerUnrealUnit": 2.56,
+      "PivotMode": "Custom",
+      "CustomPivot": [256, 448],
+      "MaterialMode": "Translucent"
+    },
+    {
+      "GroupName": "MortalPlayerAttack",
+      "bEnabled": true,
+      "Filenames": [
+        "ArtSource/MortalRealm/Player/Animations/Attack/frames_final/frame_00.png",
+        "ArtSource/MortalRealm/Player/Animations/Attack/frames_final/frame_01.png",
+        "ArtSource/MortalRealm/Player/Animations/Attack/frames_final/frame_02.png",
+        "ArtSource/MortalRealm/Player/Animations/Attack/frames_final/frame_03.png",
+        "ArtSource/MortalRealm/Player/Animations/Attack/frames_final/frame_04.png",
+        "ArtSource/MortalRealm/Player/Animations/Attack/frames_final/frame_05.png",
+        "ArtSource/MortalRealm/Player/Animations/Attack/frames_final/frame_06.png",
+        "ArtSource/MortalRealm/Player/Animations/Attack/frames_final/frame_07.png"
+      ],
+      "DestinationPath": "/Game/GAME/Asset/Player/mortal/generated/attack/textures",
+      "FactoryName": "TextureFactory",
+      "bReplaceExisting": true,
+      "TextureUsage": "Sprite",
+      "ExpectedFrameCount": 8,
+      "ExpectedWidth": 512,
+      "ExpectedHeight": 512,
+      "bCreateSprites": true,
+      "SpriteDestinationPath": "/Game/GAME/Asset/Player/mortal/generated/attack/sprites",
+      "PixelsPerUnrealUnit": 2.56,
+      "PivotMode": "Custom",
+      "CustomPivot": [256, 448],
+      "MaterialMode": "Translucent"
+    },
+    {
+      "GroupName": "MortalPlayerHurt",
+      "bEnabled": true,
+      "Filenames": [
+        "ArtSource/MortalRealm/Player/Animations/Hurt/frames_final/frame_00.png",
+        "ArtSource/MortalRealm/Player/Animations/Hurt/frames_final/frame_01.png",
+        "ArtSource/MortalRealm/Player/Animations/Hurt/frames_final/frame_02.png",
+        "ArtSource/MortalRealm/Player/Animations/Hurt/frames_final/frame_03.png",
+        "ArtSource/MortalRealm/Player/Animations/Hurt/frames_final/frame_04.png",
+        "ArtSource/MortalRealm/Player/Animations/Hurt/frames_final/frame_05.png"
+      ],
+      "DestinationPath": "/Game/GAME/Asset/Player/mortal/generated/hurt/textures",
+      "FactoryName": "TextureFactory",
+      "bReplaceExisting": true,
+      "TextureUsage": "Sprite",
+      "ExpectedFrameCount": 6,
+      "ExpectedWidth": 512,
+      "ExpectedHeight": 512,
+      "bCreateSprites": true,
+      "SpriteDestinationPath": "/Game/GAME/Asset/Player/mortal/generated/hurt/sprites",
+      "PixelsPerUnrealUnit": 2.56,
+      "PivotMode": "Custom",
+      "CustomPivot": [256, 448],
+      "MaterialMode": "Translucent"
+    },
+    {
+      "GroupName": "MortalPlayerDeath",
+      "bEnabled": true,
+      "Filenames": [
+        "ArtSource/MortalRealm/Player/Animations/Death/frames_final/frame_00.png",
+        "ArtSource/MortalRealm/Player/Animations/Death/frames_final/frame_01.png",
+        "ArtSource/MortalRealm/Player/Animations/Death/frames_final/frame_02.png",
+        "ArtSource/MortalRealm/Player/Animations/Death/frames_final/frame_03.png",
+        "ArtSource/MortalRealm/Player/Animations/Death/frames_final/frame_04.png",
+        "ArtSource/MortalRealm/Player/Animations/Death/frames_final/frame_05.png",
+        "ArtSource/MortalRealm/Player/Animations/Death/frames_final/frame_06.png",
+        "ArtSource/MortalRealm/Player/Animations/Death/frames_final/frame_07.png"
+      ],
+      "DestinationPath": "/Game/GAME/Asset/Player/mortal/generated/death/textures",
+      "FactoryName": "TextureFactory",
+      "bReplaceExisting": true,
+      "TextureUsage": "Sprite",
+      "ExpectedFrameCount": 8,
+      "ExpectedWidth": 512,
+      "ExpectedHeight": 512,
+      "bCreateSprites": true,
+      "SpriteDestinationPath": "/Game/GAME/Asset/Player/mortal/generated/death/sprites",
+      "PixelsPerUnrealUnit": 2.56,
+      "PivotMode": "Custom",
+      "CustomPivot": [256, 448],
+      "MaterialMode": "Translucent"
+    }
+  ],
+  "FlipbookGroups": [
+    {
+      "GroupName": "MortalPlayerIdleFlipbook",
+      "bEnabled": true,
+      "SourceImportGroup": "MortalPlayerIdle",
+      "DestinationPath": "/Game/GAME/Asset/Player/mortal/generated",
+      "AssetName": "FB_Player_Mortal_Idle",
+      "FramesPerSecond": 8.0,
+      "FrameRun": 1
+    },
+    {
+      "GroupName": "MortalPlayerMoveFlipbook",
+      "bEnabled": true,
+      "SourceImportGroup": "MortalPlayerMove",
+      "DestinationPath": "/Game/GAME/Asset/Player/mortal/generated",
+      "AssetName": "FB_Player_Mortal_Move",
+      "FramesPerSecond": 10.0,
+      "FrameRun": 1
+    },
+    {
+      "GroupName": "MortalPlayerAttackFlipbook",
+      "bEnabled": true,
+      "SourceImportGroup": "MortalPlayerAttack",
+      "DestinationPath": "/Game/GAME/Asset/Player/mortal/generated",
+      "AssetName": "FB_Player_Mortal_Attack",
+      "FramesPerSecond": 12.0,
+      "FrameRun": 1
+    },
+    {
+      "GroupName": "MortalPlayerHurtFlipbook",
+      "bEnabled": true,
+      "SourceImportGroup": "MortalPlayerHurt",
+      "DestinationPath": "/Game/GAME/Asset/Player/mortal/generated",
+      "AssetName": "FB_Player_Mortal_Hurt",
+      "FramesPerSecond": 12.0,
+      "FrameRun": 1
+    },
+    {
+      "GroupName": "MortalPlayerDeathFlipbook",
+      "bEnabled": true,
+      "SourceImportGroup": "MortalPlayerDeath",
+      "DestinationPath": "/Game/GAME/Asset/Player/mortal/generated",
+      "AssetName": "FB_Player_Mortal_Death",
+      "FramesPerSecond": 10.0,
+      "FrameRun": 1
+    }
+  ]
+}

@@ -131,11 +131,12 @@ bool FImmortalCharacterPathTest::RunTest(const FString& Parameters)
 	Cultivation->SetRuntimeRateMultiplier(1.25f);
 	Cultivation->SetTechniqueRateMultiplier(1.50f);
 	Cultivation->SetCharacterPathRateMultiplier(1.20f);
+	Cultivation->SetAscensionRateMultiplier(1.30f);
 	Cultivation->SetAlchemyRateMultiplier(2.0f);
-	TestTrue(TEXT("Offline rate includes external, technique and character-build multipliers"), FMath::IsNearlyEqual(
-		Cultivation->GetCultivationPerSecondWithoutAlchemyBoost(), 2.0f * 1.25f * 1.50f * 1.20f));
+	TestTrue(TEXT("Offline rate includes external, technique, character-build and permanent ascension multipliers"), FMath::IsNearlyEqual(
+		Cultivation->GetCultivationPerSecondWithoutAlchemyBoost(), 2.0f * 1.25f * 1.50f * 1.20f * 1.30f));
 	TestTrue(TEXT("Online rate additionally includes alchemy"), FMath::IsNearlyEqual(
-		Cultivation->GetCultivationPerSecond(), 2.0f * 1.25f * 1.50f * 1.20f * 2.0f));
+		Cultivation->GetCultivationPerSecond(), 2.0f * 1.25f * 1.50f * 1.20f * 1.30f * 2.0f));
 
 	return true;
 }

@@ -1,0 +1,174 @@
+{
+  "ImportGroups": [
+    {
+      "GroupName": "QingyunBackground",
+      "bEnabled": true,
+      "Filenames": [
+        "Content/GAME/Asset/backgrounds/qingyun_mountain_side_tbh_v2.png"
+      ],
+      "DestinationPath": "/Game/GAME/Asset/backgrounds/generated",
+      "DestinationName": "T_QingyunMountain_Background",
+      "FactoryName": "TextureFactory",
+      "bReplaceExisting": true,
+      "TextureUsage": "Background",
+      "ExpectedFrameCount": 1,
+      "ExpectedWidth": 2051,
+      "ExpectedHeight": 767,
+      "bCreateSprites": true,
+      "SpriteDestinationPath": "/Game/GAME/Asset/backgrounds/generated",
+      "SpriteName": "SP_QingyunMountain_Background",
+      "PixelsPerUnrealUnit": 1.2,
+      "SourceUV": [1, 200],
+      "SourceDimension": [2048, 384],
+      "PivotMode": "Custom",
+      "CustomPivot": [1024, 277],
+      "MaterialMode": "Opaque"
+    },
+    {
+      "GroupName": "QingyunBossIdle",
+      "bEnabled": false,
+      "Filenames": [
+        "Content/GAME/Asset/bosses/qingyun_nine_tail_fox/idle_frames/frame_00.png",
+        "Content/GAME/Asset/bosses/qingyun_nine_tail_fox/idle_frames/frame_01.png",
+        "Content/GAME/Asset/bosses/qingyun_nine_tail_fox/idle_frames/frame_02.png",
+        "Content/GAME/Asset/bosses/qingyun_nine_tail_fox/idle_frames/frame_03.png",
+        "Content/GAME/Asset/bosses/qingyun_nine_tail_fox/idle_frames/frame_04.png",
+        "Content/GAME/Asset/bosses/qingyun_nine_tail_fox/idle_frames/frame_05.png",
+        "Content/GAME/Asset/bosses/qingyun_nine_tail_fox/idle_frames/frame_06.png",
+        "Content/GAME/Asset/bosses/qingyun_nine_tail_fox/idle_frames/frame_07.png"
+      ],
+      "DestinationPath": "/Game/GAME/Asset/bosses/qingyun_nine_tail_fox/generated/idle/textures",
+      "FactoryName": "TextureFactory",
+      "bReplaceExisting": true,
+      "TextureUsage": "Sprite",
+      "ExpectedFrameCount": 8,
+      "ExpectedWidth": 384,
+      "ExpectedHeight": 512,
+      "bCreateSprites": true,
+      "SpriteDestinationPath": "/Game/GAME/Asset/bosses/qingyun_nine_tail_fox/generated/idle/sprites",
+      "PixelsPerUnrealUnit": 2.56,
+      "PivotMode": "AlphaBottomCenter",
+      "MaterialMode": "Translucent"
+    },
+    {
+      "GroupName": "QingyunBossMove",
+      "bEnabled": false,
+      "Filenames": [
+        "Content/GAME/Asset/bosses/qingyun_nine_tail_fox/move_frames/frame_00.png",
+        "Content/GAME/Asset/bosses/qingyun_nine_tail_fox/move_frames/frame_01.png",
+        "Content/GAME/Asset/bosses/qingyun_nine_tail_fox/move_frames/frame_02.png",
+        "Content/GAME/Asset/bosses/qingyun_nine_tail_fox/move_frames/frame_03.png",
+        "Content/GAME/Asset/bosses/qingyun_nine_tail_fox/move_frames/frame_04.png",
+        "Content/GAME/Asset/bosses/qingyun_nine_tail_fox/move_frames/frame_05.png",
+        "Content/GAME/Asset/bosses/qingyun_nine_tail_fox/move_frames/frame_06.png",
+        "Content/GAME/Asset/bosses/qingyun_nine_tail_fox/move_frames/frame_07.png"
+      ],
+      "DestinationPath": "/Game/GAME/Asset/bosses/qingyun_nine_tail_fox/generated/move/textures",
+      "FactoryName": "TextureFactory",
+      "bReplaceExisting": true,
+      "TextureUsage": "Sprite",
+      "ExpectedFrameCount": 8,
+      "ExpectedWidth": 384,
+      "ExpectedHeight": 512,
+      "bCreateSprites": true,
+      "SpriteDestinationPath": "/Game/GAME/Asset/bosses/qingyun_nine_tail_fox/generated/move/sprites",
+      "PixelsPerUnrealUnit": 2.56,
+      "PivotMode": "AlphaBottomCenter",
+      "MaterialMode": "Translucent"
+    },
+    {
+      "GroupName": "QingyunBossAttack",
+      "bEnabled": false,
+      "Filenames": [
+        "Content/GAME/Asset/bosses/qingyun_nine_tail_fox/attack_frames/frame_00.png",
+        "Content/GAME/Asset/bosses/qingyun_nine_tail_fox/attack_frames/frame_01.png",
+        "Content/GAME/Asset/bosses/qingyun_nine_tail_fox/attack_frames/frame_02.png",
+        "Content/GAME/Asset/bosses/qingyun_nine_tail_fox/attack_frames/frame_03.png",
+        "Content/GAME/Asset/bosses/qingyun_nine_tail_fox/attack_frames/frame_04.png",
+        "Content/GAME/Asset/bosses/qingyun_nine_tail_fox/attack_frames/frame_05.png",
+        "Content/GAME/Asset/bosses/qingyun_nine_tail_fox/attack_frames/frame_06.png",
+        "Content/GAME/Asset/bosses/qingyun_nine_tail_fox/attack_frames/frame_07.png",
+        "Content/GAME/Asset/bosses/qingyun_nine_tail_fox/attack_frames/frame_08.png",
+        "Content/GAME/Asset/bosses/qingyun_nine_tail_fox/attack_frames/frame_09.png"
+      ],
+      "DestinationPath": "/Game/GAME/Asset/bosses/qingyun_nine_tail_fox/generated/attack/textures",
+      "FactoryName": "TextureFactory",
+      "bReplaceExisting": true,
+      "TextureUsage": "Sprite",
+      "ExpectedFrameCount": 10,
+      "ExpectedWidth": 397,
+      "ExpectedHeight": 397,
+      "bCreateSprites": true,
+      "SpriteDestinationPath": "/Game/GAME/Asset/bosses/qingyun_nine_tail_fox/generated/attack/sprites",
+      "PixelsPerUnrealUnit": 2.56,
+      "PivotMode": "AlphaBottomCenter",
+      "MaterialMode": "Translucent"
+    },
+    {
+      "GroupName": "QingyunBossDeath",
+      "bEnabled": false,
+      "Filenames": [
+        "Content/GAME/Asset/bosses/qingyun_nine_tail_fox/death_frames/frame_00.png",
+        "Content/GAME/Asset/bosses/qingyun_nine_tail_fox/death_frames/frame_01.png",
+        "Content/GAME/Asset/bosses/qingyun_nine_tail_fox/death_frames/frame_02.png",
+        "Content/GAME/Asset/bosses/qingyun_nine_tail_fox/death_frames/frame_03.png",
+        "Content/GAME/Asset/bosses/qingyun_nine_tail_fox/death_frames/frame_04.png",
+        "Content/GAME/Asset/bosses/qingyun_nine_tail_fox/death_frames/frame_05.png",
+        "Content/GAME/Asset/bosses/qingyun_nine_tail_fox/death_frames/frame_06.png",
+        "Content/GAME/Asset/bosses/qingyun_nine_tail_fox/death_frames/frame_07.png",
+        "Content/GAME/Asset/bosses/qingyun_nine_tail_fox/death_frames/frame_08.png",
+        "Content/GAME/Asset/bosses/qingyun_nine_tail_fox/death_frames/frame_09.png"
+      ],
+      "DestinationPath": "/Game/GAME/Asset/bosses/qingyun_nine_tail_fox/generated/death/textures",
+      "FactoryName": "TextureFactory",
+      "bReplaceExisting": true,
+      "TextureUsage": "Sprite",
+      "ExpectedFrameCount": 10,
+      "ExpectedWidth": 397,
+      "ExpectedHeight": 397,
+      "bCreateSprites": true,
+      "SpriteDestinationPath": "/Game/GAME/Asset/bosses/qingyun_nine_tail_fox/generated/death/sprites",
+      "PixelsPerUnrealUnit": 2.56,
+      "PivotMode": "AlphaBottomCenter",
+      "MaterialMode": "Translucent"
+    }
+  ],
+  "FlipbookGroups": [
+    {
+      "GroupName": "QingyunBossIdleFlipbook",
+      "bEnabled": false,
+      "SourceImportGroup": "QingyunBossIdle",
+      "DestinationPath": "/Game/GAME/Asset/bosses/qingyun_nine_tail_fox/flipbooks",
+      "AssetName": "FB_QingyunBoss_Idle",
+      "FramesPerSecond": 8.0,
+      "FrameRun": 1
+    },
+    {
+      "GroupName": "QingyunBossMoveFlipbook",
+      "bEnabled": false,
+      "SourceImportGroup": "QingyunBossMove",
+      "DestinationPath": "/Game/GAME/Asset/bosses/qingyun_nine_tail_fox/flipbooks",
+      "AssetName": "FB_QingyunBoss_Move",
+      "FramesPerSecond": 10.0,
+      "FrameRun": 1
+    },
+    {
+      "GroupName": "QingyunBossAttackFlipbook",
+      "bEnabled": false,
+      "SourceImportGroup": "QingyunBossAttack",
+      "DestinationPath": "/Game/GAME/Asset/bosses/qingyun_nine_tail_fox/flipbooks",
+      "AssetName": "FB_QingyunBoss_Attack",
+      "FramesPerSecond": 12.0,
+      "FrameRun": 1
+    },
+    {
+      "GroupName": "QingyunBossDeathFlipbook",
+      "bEnabled": false,
+      "SourceImportGroup": "QingyunBossDeath",
+      "DestinationPath": "/Game/GAME/Asset/bosses/qingyun_nine_tail_fox/flipbooks",
+      "AssetName": "FB_QingyunBoss_Death",
+      "FramesPerSecond": 10.0,
+      "FrameRun": 1
+    }
+  ]
+}

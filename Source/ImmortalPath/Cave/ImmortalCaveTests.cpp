@@ -119,8 +119,8 @@ bool FImmortalCaveCatalogUpgradeProductionTest::RunTest(const FString& Parameter
 {
 	const int64 StartTicks = FDateTime(2026, 7, 18, 0, 0, 0).GetTicks();
 	const TArray<EImmortalCaveBuildingType> BuildingTypes = UImmortalCaveLibrary::GetKnownBuildingTypes();
-	TestEqual(TEXT("SaveGame version is v17 after equipment expansion was added"),
-		UImmortalPathSaveGame::CurrentSaveVersion, 17);
+	TestEqual(TEXT("SaveGame version is v23 after death recovery persistence was added"),
+		UImmortalPathSaveGame::CurrentSaveVersion, 23);
 	TestEqual(TEXT("The cave catalog contains seven buildings"), BuildingTypes.Num(), 7);
 	TSet<EImmortalCaveBuildingType> UniqueBuildingTypes;
 	for (const EImmortalCaveBuildingType Type : BuildingTypes)

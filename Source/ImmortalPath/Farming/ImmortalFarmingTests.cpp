@@ -82,8 +82,8 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 bool FImmortalFarmingCatalogStateTransactionTest::RunTest(const FString& Parameters)
 {
 	const int64 StartTicks = FDateTime(2026, 7, 18, 0, 0, 0).GetTicks();
-	TestEqual(TEXT("SaveGame version is v17 after equipment expansion was added"),
-		UImmortalPathSaveGame::CurrentSaveVersion, 17);
+	TestEqual(TEXT("SaveGame version is v23 after death recovery persistence was added"),
+		UImmortalPathSaveGame::CurrentSaveVersion, 23);
 
 	const TArray<FName> CropIds = UImmortalFarmingLibrary::GetKnownCropIds();
 	TestEqual(TEXT("The farming catalog contains exactly three stable crops"), CropIds.Num(), 3);

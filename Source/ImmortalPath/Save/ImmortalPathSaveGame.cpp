@@ -9,6 +9,9 @@
 namespace
 {
 	constexpr int32 SaveUserIndex = 0;
+#if !UE_BUILD_SHIPPING
+	bool bForceDevelopmentWriteFailure = false;
+#endif
 }
 
 UImmortalPathSaveGame::UImmortalPathSaveGame()
@@ -42,6 +45,19 @@ UImmortalPathSaveGame* UImmortalPathSaveGame::LoadOrCreate(const UObject* WorldC
 	return Cast<UImmortalPathSaveGame>(UGameplayStatics::CreateSaveGameObject(StaticClass()));
 }
 
+#if !UE_BUILD_SHIPPING
+void UImmortalPathSaveGame::SetDevelopmentWriteFailure(
+	const bool bShouldFail)
+{
+	bForceDevelopmentWriteFailure = bShouldFail;
+}
+
+bool UImmortalPathSaveGame::IsDevelopmentWriteFailureEnabled()
+{
+	return bForceDevelopmentWriteFailure;
+}
+#endif
+
 bool UImmortalPathSaveGame::SaveToDisk()
 {
 	if (SaveVersion > CurrentSaveVersion)
@@ -57,11 +73,83 @@ bool UImmortalPathSaveGame::SaveToDisk()
 		&& TestLegacyVersion > 0 && TestLegacyVersion < CurrentSaveVersion)
 	{
 		VersionToWrite = TestLegacyVersion;
+		// Apply development schema fixtures at the final write boundary. The
+		// player, map spawner and shutdown path all write this shared slot.
+		if (TestLegacyVersion < 16) bInventoryManagementInitialized = false;
+		if (TestLegacyVersion < 17) bEquipmentExpansionInitialized = false;
+		if (TestLegacyVersion < 18)
+		{
+			bWorldBossInitialized = false;
+			WorldBossState = FImmortalWorldBossState();
+		}
+		if (TestLegacyVersion < 19)
+		{
+			bEndlessDungeonInitialized = false;
+			EndlessDungeonState = FImmortalEndlessDungeonState();
+		}
+		if (TestLegacyVersion < 20)
+		{
+			bPetSystemInitialized = false;
+			PetState = FImmortalPetState();
+		}
+		if (TestLegacyVersion < 21)
+		{
+			bAscensionSystemInitialized = false;
+			AscensionState = FImmortalAscensionState();
+		}
+		if (TestLegacyVersion < 22)
+		{
+			bQuestSystemInitialized = false;
+			QuestState = FImmortalQuestState();
+		}
+		if (TestLegacyVersion < 23)
+		{
+			bDeathCultivationRecoveryRequired = false;
+		}
 		UE_LOG(LogTemp, Display, TEXT("Writing development legacy save fixture at version %d"), VersionToWrite);
+	}
+	if (FParse::Param(
+		FCommandLine::Get(),
+		TEXT("ImmortalTestEndlessMarkerMismatch")))
+	{
+		bEndlessDungeonInitialized = false;
+		EndlessDungeonState.bInitialized = false;
+	}
+	if (FParse::Param(
+		FCommandLine::Get(),
+		TEXT("ImmortalTestPetMarkerMismatch")))
+	{
+		bPetSystemInitialized = false;
+		PetState.bInitialized = false;
+	}
+	if (FParse::Param(
+		FCommandLine::Get(),
+		TEXT("ImmortalTestAscensionMarkerMismatch")))
+	{
+		bAscensionSystemInitialized = false;
+		AscensionState.bInitialized = false;
+	}
+	if (FParse::Param(
+		FCommandLine::Get(),
+		TEXT("ImmortalTestQuestMarkerMismatch")))
+	{
+		bQuestSystemInitialized = false;
+		QuestState.bInitialized = false;
 	}
 #endif
 	SaveVersion = VersionToWrite;
 	LastSavedUtcTicks = FDateTime::UtcNow().GetTicks();
+#if !UE_BUILD_SHIPPING
+	if (bForceDevelopmentWriteFailure)
+	{
+		UE_LOG(
+			LogTemp,
+			Error,
+			TEXT("Injected SaveGame write-boundary failure; slot was not modified: %s"),
+			*GetSlotName());
+		return false;
+	}
+#endif
 	const bool bSaved = UGameplayStatics::SaveGameToSlot(this, GetSlotName(), SaveUserIndex);
 	if (!bSaved)
 	{

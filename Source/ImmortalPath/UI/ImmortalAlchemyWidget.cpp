@@ -71,103 +71,104 @@ void UImmortalAlchemyWidget::NativeOnInitialized()
 {
 	Super::NativeOnInitialized();
 	USizeBox* Root = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass(), TEXT("AlchemyPanelSize"));
-	Root->SetWidthOverride(900.0f);
-	Root->SetHeightOverride(600.0f);
+	Root->SetWidthOverride(1600.0f);
+	Root->SetHeightOverride(270.0f);
 	WidgetTree->RootWidget = Root;
 	UCanvasPanel* Canvas = WidgetTree->ConstructWidget<UCanvasPanel>(UCanvasPanel::StaticClass(), TEXT("AlchemyCanvas"));
 	Root->AddChild(Canvas);
 
 	UImage* Background = WidgetTree->ConstructWidget<UImage>(UImage::StaticClass(), TEXT("AlchemyBackground"));
 	Background->SetBrush(MakeAlchemyBrush(
-		TEXT("/Game/GAME/Asset/ui/inventory/panel_background.panel_background"), FVector2D(900.0f, 600.0f),
+		TEXT("/Game/GAME/Asset/ui/inventory/panel_background.panel_background"), FVector2D(1600.0f, 270.0f),
 		FLinearColor(0.82f, 0.94f, 0.86f, 0.98f)));
-	SetAlchemyCanvasLayout(Canvas->AddChildToCanvas(Background), FVector2D::ZeroVector, FVector2D(900.0f, 600.0f));
+	SetAlchemyCanvasLayout(Canvas->AddChildToCanvas(Background), FVector2D::ZeroVector, FVector2D(1600.0f, 270.0f));
 
 	UTextBlock* Title = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("AlchemyTitle"));
 	Title->SetText(FText::FromString(TEXT("青云丹炉")));
 	StyleText(Title, 28, FLinearColor(0.96f, 0.76f, 0.28f));
-	SetAlchemyCanvasLayout(Canvas->AddChildToCanvas(Title), FVector2D(34.0f, 20.0f), FVector2D(220.0f, 42.0f));
+	SetAlchemyCanvasLayout(Canvas->AddChildToCanvas(Title), FVector2D(22.0f, 6.0f), FVector2D(260.0f, 36.0f));
 
 	BoostText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("AlchemyBoostText"));
 	StyleText(BoostText, 16, FLinearColor(0.55f, 0.95f, 0.78f));
-	SetAlchemyCanvasLayout(Canvas->AddChildToCanvas(BoostText), FVector2D(520.0f, 27.0f), FVector2D(280.0f, 30.0f));
+	BoostText->SetJustification(ETextJustify::Right);
+	SetAlchemyCanvasLayout(Canvas->AddChildToCanvas(BoostText), FVector2D(1110.0f, 10.0f), FVector2D(410.0f, 28.0f));
 
 	UButton* CloseButton = WidgetTree->ConstructWidget<UButton>(UButton::StaticClass(), TEXT("AlchemyCloseButton"));
 	CloseButton->OnClicked.AddDynamic(this, &UImmortalAlchemyWidget::HandleCloseClicked);
-	CloseButton->SetStyle(MakeTextButtonStyle(FVector2D(64.0f), FLinearColor::White));
-	SetAlchemyCanvasLayout(Canvas->AddChildToCanvas(CloseButton), FVector2D(816.0f, 12.0f), FVector2D(64.0f));
+	CloseButton->SetStyle(MakeTextButtonStyle(FVector2D(44.0f, 32.0f), FLinearColor::White));
+	SetAlchemyCanvasLayout(Canvas->AddChildToCanvas(CloseButton), FVector2D(1538.0f, 5.0f), FVector2D(44.0f, 32.0f));
 	UTextBlock* CloseText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("AlchemyCloseText"));
 	CloseText->SetText(FText::FromString(TEXT("×")));
 	CloseText->SetJustification(ETextJustify::Center);
-	StyleText(CloseText, 28, FLinearColor(1.0f, 0.75f, 0.35f));
+	StyleText(CloseText, 22, FLinearColor(1.0f, 0.75f, 0.35f));
 	CloseButton->AddChild(CloseText);
 
 	UTextBlock* RecipeTitle = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("RecipeListTitle"));
 	RecipeTitle->SetText(FText::FromString(TEXT("丹方")));
 	StyleText(RecipeTitle, 20, FLinearColor::White);
-	SetAlchemyCanvasLayout(Canvas->AddChildToCanvas(RecipeTitle), FVector2D(32.0f, 77.0f), FVector2D(100.0f, 30.0f));
+	SetAlchemyCanvasLayout(Canvas->AddChildToCanvas(RecipeTitle), FVector2D(20.0f, 42.0f), FVector2D(120.0f, 26.0f));
 	UScrollBox* RecipeScroll = WidgetTree->ConstructWidget<UScrollBox>(UScrollBox::StaticClass(), TEXT("RecipeScroll"));
-	SetAlchemyCanvasLayout(Canvas->AddChildToCanvas(RecipeScroll), FVector2D(28.0f, 110.0f), FVector2D(240.0f, 430.0f));
+	SetAlchemyCanvasLayout(Canvas->AddChildToCanvas(RecipeScroll), FVector2D(18.0f, 69.0f), FVector2D(260.0f, 186.0f));
 	RecipeList = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass(), TEXT("RecipeList"));
 	RecipeScroll->AddChild(RecipeList);
 
 	RecipeNameText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("RecipeName"));
 	StyleText(RecipeNameText, 23, FLinearColor(0.45f, 1.0f, 0.7f));
-	SetAlchemyCanvasLayout(Canvas->AddChildToCanvas(RecipeNameText), FVector2D(292.0f, 80.0f), FVector2D(290.0f, 34.0f));
+	SetAlchemyCanvasLayout(Canvas->AddChildToCanvas(RecipeNameText), FVector2D(300.0f, 45.0f), FVector2D(430.0f, 30.0f));
 	RecipeDescriptionText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("RecipeDescription"));
 	RecipeDescriptionText->SetAutoWrapText(true);
 	StyleText(RecipeDescriptionText, 15, FLinearColor(0.84f, 0.86f, 0.9f));
-	SetAlchemyCanvasLayout(Canvas->AddChildToCanvas(RecipeDescriptionText), FVector2D(292.0f, 118.0f), FVector2D(290.0f, 72.0f));
+	SetAlchemyCanvasLayout(Canvas->AddChildToCanvas(RecipeDescriptionText), FVector2D(300.0f, 77.0f), FVector2D(430.0f, 42.0f));
 	IngredientText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("IngredientText"));
 	IngredientText->SetAutoWrapText(true);
 	StyleText(IngredientText, 16, FLinearColor(0.88f, 0.9f, 0.92f));
-	SetAlchemyCanvasLayout(Canvas->AddChildToCanvas(IngredientText), FVector2D(292.0f, 198.0f), FVector2D(290.0f, 120.0f));
+	SetAlchemyCanvasLayout(Canvas->AddChildToCanvas(IngredientText), FVector2D(300.0f, 121.0f), FVector2D(430.0f, 55.0f));
 	ChanceText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("ChanceText"));
 	StyleText(ChanceText, 16, FLinearColor(1.0f, 0.75f, 0.3f));
-	SetAlchemyCanvasLayout(Canvas->AddChildToCanvas(ChanceText), FVector2D(292.0f, 322.0f), FVector2D(290.0f, 50.0f));
+	SetAlchemyCanvasLayout(Canvas->AddChildToCanvas(ChanceText), FVector2D(300.0f, 178.0f), FVector2D(430.0f, 28.0f));
 	RecipeEffectText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("RecipeEffectText"));
 	RecipeEffectText->SetAutoWrapText(true);
 	StyleText(RecipeEffectText, 14, FLinearColor(0.58f, 0.94f, 0.76f));
-	SetAlchemyCanvasLayout(Canvas->AddChildToCanvas(RecipeEffectText), FVector2D(292.0f, 376.0f), FVector2D(290.0f, 78.0f));
+	SetAlchemyCanvasLayout(Canvas->AddChildToCanvas(RecipeEffectText), FVector2D(300.0f, 208.0f), FVector2D(430.0f, 44.0f));
 
 	CraftButton = WidgetTree->ConstructWidget<UButton>(UButton::StaticClass(), TEXT("CraftButton"));
 	CraftButton->OnClicked.AddDynamic(this, &UImmortalAlchemyWidget::HandleCraftClicked);
-	CraftButton->SetStyle(MakeTextButtonStyle(FVector2D(210.0f, 54.0f), FLinearColor(0.28f, 0.78f, 0.48f, 1.0f)));
-	SetAlchemyCanvasLayout(Canvas->AddChildToCanvas(CraftButton), FVector2D(330.0f, 462.0f), FVector2D(210.0f, 54.0f));
+	CraftButton->SetStyle(MakeTextButtonStyle(FVector2D(190.0f, 44.0f), FLinearColor(0.28f, 0.78f, 0.48f, 1.0f)));
+	SetAlchemyCanvasLayout(Canvas->AddChildToCanvas(CraftButton), FVector2D(754.0f, 157.0f), FVector2D(190.0f, 44.0f));
 	CraftButtonText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("CraftButtonText"));
 	CraftButtonText->SetText(FText::FromString(TEXT("炼制一炉")));
 	CraftButtonText->SetJustification(ETextJustify::Center);
-	StyleText(CraftButtonText, 20, FLinearColor::White);
+	StyleText(CraftButtonText, 18, FLinearColor::White);
 	CraftButton->AddChild(CraftButtonText);
 
 	ResultText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("AlchemyResult"));
 	ResultText->SetAutoWrapText(true);
 	ResultText->SetJustification(ETextJustify::Center);
 	StyleText(ResultText, 17, FLinearColor(1.0f, 0.82f, 0.32f));
-	SetAlchemyCanvasLayout(Canvas->AddChildToCanvas(ResultText), FVector2D(282.0f, 525.0f), FVector2D(310.0f, 54.0f));
+	SetAlchemyCanvasLayout(Canvas->AddChildToCanvas(ResultText), FVector2D(740.0f, 207.0f), FVector2D(220.0f, 50.0f));
 
 	UTextBlock* PillTitle = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("PillInventoryTitle"));
 	PillTitle->SetText(FText::FromString(TEXT("丹药背包")));
 	StyleText(PillTitle, 20, FLinearColor::White);
-	SetAlchemyCanvasLayout(Canvas->AddChildToCanvas(PillTitle), FVector2D(620.0f, 77.0f), FVector2D(160.0f, 30.0f));
+	SetAlchemyCanvasLayout(Canvas->AddChildToCanvas(PillTitle), FVector2D(984.0f, 42.0f), FVector2D(180.0f, 26.0f));
 	PillGrid = WidgetTree->ConstructWidget<UUniformGridPanel>(UUniformGridPanel::StaticClass(), TEXT("PillGrid"));
 	PillGrid->SetSlotPadding(FMargin(3.0f));
-	SetAlchemyCanvasLayout(Canvas->AddChildToCanvas(PillGrid), FVector2D(616.0f, 112.0f), FVector2D(210.0f, 205.0f));
+	SetAlchemyCanvasLayout(Canvas->AddChildToCanvas(PillGrid), FVector2D(980.0f, 70.0f), FVector2D(320.0f, 184.0f));
 	PillNameText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("SelectedPillName"));
 	StyleText(PillNameText, 19, FLinearColor(0.45f, 1.0f, 0.7f));
-	SetAlchemyCanvasLayout(Canvas->AddChildToCanvas(PillNameText), FVector2D(620.0f, 330.0f), FVector2D(220.0f, 30.0f));
+	SetAlchemyCanvasLayout(Canvas->AddChildToCanvas(PillNameText), FVector2D(1320.0f, 54.0f), FVector2D(250.0f, 30.0f));
 	PillEffectText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("SelectedPillEffect"));
 	PillEffectText->SetAutoWrapText(true);
 	StyleText(PillEffectText, 15, FLinearColor(0.86f, 0.88f, 0.92f));
-	SetAlchemyCanvasLayout(Canvas->AddChildToCanvas(PillEffectText), FVector2D(620.0f, 366.0f), FVector2D(230.0f, 105.0f));
+	SetAlchemyCanvasLayout(Canvas->AddChildToCanvas(PillEffectText), FVector2D(1320.0f, 88.0f), FVector2D(250.0f, 96.0f));
 	UseButton = WidgetTree->ConstructWidget<UButton>(UButton::StaticClass(), TEXT("UsePillButton"));
 	UseButton->OnClicked.AddDynamic(this, &UImmortalAlchemyWidget::HandleUseClicked);
-	UseButton->SetStyle(MakeTextButtonStyle(FVector2D(190.0f, 50.0f), FLinearColor(0.46f, 0.3f, 0.78f, 1.0f)));
-	SetAlchemyCanvasLayout(Canvas->AddChildToCanvas(UseButton), FVector2D(636.0f, 480.0f), FVector2D(190.0f, 50.0f));
+	UseButton->SetStyle(MakeTextButtonStyle(FVector2D(190.0f, 44.0f), FLinearColor(0.46f, 0.3f, 0.78f, 1.0f)));
+	SetAlchemyCanvasLayout(Canvas->AddChildToCanvas(UseButton), FVector2D(1350.0f, 202.0f), FVector2D(190.0f, 44.0f));
 	UTextBlock* UseText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("UsePillText"));
 	UseText->SetText(FText::FromString(TEXT("服用丹药")));
 	UseText->SetJustification(ETextJustify::Center);
-	StyleText(UseText, 19, FLinearColor::White);
+	StyleText(UseText, 18, FLinearColor::White);
 	UseButton->AddChild(UseText);
 
 	RefreshFromPlayer();

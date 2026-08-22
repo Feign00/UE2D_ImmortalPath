@@ -1,0 +1,43 @@
+{
+  "ImportGroups": [
+    {
+      "GroupName": "PlayerAscension",
+      "bEnabled": true,
+      "Filenames": [
+        "Content/GAME/Asset/Player/player_ascension.png"
+      ],
+      "DestinationPath": "/Game/GAME/Asset/Player/ascension/generated",
+      "DestinationName": "T_Player_Ascension",
+      "FactoryName": "TextureFactory",
+      "bReplaceExisting": true,
+      "TextureUsage": "Sprite",
+      "ExpectedFrameCount": 17,
+      "ExpectedWidth": 2176,
+      "ExpectedHeight": 724,
+      "bCreateSprites": true,
+      "bSpriteSheet": true,
+      "SheetColumns": 17,
+      "SheetRows": 1,
+      "SheetFrameCount": 17,
+      "SpriteDestinationPath": "/Game/GAME/Asset/Player/ascension/generated/sprites",
+      "SpriteName": "SP_Player_Ascension",
+      "PixelsPerUnrealUnit": 1.0,
+      "SourceUV": [0, 0],
+      "SourceDimension": [128, 724],
+      "PivotMode": "Custom",
+      "CustomPivot": [64, 583],
+      "MaterialMode": "Translucent"
+    }
+  ],
+  "FlipbookGroups": [
+    {
+      "GroupName": "PlayerAscensionFlipbook",
+      "bEnabled": true,
+      "SourceImportGroup": "PlayerAscension",
+      "DestinationPath": "/Game/GAME/Asset/Player/ascension/generated",
+      "AssetName": "FB_Player_Ascension",
+      "FramesPerSecond": 12.0,
+      "FrameRun": 1
+    }
+  ]
+}

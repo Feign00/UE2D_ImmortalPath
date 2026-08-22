@@ -100,8 +100,8 @@ bool FImmortalSectCatalogAndMembershipTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Stage task reward"), Tasks[1].ContributionReward, 90);
 	TestEqual(TEXT("Boss task target"), Tasks[2].TargetAmount, 1);
 	TestEqual(TEXT("Boss task reward"), Tasks[2].ContributionReward, 120);
-	TestEqual(TEXT("SaveGame version is v17 after equipment expansion was added"),
-		UImmortalPathSaveGame::CurrentSaveVersion, 17);
+	TestEqual(TEXT("SaveGame version is v23 after death recovery persistence was added"),
+		UImmortalPathSaveGame::CurrentSaveVersion, 23);
 
 	const FImmortalMapSystemState EarlyMaps = MakeMapState(1);
 	FImmortalSectState QingyunState = UImmortalSectLibrary::CreateDefaultState(Now);

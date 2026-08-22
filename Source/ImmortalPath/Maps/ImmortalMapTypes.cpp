@@ -121,6 +121,11 @@ FName UImmortalMapLibrary::GetQingyunMountainId()
 	return QingyunMountainId;
 }
 
+FName UImmortalMapLibrary::GetImmortalPalaceRuinsId()
+{
+	return ImmortalPalaceRuinsId;
+}
+
 TArray<FName> UImmortalMapLibrary::GetKnownMapIds()
 {
 	TArray<FName> Result = {

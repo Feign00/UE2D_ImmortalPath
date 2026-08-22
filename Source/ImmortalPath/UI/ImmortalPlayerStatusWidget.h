@@ -9,7 +9,10 @@
 class AImmortalPlayerCharacter;
 class UProgressBar;
 
-/** Native player HUD assembled from the supplied layered PNG textures. */
+/**
+ * Minimal battle HUD. The combat view intentionally contains only the
+ * supplied 512x64 player health bar; clicking the bar opens management.
+ */
 UCLASS()
 class IMMORTALPATH_API UImmortalPlayerStatusWidget : public UUserWidget
 {
@@ -20,45 +23,17 @@ public:
 
 protected:
 	virtual void NativeOnInitialized() override;
-	virtual void NativeTick(const FGeometry& MyGeometry, float InDeltaTime) override;
+	virtual void NativeTick(
+		const FGeometry& MyGeometry,
+		float InDeltaTime) override;
 
 private:
 	UFUNCTION()
-	void HandleInventoryClicked();
-
-	UFUNCTION()
-	void HandleAlchemyClicked();
-
-	UFUNCTION()
-	void HandleCraftingClicked();
-
-	UFUNCTION()
-	void HandleArtifactClicked();
-
-	UFUNCTION()
-	void HandleTechniqueClicked();
-
-	UFUNCTION()
-	void HandleCharacterBuildClicked();
-
-	UFUNCTION()
-	void HandleCaveClicked();
-
-	UFUNCTION()
-	void HandleShopClicked();
-
-	UFUNCTION()
-	void HandleMapClicked();
-
-	UFUNCTION()
-	void HandleSectClicked();
+	void HandleOpenManagementClicked();
 
 	UPROPERTY(Transient)
 	TWeakObjectPtr<AImmortalPlayerCharacter> Player;
 
 	UPROPERTY(Transient)
 	TObjectPtr<UProgressBar> HealthProgress;
-
-	UPROPERTY(Transient)
-	TObjectPtr<UProgressBar> ManaProgress;
 };

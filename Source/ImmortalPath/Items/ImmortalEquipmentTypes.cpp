@@ -385,7 +385,10 @@ FImmortalEquipmentItem UImmortalEquipmentLibrary::GenerateCraftedEquipment(
 	return GenerateEquipmentForSlot(ItemLevel, Slot, Quality, Discipline, SetId, false);
 }
 
-void UImmortalEquipmentLibrary::NormalizeForgingState(FImmortalEquipmentItem& Item)
+void UImmortalEquipmentLibrary::NormalizeForgingState(
+	FImmortalEquipmentItem& Item,
+	const bool bValidateSetDefinition,
+	const bool bUpdateDisplayName)
 {
 	if (!Item.IsValid()) return;
 	Item.ItemLevel = FMath::Max(Item.ItemLevel, 1);
@@ -402,7 +405,11 @@ void UImmortalEquipmentLibrary::NormalizeForgingState(FImmortalEquipmentItem& It
 		Item.Discipline = EImmortalEquipmentDiscipline::Universal;
 	}
 	FImmortalEquipmentSetDefinition SetDefinition;
-	if (!Item.SetId.IsNone() && !GetSetDefinition(Item.SetId, SetDefinition)) Item.SetId = NAME_None;
+	if (bValidateSetDefinition && !Item.SetId.IsNone()
+		&& !GetSetDefinition(Item.SetId, SetDefinition))
+	{
+		Item.SetId = NAME_None;
+	}
 
 	TArray<FImmortalEquipmentAffix> ValidAffixes;
 	TSet<uint8> SeenTypes;
@@ -458,7 +465,10 @@ void UImmortalEquipmentLibrary::NormalizeForgingState(FImmortalEquipmentItem& It
 	Item.BaseAttackSpeedBonus = FMath::IsFinite(Item.BaseAttackSpeedBonus) ? FMath::Max(Item.BaseAttackSpeedBonus, 0.0f) : 0.0f;
 	Item.BaseCriticalChanceBonus = FMath::IsFinite(Item.BaseCriticalChanceBonus) ? FMath::Max(Item.BaseCriticalChanceBonus, 0.0f) : 0.0f;
 	RebuildEquipmentTotals(Item);
-	UpdateForgedEquipmentName(Item);
+	if (bUpdateDisplayName)
+	{
+		UpdateForgedEquipmentName(Item);
+	}
 }
 
 void UImmortalEquipmentLibrary::RebuildEquipmentStats(FImmortalEquipmentItem& Item)
@@ -531,7 +541,10 @@ float UImmortalEquipmentLibrary::CalculateLoadoutPowerWithBaseStats(
 	const TArray<FImmortalEquipmentItem>& EquippedItems,
 	const float BaseAttack,
 	const float BaseDefense,
-	const float BaseHealth)
+	const float BaseHealth,
+	const float BaseAttackSpeedMultiplier,
+	const float BaseCriticalChance,
+	const float BaseCriticalDamageMultiplier)
 {
 	float Attack = FMath::Max(BaseAttack, 0.0f);
 	float Defense = FMath::Max(BaseDefense, 0.0f);
@@ -576,21 +589,35 @@ float UImmortalEquipmentLibrary::CalculateLoadoutPowerWithBaseStats(
 	CultivationGain += FMath::Max(Sets.CultivationGainBonus, 0.0f);
 	BossDamage += FMath::Max(Sets.BossDamageBonus, 0.0f);
 
-	// Percentage set effects must scale the aggregate build they actually affect.
-	// Treating a six-piece final-damage tier as a fixed number allowed a tiny raw-stat
-	// upgrade to dismantle the set even when the real combat result became much weaker.
-	const float DamageScore = (Attack * 5.0f
-		+ AttackSpeed * 20.0f
-		+ CriticalChance * 100.0f
-		+ CriticalDamage * 70.0f
-		+ (FireDamage + ThunderDamage + IceDamage) * 55.0f
-		+ BossDamage * 70.0f)
+	// Percentage effects scale the aggregate build they actually affect. This keeps
+	// automatic equipment from dismantling a 2/4/6-piece threshold for a tiny flat
+	// upgrade while real attack speed, crit, elemental, Boss or final damage falls.
+	const float EffectiveAttackSpeed = FMath::Clamp(
+		FMath::Max(BaseAttackSpeedMultiplier, 0.1f) + AttackSpeed, 0.1f, 5.0f);
+	const float EffectiveCriticalChance = FMath::Clamp(
+		FMath::Max(BaseCriticalChance, 0.0f) + CriticalChance, 0.0f, 1.0f);
+	const float EffectiveCriticalDamage = FMath::Clamp(
+		FMath::Max(BaseCriticalDamageMultiplier, 1.0f) + CriticalDamage, 1.0f, 6.0f);
+	const float ExpectedCriticalMultiplier = 1.0f
+		+ EffectiveCriticalChance * (EffectiveCriticalDamage - 1.0f);
+	constexpr float ElementalSkillShare = 0.20f;
+	constexpr float BossEncounterShare = 0.35f;
+	const float ElementMultiplier = 1.0f + FMath::Clamp(
+		FireDamage + ThunderDamage + IceDamage, 0.0f, 5.0f) * ElementalSkillShare;
+	const float WeightedBossMultiplier = 1.0f
+		+ FMath::Clamp(BossDamage, 0.0f, 4.0f) * BossEncounterShare;
+	const float DamageScore = Attack * 5.0f
+		* EffectiveAttackSpeed
+		* ExpectedCriticalMultiplier
+		* ElementMultiplier
+		* WeightedBossMultiplier
 		* (1.0f + FMath::Clamp(Sets.FinalDamageBonus, 0.0f, 3.0f));
 	const float SurvivalScore = (Defense * 4.0f + Health * 0.2f)
 		/ (1.0f - FMath::Clamp(Sets.DamageReductionBonus, 0.0f, 0.75f));
-	const float UtilityScore = LifeSteal * 160.0f
-		+ CultivationGain * 60.0f
-		+ LootFind * 80.0f;
+	const float CoreScore = FMath::Max(DamageScore + SurvivalScore, 100.0f);
+	const float UtilityScore = DamageScore * FMath::Clamp(LifeSteal, 0.0f, 0.75f) * 0.50f
+		+ CoreScore * FMath::Clamp(CultivationGain, 0.0f, 4.0f) * 0.25f
+		+ CoreScore * FMath::Clamp(LootFind, 0.0f, 4.0f) * 0.15f;
 	return DamageScore + SurvivalScore + UtilityScore;
 }
 

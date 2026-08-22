@@ -11,5 +11,6 @@ public class ImmortalPathEditorTarget : TargetRules
 		DefaultBuildSettings = BuildSettingsVersion.V6;
 		IncludeOrderVersion = EngineIncludeOrderVersion.Unreal5_7;
 		ExtraModuleNames.Add("ImmortalPath");
+		ExtraModuleNames.Add("ImmortalPathEditor");
 	}
 }

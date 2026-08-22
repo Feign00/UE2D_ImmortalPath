@@ -4,27 +4,39 @@
 
 #include "../Combat/AutoAttackTarget.h"
 #include "../Save/ImmortalPathSaveGame.h"
+#include "../Settings/ImmortalDesktopSettings.h"
 #include "../Spawning/ImmortalMonsterSpawner.h"
 #include "ImmortalMonsterCharacter.h"
+#include "ImmortalPetCharacter.h"
 #include "../UI/ImmortalAlchemyWidget.h"
 #include "../UI/ImmortalArtifactWidget.h"
+#include "../UI/ImmortalAscensionWidget.h"
 #include "../UI/ImmortalCombatFeedbackWidget.h"
 #include "../UI/ImmortalCraftingWidget.h"
 #include "../UI/ImmortalCharacterBuildWidget.h"
 #include "../UI/ImmortalCaveWidget.h"
+#include "../UI/ImmortalEndlessDungeonWidget.h"
 #include "../UI/ImmortalFarmingWidget.h"
 #include "../UI/ImmortalInventoryWidget.h"
+#include "../UI/ImmortalManagementWidget.h"
+#include "../UI/ImmortalCultivationWidget.h"
 #include "../UI/ImmortalMapWidget.h"
+#include "../UI/ImmortalPetWidget.h"
 #include "../UI/ImmortalPlayerStatusWidget.h"
+#include "../UI/ImmortalQuestWidget.h"
 #include "../UI/ImmortalSectWidget.h"
+#include "../UI/ImmortalSettingsWidget.h"
 #include "../UI/ImmortalShopWidget.h"
 #include "../UI/ImmortalTechniqueWidget.h"
+#include "../UI/ImmortalWorldBossWidget.h"
 #include "Blueprint/WidgetLayoutLibrary.h"
 #include "Camera/CameraComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/InputComponent.h"
 #include "DrawDebugHelpers.h"
 #include "Engine/OverlapResult.h"
+#include "Engine/DamageEvents.h"
+#include "EngineUtils.h"
 #include "Engine/Engine.h"
 #include "Engine/GameViewportClient.h"
 #include "Engine/World.h"
@@ -37,8 +49,11 @@
 #include "InputCoreTypes.h"
 #include "Kismet/GameplayStatics.h"
 #include "Misc/CommandLine.h"
+#include "Misc/App.h"
 #include "Misc/Parse.h"
 #include "Misc/Paths.h"
+#include "PaperFlipbook.h"
+#include "PaperFlipbookComponent.h"
 #include "TimerManager.h"
 #include "UnrealClient.h"
 #include "Widgets/SWindow.h"
@@ -69,6 +84,126 @@ namespace
 		return true;
 	}
 
+	bool HaveSameMapProgress(
+		const FImmortalMapSystemState& Left,
+		const FImmortalMapSystemState& Right)
+	{
+		if (Left.ActiveMapId != Right.ActiveMapId
+			|| Left.MapProgress.Num()
+				!= Right.MapProgress.Num())
+		{
+			return false;
+		}
+		for (const FName MapId :
+			UImmortalMapLibrary::GetKnownMapIds())
+		{
+			FImmortalMapProgress LeftProgress;
+			FImmortalMapProgress RightProgress;
+			if (!UImmortalMapLibrary::GetMapProgress(
+					Left, MapId, LeftProgress)
+				|| !UImmortalMapLibrary::GetMapProgress(
+					Right, MapId, RightProgress)
+				|| LeftProgress.Stage != RightProgress.Stage
+				|| LeftProgress.StageKills
+					!= RightProgress.StageKills
+				|| LeftProgress.bCompleted
+					!= RightProgress.bCompleted)
+			{
+				return false;
+			}
+		}
+		return true;
+	}
+
+	bool IsAscensionCycleStartState(
+		const FImmortalMapSystemState& State)
+	{
+		if (State.ActiveMapId
+			!= UImmortalMapLibrary::GetQingyunMountainId()
+			|| State.MapProgress.Num()
+				!= UImmortalMapLibrary::GetKnownMapIds().Num())
+		{
+			return false;
+		}
+		for (const FName MapId :
+			UImmortalMapLibrary::GetKnownMapIds())
+		{
+			FImmortalMapProgress Progress;
+			if (!UImmortalMapLibrary::GetMapProgress(
+					State, MapId, Progress)
+				|| Progress.Stage != 1
+				|| Progress.StageKills != 0
+				|| Progress.bCompleted)
+			{
+				return false;
+			}
+		}
+		return true;
+	}
+
+	bool HaveMergedLifetimeMapRecords(
+		const FImmortalAscensionState& PreviousState,
+		const FImmortalAscensionState& CurrentState,
+		const FImmortalMapSystemState& CompletedCycle)
+	{
+		for (const FName MapId :
+			UImmortalMapLibrary::GetKnownMapIds())
+		{
+			FImmortalAscensionMapLegacy PreviousRecord;
+			FImmortalAscensionMapLegacy CurrentRecord;
+			FImmortalMapProgress CycleProgress;
+			if (!UImmortalAscensionLibrary::GetLifetimeMapRecord(
+					PreviousState, MapId, PreviousRecord)
+				|| !UImmortalAscensionLibrary::GetLifetimeMapRecord(
+					CurrentState, MapId, CurrentRecord)
+				|| !UImmortalMapLibrary::GetMapProgress(
+					CompletedCycle, MapId, CycleProgress))
+			{
+				return false;
+			}
+			const int32 ExpectedCompletions =
+				FMath::Min(
+					PreviousRecord.TimesCompleted
+						+ (CycleProgress.bCompleted ? 1 : 0),
+					UImmortalAscensionLibrary
+						::MaximumAscensionCount);
+			if (CurrentRecord.HighestStage
+					< FMath::Max(
+						PreviousRecord.HighestStage,
+						CycleProgress.Stage)
+				|| CurrentRecord.TimesCompleted
+					!= ExpectedCompletions)
+			{
+				return false;
+			}
+		}
+		return true;
+	}
+
+	bool HaveSameLifetimeMapRecords(
+		const FImmortalAscensionState& Left,
+		const FImmortalAscensionState& Right)
+	{
+		for (const FName MapId :
+			UImmortalMapLibrary::GetKnownMapIds())
+		{
+			FImmortalAscensionMapLegacy LeftRecord;
+			FImmortalAscensionMapLegacy RightRecord;
+			if (!UImmortalAscensionLibrary::GetLifetimeMapRecord(
+					Left, MapId, LeftRecord)
+				|| !UImmortalAscensionLibrary::GetLifetimeMapRecord(
+					Right, MapId, RightRecord)
+				|| LeftRecord.HighestStage
+					!= RightRecord.HighestStage
+				|| LeftRecord.TimesCompleted
+					!= RightRecord.TimesCompleted)
+			{
+				return false;
+			}
+		}
+		return true;
+	}
+
 	bool ShouldForceFarmingPersistenceFailure(const TCHAR* Operation)
 	{
 #if !UE_BUILD_SHIPPING
@@ -90,6 +225,69 @@ namespace
 			&& FParse::Value(
 				FCommandLine::Get(), TEXT("ImmortalTestForceSectSaveFailure="), ForcedOperation)
 			&& ForcedOperation.Equals(Operation, ESearchCase::IgnoreCase);
+#else
+		return false;
+#endif
+	}
+
+	bool ShouldForceWorldBossPersistenceFailure(const TCHAR* Operation)
+	{
+#if !UE_BUILD_SHIPPING
+		FString ForcedOperation;
+		return Operation
+			&& FParse::Value(
+				FCommandLine::Get(),
+				TEXT("ImmortalTestForceWorldBossSaveFailure="),
+				ForcedOperation)
+			&& ForcedOperation.Equals(Operation, ESearchCase::IgnoreCase);
+#else
+		return false;
+#endif
+	}
+
+	bool ShouldForceEndlessDungeonPersistenceFailure(const TCHAR* Operation)
+	{
+#if !UE_BUILD_SHIPPING
+		FString ForcedOperation;
+		return Operation
+			&& FParse::Value(
+				FCommandLine::Get(),
+				TEXT("ImmortalTestForceEndlessSaveFailure="),
+				ForcedOperation)
+			&& ForcedOperation.Equals(Operation, ESearchCase::IgnoreCase);
+#else
+		return false;
+#endif
+	}
+
+	bool ShouldForcePetPersistenceFailure(const TCHAR* Operation)
+	{
+#if !UE_BUILD_SHIPPING
+		FString ForcedOperation;
+		return Operation
+			&& FParse::Value(
+				FCommandLine::Get(),
+				TEXT("ImmortalTestForcePetSaveFailure="),
+				ForcedOperation)
+			&& ForcedOperation.Equals(
+				Operation, ESearchCase::IgnoreCase);
+#else
+		return false;
+#endif
+	}
+
+	bool ShouldForceAscensionPersistenceFailure(
+		const TCHAR* Operation)
+	{
+#if !UE_BUILD_SHIPPING
+		FString ForcedOperation;
+		return Operation
+			&& FParse::Value(
+				FCommandLine::Get(),
+				TEXT("ImmortalTestForceAscensionSaveFailure="),
+				ForcedOperation)
+			&& ForcedOperation.Equals(
+				Operation, ESearchCase::IgnoreCase);
 #else
 		return false;
 #endif
@@ -187,14 +385,31 @@ namespace
 
 AImmortalPlayerCharacter::AImmortalPlayerCharacter()
 {
-	PrimaryActorTick.bCanEverTick = false;
+	PrimaryActorTick.bCanEverTick = true;
 	DamageTypeClass = UDamageType::StaticClass();
 	CultivationComponent = CreateDefaultSubobject<UImmortalCultivationComponent>(TEXT("CultivationComponent"));
+	MortalRealmIdleFlipbookAsset = TSoftObjectPtr<UPaperFlipbook>(FSoftObjectPath(
+		TEXT("/Game/GAME/Asset/Player/mortal/generated/FB_Player_Mortal_Idle.FB_Player_Mortal_Idle")));
+	MortalRealmMoveFlipbookAsset = TSoftObjectPtr<UPaperFlipbook>(FSoftObjectPath(
+		TEXT("/Game/GAME/Asset/Player/mortal/generated/FB_Player_Mortal_Move.FB_Player_Mortal_Move")));
+	MortalRealmAttackFlipbookAsset = TSoftObjectPtr<UPaperFlipbook>(FSoftObjectPath(
+		TEXT("/Game/GAME/Asset/Player/mortal/generated/FB_Player_Mortal_Attack.FB_Player_Mortal_Attack")));
+	MortalRealmHurtFlipbookAsset = TSoftObjectPtr<UPaperFlipbook>(FSoftObjectPath(
+		TEXT("/Game/GAME/Asset/Player/mortal/generated/FB_Player_Mortal_Hurt.FB_Player_Mortal_Hurt")));
+	MortalRealmDeathFlipbookAsset = TSoftObjectPtr<UPaperFlipbook>(FSoftObjectPath(
+		TEXT("/Game/GAME/Asset/Player/mortal/generated/FB_Player_Mortal_Death.FB_Player_Mortal_Death")));
+}
+
+void AImmortalPlayerCharacter::Tick(const float DeltaSeconds)
+{
+	Super::Tick(DeltaSeconds);
+	UpdateMortalRealmLocomotionAnimation();
 }
 
 void AImmortalPlayerCharacter::BeginPlay()
 {
 	Super::BeginPlay();
+	LoadMortalRealmAnimationSet();
 	InventoryItems.Reset();
 	EquippedItems.Reset();
 	MaterialInventory.Reset();
@@ -252,6 +467,14 @@ void AImmortalPlayerCharacter::BeginPlay()
 	CaveState = UImmortalCaveLibrary::CreateDefaultState(FDateTime::UtcNow().GetTicks());
 	FarmingState = UImmortalFarmingLibrary::CreateDefaultState(FDateTime::UtcNow().GetTicks());
 	SectState = UImmortalSectLibrary::CreateDefaultState(FDateTime::UtcNow().GetTicks(), SectUtcOffsetMinutes);
+	QuestState = UImmortalQuestLibrary::CreateDefaultState(
+		FDateTime::UtcNow().GetTicks(), SectUtcOffsetMinutes);
+	WorldBossState = UImmortalWorldBossLibrary::CreateDefaultState();
+	EndlessDungeonState =
+		UImmortalEndlessDungeonLibrary::CreateDefaultState();
+	PetState = UImmortalPetLibrary::CreateDefaultState();
+	AscensionState =
+		UImmortalAscensionLibrary::CreateDefaultState();
 	AlchemyCultivationBoostMultiplier = 1.0f;
 	AlchemyBoostEndWorldTime = 0.0f;
 	RecalculateEquipmentBonuses();
@@ -262,6 +485,8 @@ void AImmortalPlayerCharacter::BeginPlay()
 	EquipmentDropCount = 0;
 	EquipmentInventoryRevision = 0;
 	bDead = false;
+	bDeathCultivationRecoveryRequired = false;
+	bAdventureSuspendedForDeathRecovery = false;
 	InitialSpawnLocation = GetActorLocation();
 	InvulnerableUntilTime = 0.0f;
 	if (CultivationComponent)
@@ -287,6 +512,7 @@ void AImmortalPlayerCharacter::BeginPlay()
 		CurrentMana = GetMaxMana();
 		SaveProgress();
 	}
+	ApplyDesktopSettings();
 	ConfigureCombatCamera();
 	ConfigureTaskbarWindow();
 
@@ -297,115 +523,160 @@ void AImmortalPlayerCharacter::BeginPlay()
 		{
 			PlayerStatusWidget->InitializeForPlayer(this);
 			PlayerStatusWidget->AddToViewport(10);
-			PlayerStatusWidget->SetPositionInViewport(FVector2D(32.0f, 28.0f), false);
-			PlayerStatusWidget->SetDesiredSizeInViewport(FVector2D(1520.0f, 64.0f));
+			PlayerStatusWidget->SetPositionInViewport(FVector2D(24.0f, 16.0f), false);
+			PlayerStatusWidget->SetDesiredSizeInViewport(FVector2D(512.0f, 64.0f));
+		}
+
+		PlayerManagementWidget = CreateWidget<UImmortalManagementWidget>(
+			PlayerController,
+			UImmortalManagementWidget::StaticClass());
+		if (PlayerManagementWidget)
+		{
+			PlayerManagementWidget->InitializeForPlayer(this);
+			PlayerManagementWidget->AddToViewport(100);
+			PlayerManagementWidget->SetDesiredSizeInViewport(
+				FVector2D(1707.0f, 320.0f));
+			PlayerManagementWidget->SetVisibility(
+				ESlateVisibility::Collapsed);
+		}
+
+		PlayerCultivationWidget = CreateWidget<UImmortalCultivationWidget>(
+			PlayerController,
+			UImmortalCultivationWidget::StaticClass());
+		if (PlayerCultivationWidget)
+		{
+			PlayerCultivationWidget->InitializeForPlayer(this);
 		}
 
 		PlayerInventoryWidget = CreateWidget<UImmortalInventoryWidget>(PlayerController, UImmortalInventoryWidget::StaticClass());
 		if (PlayerInventoryWidget)
 		{
 			PlayerInventoryWidget->InitializeForPlayer(this);
-			PlayerInventoryWidget->AddToViewport(100);
-			PlayerInventoryWidget->SetDesiredSizeInViewport(FVector2D(1600.0f, 300.0f));
-			PlayerInventoryWidget->SetVisibility(ESlateVisibility::Collapsed);
 		}
 
 		PlayerAlchemyWidget = CreateWidget<UImmortalAlchemyWidget>(PlayerController, UImmortalAlchemyWidget::StaticClass());
 		if (PlayerAlchemyWidget)
 		{
 			PlayerAlchemyWidget->InitializeForPlayer(this);
-			PlayerAlchemyWidget->AddToViewport(110);
-			PlayerAlchemyWidget->SetDesiredSizeInViewport(FVector2D(900.0f, 600.0f));
-			PlayerAlchemyWidget->SetVisibility(ESlateVisibility::Collapsed);
 		}
 
 		PlayerCraftingWidget = CreateWidget<UImmortalCraftingWidget>(PlayerController, UImmortalCraftingWidget::StaticClass());
 		if (PlayerCraftingWidget)
 		{
 			PlayerCraftingWidget->InitializeForPlayer(this);
-			PlayerCraftingWidget->AddToViewport(115);
-			PlayerCraftingWidget->SetDesiredSizeInViewport(FVector2D(900.0f, 600.0f));
-			PlayerCraftingWidget->SetVisibility(ESlateVisibility::Collapsed);
 		}
 
 		PlayerArtifactWidget = CreateWidget<UImmortalArtifactWidget>(PlayerController, UImmortalArtifactWidget::StaticClass());
 		if (PlayerArtifactWidget)
 		{
 			PlayerArtifactWidget->InitializeForPlayer(this);
-			PlayerArtifactWidget->AddToViewport(120);
-			PlayerArtifactWidget->SetDesiredSizeInViewport(FVector2D(900.0f, 600.0f));
-			PlayerArtifactWidget->SetVisibility(ESlateVisibility::Collapsed);
 		}
 
 		PlayerTechniqueWidget = CreateWidget<UImmortalTechniqueWidget>(PlayerController, UImmortalTechniqueWidget::StaticClass());
 		if (PlayerTechniqueWidget)
 		{
 			PlayerTechniqueWidget->InitializeForPlayer(this);
-			PlayerTechniqueWidget->AddToViewport(125);
-			PlayerTechniqueWidget->SetDesiredSizeInViewport(FVector2D(900.0f, 600.0f));
-			PlayerTechniqueWidget->SetVisibility(ESlateVisibility::Collapsed);
 		}
 
 		PlayerCharacterBuildWidget = CreateWidget<UImmortalCharacterBuildWidget>(PlayerController, UImmortalCharacterBuildWidget::StaticClass());
 		if (PlayerCharacterBuildWidget)
 		{
 			PlayerCharacterBuildWidget->InitializeForPlayer(this);
-			PlayerCharacterBuildWidget->AddToViewport(130);
-			PlayerCharacterBuildWidget->SetDesiredSizeInViewport(FVector2D(900.0f, 600.0f));
-			PlayerCharacterBuildWidget->SetVisibility(ESlateVisibility::Collapsed);
 		}
 
 		PlayerShopWidget = CreateWidget<UImmortalShopWidget>(PlayerController, UImmortalShopWidget::StaticClass());
 		if (PlayerShopWidget)
 		{
 			PlayerShopWidget->InitializeForPlayer(this);
-			PlayerShopWidget->AddToViewport(135);
-			PlayerShopWidget->SetDesiredSizeInViewport(FVector2D(900.0f, 600.0f));
-			PlayerShopWidget->SetVisibility(ESlateVisibility::Collapsed);
 		}
 
 		PlayerMapWidget = CreateWidget<UImmortalMapWidget>(PlayerController, UImmortalMapWidget::StaticClass());
 		if (PlayerMapWidget)
 		{
 			PlayerMapWidget->InitializeForPlayer(this);
-			PlayerMapWidget->AddToViewport(140);
-			PlayerMapWidget->SetDesiredSizeInViewport(FVector2D(900.0f, 600.0f));
-			PlayerMapWidget->SetVisibility(ESlateVisibility::Collapsed);
+		}
+
+		PlayerQuestWidget = CreateWidget<UImmortalQuestWidget>(
+			PlayerController, UImmortalQuestWidget::StaticClass());
+		if (PlayerQuestWidget)
+		{
+			PlayerQuestWidget->InitializeForPlayer(this);
 		}
 
 		PlayerCaveWidget = CreateWidget<UImmortalCaveWidget>(PlayerController, UImmortalCaveWidget::StaticClass());
 		if (PlayerCaveWidget)
 		{
 			PlayerCaveWidget->InitializeForPlayer(this);
-			PlayerCaveWidget->AddToViewport(145);
-			PlayerCaveWidget->SetDesiredSizeInViewport(FVector2D(900.0f, 600.0f));
-			PlayerCaveWidget->SetVisibility(ESlateVisibility::Collapsed);
 		}
 
 		PlayerFarmingWidget = CreateWidget<UImmortalFarmingWidget>(PlayerController, UImmortalFarmingWidget::StaticClass());
 		if (PlayerFarmingWidget)
 		{
 			PlayerFarmingWidget->InitializeForPlayer(this);
-			PlayerFarmingWidget->AddToViewport(150);
-			// Farming is designed as a native TBH strip instead of a tall modal.
-			PlayerFarmingWidget->SetDesiredSizeInViewport(FVector2D(1600.0f, 300.0f));
-			PlayerFarmingWidget->SetVisibility(ESlateVisibility::Collapsed);
 		}
 
 		PlayerSectWidget = CreateWidget<UImmortalSectWidget>(PlayerController, UImmortalSectWidget::StaticClass());
 		if (PlayerSectWidget)
 		{
 			PlayerSectWidget->InitializeForPlayer(this);
-			PlayerSectWidget->AddToViewport(155);
-			PlayerSectWidget->SetDesiredSizeInViewport(FVector2D(1600.0f, 300.0f));
-			PlayerSectWidget->SetVisibility(ESlateVisibility::Collapsed);
 		}
+
+		PlayerWorldBossWidget = CreateWidget<UImmortalWorldBossWidget>(
+			PlayerController, UImmortalWorldBossWidget::StaticClass());
+		if (PlayerWorldBossWidget)
+		{
+			PlayerWorldBossWidget->InitializeForPlayer(this);
+		}
+
+		PlayerEndlessDungeonWidget =
+			CreateWidget<UImmortalEndlessDungeonWidget>(
+				PlayerController,
+				UImmortalEndlessDungeonWidget::StaticClass());
+		if (PlayerEndlessDungeonWidget)
+		{
+			PlayerEndlessDungeonWidget->InitializeForPlayer(this);
+		}
+
+		PlayerPetWidget = CreateWidget<UImmortalPetWidget>(
+			PlayerController,
+			UImmortalPetWidget::StaticClass());
+		if (PlayerPetWidget)
+		{
+			PlayerPetWidget->InitializeForPlayer(this);
+		}
+
+		PlayerAscensionWidget =
+			CreateWidget<UImmortalAscensionWidget>(
+				PlayerController,
+				UImmortalAscensionWidget::StaticClass());
+		if (PlayerAscensionWidget)
+		{
+			PlayerAscensionWidget->InitializeForPlayer(this);
+			PlayerAscensionWidget->AddToViewport(200);
+			PlayerAscensionWidget->SetDesiredSizeInViewport(
+				FVector2D(1600.0f, 300.0f));
+			PlayerAscensionWidget->SetVisibility(
+				ESlateVisibility::Collapsed);
+		}
+
+		PlayerSettingsWidget =
+			CreateWidget<UImmortalSettingsWidget>(
+				PlayerController,
+				UImmortalSettingsWidget::StaticClass());
+		if (PlayerSettingsWidget)
+		{
+			PlayerSettingsWidget->InitializeForPlayer(this);
+		}
+
+		RegisterManagementPages();
 
 		CombatFeedbackWidget = CreateWidget<UImmortalCombatFeedbackWidget>(PlayerController, UImmortalCombatFeedbackWidget::StaticClass());
 		if (CombatFeedbackWidget)
 		{
 			CombatFeedbackWidget->InitializeForPlayer(this);
 			CombatFeedbackWidget->AddToViewport(50);
+			CombatFeedbackWidget->SetVisibility(
+				ESlateVisibility::Collapsed);
 			CombatFeedbackWidget->SetStageProgress(
 				DisplayedMapName,
 				DisplayedMapMaximumStage,
@@ -434,6 +705,2236 @@ void AImmortalPlayerCharacter::BeginPlay()
 			}
 		}
 	}
+
+#if !UE_BUILD_SHIPPING
+	if (FParse::Param(
+		FCommandLine::Get(),
+		TEXT("ImmortalTestScreenshotSettings")))
+	{
+		FTimerHandle SettingsFixtureTimer;
+		GetWorldTimerManager().SetTimer(
+			SettingsFixtureTimer,
+			FTimerDelegate::CreateWeakLambda(
+				this,
+				[this]
+				{
+					if (!bSettingsOpen)
+					{
+						ToggleSettings();
+					}
+					UE_LOG(
+						LogTemp,
+						Display,
+						TEXT("Desktop settings runtime audit: topmost=%s muted=%s fps=%d height=%d"),
+						IsDesktopAlwaysOnTopEnabled()
+							? TEXT("true")
+							: TEXT("false"),
+						IsDesktopMuted()
+							? TEXT("true")
+							: TEXT("false"),
+						GetDesktopFrameRateLimit(),
+						GetDesktopWindowHeight());
+
+					FTimerHandle ScreenshotTimer;
+					GetWorldTimerManager().SetTimer(
+						ScreenshotTimer,
+						FTimerDelegate::CreateWeakLambda(
+							this,
+							[]
+							{
+								const FString ScreenshotPath =
+									FPaths::Combine(
+										FPaths::ProjectSavedDir(),
+										TEXT("Screenshots/Step34_Settings_TBH.png"));
+								FScreenshotRequest::RequestScreenshot(
+									ScreenshotPath,
+									true,
+									false);
+								UE_LOG(
+									LogTemp,
+									Display,
+									TEXT("Desktop settings verification screenshot requested: %s"),
+									*ScreenshotPath);
+							}),
+						0.75f,
+						false);
+
+					FTimerHandle ExitTimer;
+					GetWorldTimerManager().SetTimer(
+						ExitTimer,
+						FTimerDelegate::CreateWeakLambda(
+							this,
+							[]
+							{
+								UE_LOG(
+									LogTemp,
+									Display,
+									TEXT("Desktop settings verification complete; requesting clean exit"));
+								FPlatformMisc::RequestExit(false);
+							}),
+						2.2f,
+						false);
+				}),
+			1.20f,
+			false);
+	}
+#endif
+
+#if !UE_BUILD_SHIPPING
+	if (FParse::Param(
+		FCommandLine::Get(),
+		TEXT("ImmortalTestPreviewAscensionAnimation")))
+	{
+		FTimerHandle AscensionPreviewTimer;
+		GetWorldTimerManager().SetTimer(
+			AscensionPreviewTimer,
+			FTimerDelegate::CreateWeakLambda(
+				this,
+				[this]
+				{
+					OpenAscensionInterface();
+					if (PlayerAscensionWidget)
+					{
+						PlayerAscensionWidget->PlayAscensionSequence();
+					}
+
+					FTimerHandle ScreenshotTimer;
+					GetWorldTimerManager().SetTimer(
+						ScreenshotTimer,
+						FTimerDelegate::CreateWeakLambda(
+							this,
+							[]
+							{
+								const FString ScreenshotPath =
+									FPaths::Combine(
+										FPaths::ProjectSavedDir(),
+										TEXT("Screenshots/AscensionInterface_TBH.png"));
+								FScreenshotRequest::RequestScreenshot(
+									ScreenshotPath,
+									true,
+									false);
+								UE_LOG(
+									LogTemp,
+									Display,
+									TEXT("Independent ascension interface screenshot requested: %s"),
+									*ScreenshotPath);
+							}),
+						0.65f,
+						false);
+
+					FTimerHandle ExitTimer;
+					GetWorldTimerManager().SetTimer(
+						ExitTimer,
+						FTimerDelegate::CreateWeakLambda(
+							this,
+							[]
+							{
+								UE_LOG(
+									LogTemp,
+									Display,
+									TEXT("Player ascension animation verification complete; requesting clean exit"));
+								FPlatformMisc::RequestExit(false);
+							}),
+						2.2f,
+						false);
+				}),
+			1.2f,
+			false);
+	}
+#endif
+
+#if !UE_BUILD_SHIPPING
+	if (FParse::Param(
+		FCommandLine::Get(),
+		TEXT("ImmortalTestManagementInterface")))
+	{
+		FTimerHandle ManagementFixtureTimer;
+		GetWorldTimerManager().SetTimer(
+			ManagementFixtureTimer,
+			FTimerDelegate::CreateWeakLambda(
+				this,
+				[this]
+				{
+					const int32 StartingKills = DisplayedStageKills;
+					const int32 StartingCultivation = CurrentCultivation;
+					OpenManagementFeature(
+						EImmortalManagementFeature::Cultivation);
+					QueueManagementNotification(
+						FText::FromString(TEXT(
+							"\u9752\u4E91\u5251\uFF08\u5DF2\u81EA\u52A8\u62FE\u53D6\u81F3\u50A8\u7269\u6212\uFF09")),
+						FLinearColor(0.55f, 0.78f, 1.0f, 1.0f),
+						5.0f);
+
+					FTimerHandle CultivationShotTimer;
+					GetWorldTimerManager().SetTimer(
+						CultivationShotTimer,
+						FTimerDelegate::CreateWeakLambda(
+							this,
+							[]
+							{
+								const FString ScreenshotPath =
+									FPaths::Combine(
+										FPaths::ProjectSavedDir(),
+										TEXT("Screenshots/Management_Cultivation_TBH.png"));
+								FScreenshotRequest::RequestScreenshot(
+									ScreenshotPath, true, false);
+							}),
+						0.55f,
+						false);
+
+					FTimerHandle SwitchPageTimer;
+					GetWorldTimerManager().SetTimer(
+						SwitchPageTimer,
+						FTimerDelegate::CreateWeakLambda(
+							this,
+							[this, StartingKills, StartingCultivation]
+							{
+								OpenManagementFeature(
+									EImmortalManagementFeature::Sect);
+								UE_LOG(
+									LogTemp,
+									Display,
+									TEXT("Management background combat audit: worldPaused=%s autoAttackActive=%s kills=%d->%d cultivation=%d->%d"),
+									UGameplayStatics::IsGamePaused(this)
+										? TEXT("true") : TEXT("false"),
+									GetWorldTimerManager().IsTimerActive(
+										AutoAttackTimerHandle)
+										? TEXT("true") : TEXT("false"),
+									StartingKills,
+									DisplayedStageKills,
+									StartingCultivation,
+									CurrentCultivation);
+
+								FTimerHandle SectShotTimer;
+								GetWorldTimerManager().SetTimer(
+									SectShotTimer,
+									FTimerDelegate::CreateWeakLambda(
+										this,
+										[]
+										{
+											const FString ScreenshotPath =
+												FPaths::Combine(
+													FPaths::ProjectSavedDir(),
+													TEXT("Screenshots/Management_Sect_TBH.png"));
+											FScreenshotRequest::RequestScreenshot(
+												ScreenshotPath, true, false);
+										}),
+									0.55f,
+									false);
+							}),
+						2.0f,
+						false);
+
+					FTimerHandle QuestPageTimer;
+					GetWorldTimerManager().SetTimer(
+						QuestPageTimer,
+						FTimerDelegate::CreateWeakLambda(
+							this,
+							[this]
+							{
+								OpenManagementFeature(
+									EImmortalManagementFeature::Quest);
+								UE_LOG(
+									LogTemp,
+									Display,
+									TEXT("Unified quest page audit: worldPaused=%s autoAttackActive=%s topLevelManagementOpen=%s"),
+									UGameplayStatics::IsGamePaused(this)
+										? TEXT("true") : TEXT("false"),
+									GetWorldTimerManager().IsTimerActive(
+										AutoAttackTimerHandle)
+										? TEXT("true") : TEXT("false"),
+									bManagementInterfaceOpen
+										? TEXT("true") : TEXT("false"));
+
+								FTimerHandle QuestShotTimer;
+								GetWorldTimerManager().SetTimer(
+									QuestShotTimer,
+									FTimerDelegate::CreateWeakLambda(
+										this,
+										[]
+										{
+											const FString ScreenshotPath =
+												FPaths::Combine(
+													FPaths::ProjectSavedDir(),
+													TEXT("Screenshots/Management_Quest_TBH.png"));
+											FScreenshotRequest::RequestScreenshot(
+												ScreenshotPath, true, false);
+										}),
+									0.55f,
+									false);
+							}),
+						3.5f,
+						false);
+
+					FTimerHandle CombatReturnTimer;
+					GetWorldTimerManager().SetTimer(
+						CombatReturnTimer,
+						FTimerDelegate::CreateWeakLambda(
+							this,
+							[this]
+							{
+								CloseManagementInterface();
+								const FString ScreenshotPath =
+									FPaths::Combine(
+										FPaths::ProjectSavedDir(),
+										TEXT("Screenshots/Combat_HealthOnly_TBH.png"));
+								FScreenshotRequest::RequestScreenshot(
+									ScreenshotPath, true, false);
+							}),
+						5.0f,
+						false);
+
+					FTimerHandle ExitTimer;
+					GetWorldTimerManager().SetTimer(
+						ExitTimer,
+						FTimerDelegate::CreateWeakLambda(
+							this,
+							[] { FPlatformMisc::RequestExit(false); }),
+						6.5f,
+						false);
+				}),
+			1.2f,
+			false);
+	}
+#endif
+
+#if !UE_BUILD_SHIPPING
+	if (FParse::Param(
+		FCommandLine::Get(),
+		TEXT("ImmortalTestManagementScenes")))
+	{
+		FTimerHandle SceneFixtureTimer;
+		GetWorldTimerManager().SetTimer(
+			SceneFixtureTimer,
+			FTimerDelegate::CreateWeakLambda(
+				this,
+				[this]
+				{
+					const int32 StartingKills = DisplayedStageKills;
+					OpenManagementInterface();
+					auto CaptureScene = [this, StartingKills](
+						const EImmortalManagementScene Scene,
+						const TCHAR* Filename,
+						const TCHAR* Label)
+					{
+						if (PlayerManagementWidget)
+						{
+							PlayerManagementWidget->ShowScene(Scene);
+						}
+						UE_LOG(
+							LogTemp,
+							Display,
+							TEXT("Management scene audit: label=%s scene=%d feature=%d worldPaused=%s autoAttack=%s kills=%d->%d"),
+							Label,
+							PlayerManagementWidget
+								? static_cast<int32>(PlayerManagementWidget->GetActiveScene())
+								: -1,
+							PlayerManagementWidget
+								? static_cast<int32>(PlayerManagementWidget->GetActiveFeature())
+								: -1,
+							UGameplayStatics::IsGamePaused(this)
+								? TEXT("true") : TEXT("false"),
+							GetWorldTimerManager().IsTimerActive(AutoAttackTimerHandle)
+								? TEXT("true") : TEXT("false"),
+							StartingKills,
+							DisplayedStageKills);
+						const FString DeferredFilename(Filename);
+						FTimerHandle ScreenshotTimer;
+						GetWorldTimerManager().SetTimer(
+							ScreenshotTimer,
+							FTimerDelegate::CreateWeakLambda(
+								this,
+								[this, DeferredFilename]
+								{
+									FScreenshotRequest::RequestScreenshot(
+										FPaths::Combine(
+											FPaths::ProjectSavedDir(),
+											FString::Printf(
+												TEXT("Screenshots/%s"),
+												*DeferredFilename)),
+										true,
+										false);
+								}),
+							0.30f,
+							false);
+					};
+
+					CaptureScene(
+						EImmortalManagementScene::SectSanctuary,
+						TEXT("ManagementScene_SectSanctuary_TBH.png"),
+						TEXT("SectSanctuary"));
+
+					FTimerHandle MarketTimer;
+					GetWorldTimerManager().SetTimer(
+						MarketTimer,
+						FTimerDelegate::CreateWeakLambda(
+							this,
+							[this, CaptureScene]
+							{
+								CaptureScene(
+									EImmortalManagementScene::MarketTown,
+									TEXT("ManagementScene_MarketTown_TBH.png"),
+									TEXT("MarketTown"));
+							}),
+						1.0f,
+						false);
+
+					FTimerHandle CaveTimer;
+					GetWorldTimerManager().SetTimer(
+						CaveTimer,
+						FTimerDelegate::CreateWeakLambda(
+							this,
+							[this, CaptureScene]
+							{
+								CaptureScene(
+									EImmortalManagementScene::CaveEstate,
+									TEXT("ManagementScene_CaveEstate_TBH.png"),
+									TEXT("CaveEstate"));
+							}),
+						2.0f,
+						false);
+
+					FTimerHandle AdventureTimer;
+					GetWorldTimerManager().SetTimer(
+						AdventureTimer,
+						FTimerDelegate::CreateWeakLambda(
+							this,
+							[this, CaptureScene]
+							{
+								CaptureScene(
+									EImmortalManagementScene::AdventureHall,
+									TEXT("ManagementScene_AdventureHall_TBH.png"),
+									TEXT("AdventureHall"));
+							}),
+						3.0f,
+						false);
+
+					FTimerHandle FeatureTimer;
+					GetWorldTimerManager().SetTimer(
+						FeatureTimer,
+						FTimerDelegate::CreateWeakLambda(
+							this,
+							[this]
+							{
+								OpenManagementFeature(
+									EImmortalManagementFeature::Cultivation);
+								UE_LOG(
+									LogTemp,
+									Display,
+									TEXT("Management scene feature mapping audit: feature=%d scene=%d"),
+									PlayerManagementWidget
+										? static_cast<int32>(PlayerManagementWidget->GetActiveFeature()) : -1,
+									PlayerManagementWidget
+										? static_cast<int32>(PlayerManagementWidget->GetActiveScene()) : -1);
+							}),
+						4.0f,
+						false);
+
+					FTimerHandle ReturnSceneTimer;
+					GetWorldTimerManager().SetTimer(
+						ReturnSceneTimer,
+						FTimerDelegate::CreateWeakLambda(
+							this,
+							[this]
+							{
+								OpenManagementFeature(EImmortalManagementFeature::Home);
+								UE_LOG(
+									LogTemp,
+									Display,
+									TEXT("Management scene return audit: feature=%d scene=%d"),
+									PlayerManagementWidget
+										? static_cast<int32>(PlayerManagementWidget->GetActiveFeature()) : -1,
+									PlayerManagementWidget
+										? static_cast<int32>(PlayerManagementWidget->GetActiveScene()) : -1);
+							}),
+						4.8f,
+						false);
+
+					FTimerHandle CloseTimer;
+					GetWorldTimerManager().SetTimer(
+						CloseTimer,
+						FTimerDelegate::CreateWeakLambda(
+							this,
+							[this] { CloseManagementInterface(); }),
+						5.6f,
+						false);
+
+					FTimerHandle ExitTimer;
+					GetWorldTimerManager().SetTimer(
+						ExitTimer,
+						FTimerDelegate::CreateWeakLambda(
+							this,
+							[] { FPlatformMisc::RequestExit(false); }),
+						6.5f,
+						false);
+				}),
+			1.2f,
+			false);
+	}
+#endif
+
+	SpawnActivePetActor();
+
+	// Retry durable rewards after the combat HUD exists so a successful
+	// recovery on startup still shows the required five-second summary.
+	if (!WorldBossState.PendingRewards.IsEmpty())
+	{
+		RetryPendingWorldBossRewards();
+	}
+	if (!EndlessDungeonState.PendingRewards.IsEmpty())
+	{
+		RetryPendingEndlessDungeonRewards();
+	}
+
+#if !UE_BUILD_SHIPPING
+	FString TestWorldBossId;
+	const bool bHasTestWorldBoss = FParse::Value(
+		FCommandLine::Get(), TEXT("ImmortalTestWorldBoss="), TestWorldBossId);
+	const bool bTestOpenWorldBoss =
+		FParse::Param(FCommandLine::Get(), TEXT("ImmortalTestOpenWorldBoss"));
+	const bool bTestWorldBossPhaseThree =
+		FParse::Param(FCommandLine::Get(), TEXT("ImmortalTestWorldBossPhaseThree"));
+	const bool bTestDefeatWorldBoss =
+		FParse::Param(FCommandLine::Get(), TEXT("ImmortalTestDefeatWorldBoss"));
+	const bool bTestCancelWorldBoss =
+		FParse::Param(FCommandLine::Get(), TEXT("ImmortalTestCancelWorldBoss"));
+	const bool bTestTimeoutWorldBoss =
+		FParse::Param(FCommandLine::Get(), TEXT("ImmortalTestTimeoutWorldBoss"));
+	const bool bTestWorldBossPlayerDeath =
+		FParse::Param(FCommandLine::Get(), TEXT("ImmortalTestWorldBossPlayerDeath"));
+	const bool bTestScreenshotWorldBossUi =
+		FParse::Param(FCommandLine::Get(), TEXT("ImmortalTestScreenshotWorldBossUI"));
+	const bool bTestScreenshotWorldBossBattle =
+		FParse::Param(FCommandLine::Get(), TEXT("ImmortalTestScreenshotWorldBossBattle"));
+	const bool bTestScreenshotWorldBossReward =
+		FParse::Param(FCommandLine::Get(), TEXT("ImmortalTestScreenshotWorldBossReward"));
+	const bool bTestLogWorldBoss =
+		FParse::Param(FCommandLine::Get(), TEXT("ImmortalTestLogWorldBoss"));
+	if (bHasTestWorldBoss || bTestOpenWorldBoss || bTestWorldBossPhaseThree
+		|| bTestDefeatWorldBoss || bTestCancelWorldBoss || bTestTimeoutWorldBoss
+		|| bTestWorldBossPlayerDeath
+		|| bTestScreenshotWorldBossUi
+		|| bTestScreenshotWorldBossBattle || bTestScreenshotWorldBossReward
+		|| bTestLogWorldBoss)
+	{
+		if (!bHasTestWorldBoss)
+		{
+			TestWorldBossId = TEXT("AzureScaleDragon");
+		}
+		FTimerHandle WorldBossFixtureTimer;
+		GetWorldTimerManager().SetTimer(
+			WorldBossFixtureTimer,
+			FTimerDelegate::CreateWeakLambda(
+				this,
+				[this,
+					TestWorldBossId,
+					bHasTestWorldBoss,
+					bTestOpenWorldBoss,
+					bTestWorldBossPhaseThree,
+					bTestDefeatWorldBoss,
+					bTestCancelWorldBoss,
+					bTestTimeoutWorldBoss,
+					bTestWorldBossPlayerDeath,
+					bTestScreenshotWorldBossUi,
+					bTestScreenshotWorldBossBattle,
+					bTestScreenshotWorldBossReward,
+					bTestLogWorldBoss]
+				{
+					AImmortalMonsterSpawner* FixtureSpawner = FindMapSpawner();
+					const FName BaselineMapId = FixtureSpawner
+						? FixtureSpawner->GetActiveMapId() : NAME_None;
+					const int32 BaselineStage = FixtureSpawner
+						? FixtureSpawner->GetCurrentStage() : 0;
+					const int32 BaselineStageKills = FixtureSpawner
+						? FixtureSpawner->GetCurrentStageKills() : 0;
+					const int32 BaselineCultivation = CurrentCultivation;
+					const int32 BaselineGold = CurrentGold;
+					const int32 BaselineSectRevision = SectState.Revision;
+					UE_LOG(LogTemp, Display,
+						TEXT("World Boss fixture baseline: map=%s stage=%d kills=%d cultivation=%d stones=%d sectRevision=%d"),
+						*BaselineMapId.ToString(), BaselineStage, BaselineStageKills,
+						BaselineCultivation, BaselineGold, BaselineSectRevision);
+					const bool bNeedsBattle = bHasTestWorldBoss
+						|| bTestWorldBossPhaseThree
+						|| bTestDefeatWorldBoss
+						|| bTestCancelWorldBoss
+						|| bTestTimeoutWorldBoss
+						|| bTestWorldBossPlayerDeath
+						|| bTestScreenshotWorldBossBattle;
+					if ((bTestOpenWorldBoss || bTestScreenshotWorldBossUi)
+						&& PlayerWorldBossWidget && !bWorldBossOpen)
+					{
+						ToggleWorldBoss();
+					}
+					if (bNeedsBattle)
+					{
+						if (bWorldBossOpen)
+						{
+							ToggleWorldBoss();
+						}
+						const FImmortalWorldBossChallengeResult StartResult =
+							StartWorldBossChallenge(FName(TestWorldBossId));
+						UE_LOG(LogTemp, Display,
+							TEXT("World Boss development start: id=%s success=%s message=%s"),
+							*TestWorldBossId,
+							StartResult.bSucceeded ? TEXT("true") : TEXT("false"),
+							*StartResult.Message.ToString());
+					}
+					if (bTestWorldBossPhaseThree || bTestScreenshotWorldBossBattle)
+					{
+						FTimerHandle PhaseTimer;
+						GetWorldTimerManager().SetTimer(
+							PhaseTimer,
+							FTimerDelegate::CreateWeakLambda(this, [this]
+							{
+								if (AImmortalMonsterSpawner* Spawner = FindMapSpawner())
+								{
+									Spawner->DamageActiveWorldBossForDevelopment(0.72f);
+								}
+							}),
+							1.0f,
+							false);
+					}
+					if (bTestDefeatWorldBoss)
+					{
+						FTimerHandle DefeatTimer;
+						GetWorldTimerManager().SetTimer(
+							DefeatTimer,
+							FTimerDelegate::CreateWeakLambda(this, [this]
+							{
+								if (AImmortalMonsterSpawner* Spawner = FindMapSpawner())
+								{
+									Spawner->DefeatActiveWorldBossForDevelopment();
+								}
+							}),
+							2.4f,
+							false);
+					}
+					if (bTestCancelWorldBoss || bTestTimeoutWorldBoss
+						|| bTestWorldBossPlayerDeath)
+					{
+						FTimerHandle EndEncounterTimer;
+						GetWorldTimerManager().SetTimer(
+							EndEncounterTimer,
+							FTimerDelegate::CreateWeakLambda(
+								this,
+								[this,
+									bTestTimeoutWorldBoss,
+									bTestWorldBossPlayerDeath]
+								{
+									if (AImmortalMonsterSpawner* Spawner = FindMapSpawner())
+									{
+										if (bTestWorldBossPlayerDeath)
+										{
+											UGameplayStatics::ApplyDamage(
+												this,
+												GetMaxHealth() + 1000000.0f,
+												nullptr,
+												Spawner,
+												UDamageType::StaticClass());
+										}
+										else if (bTestTimeoutWorldBoss)
+										{
+											Spawner->TimeoutActiveWorldBossForDevelopment();
+										}
+										else
+										{
+											Spawner->CancelWorldBossChallenge();
+										}
+									}
+								}),
+							1.35f,
+							false);
+					}
+					if (bTestScreenshotWorldBossUi || bTestScreenshotWorldBossBattle)
+					{
+						FTimerHandle ScreenshotTimer;
+						GetWorldTimerManager().SetTimer(
+							ScreenshotTimer,
+							FTimerDelegate::CreateWeakLambda(
+								this,
+								[bTestScreenshotWorldBossBattle]
+								{
+									const FString FileName = bTestScreenshotWorldBossBattle
+										? TEXT("Screenshots/Step30_WorldBoss_Battle_Phase3.png")
+										: TEXT("Screenshots/Step30_WorldBoss_UI.png");
+									const FString ScreenshotPath = FPaths::Combine(
+										FPaths::ProjectSavedDir(), FileName);
+									FScreenshotRequest::RequestScreenshot(
+										ScreenshotPath, true, false);
+									UE_LOG(LogTemp, Display,
+										TEXT("World Boss verification screenshot requested: %s"),
+										*ScreenshotPath);
+								}),
+							bTestScreenshotWorldBossBattle ? 2.1f : 1.0f,
+							false);
+					}
+					if (bTestScreenshotWorldBossReward)
+					{
+						FTimerHandle RewardScreenshotTimer;
+						GetWorldTimerManager().SetTimer(
+							RewardScreenshotTimer,
+							FTimerDelegate::CreateWeakLambda(this, []
+							{
+								const FString ScreenshotPath = FPaths::Combine(
+									FPaths::ProjectSavedDir(),
+									TEXT("Screenshots/Step30_WorldBoss_Reward.png"));
+								FScreenshotRequest::RequestScreenshot(
+									ScreenshotPath, true, false);
+								UE_LOG(LogTemp, Display,
+									TEXT("World Boss reward screenshot requested: %s"),
+									*ScreenshotPath);
+							}),
+							bTestDefeatWorldBoss ? 3.1f : 1.0f,
+							false);
+					}
+					if (bTestDefeatWorldBoss || bTestCancelWorldBoss
+						|| bTestTimeoutWorldBoss || bTestWorldBossPlayerDeath)
+					{
+						FTimerHandle AuditTimer;
+						GetWorldTimerManager().SetTimer(
+							AuditTimer,
+							FTimerDelegate::CreateWeakLambda(
+								this,
+								[this,
+									BaselineMapId,
+									BaselineStage,
+									BaselineStageKills,
+									BaselineCultivation,
+									BaselineGold,
+									BaselineSectRevision]
+								{
+									const AImmortalMonsterSpawner* Spawner =
+										FindMapSpawner();
+									const bool bMapUnchanged = Spawner
+										&& Spawner->GetActiveMapId() == BaselineMapId
+										&& Spawner->GetCurrentStage() == BaselineStage
+										&& Spawner->GetCurrentStageKills() == BaselineStageKills;
+									UE_LOG(LogTemp, Display,
+										TEXT("World Boss fixture invariant audit: mapUnchanged=%s cultivationDelta=%d(independent-training) sectUnchanged=%s active=%s stonesDelta=%d pending=%d"),
+										bMapUnchanged ? TEXT("true") : TEXT("false"),
+										CurrentCultivation - BaselineCultivation,
+										SectState.Revision == BaselineSectRevision
+											? TEXT("true") : TEXT("false"),
+										Spawner && Spawner->IsWorldBossChallengeActive()
+											? TEXT("true") : TEXT("false"),
+										CurrentGold - BaselineGold,
+										WorldBossState.PendingRewards.Num());
+								}),
+							bTestDefeatWorldBoss ? 2.55f : 1.50f,
+							false);
+
+						FTimerHandle ResumeAuditTimer;
+						GetWorldTimerManager().SetTimer(
+							ResumeAuditTimer,
+							FTimerDelegate::CreateWeakLambda(this, [this]
+							{
+								const AImmortalMonsterSpawner* Spawner =
+									FindMapSpawner();
+								UE_LOG(LogTemp, Display,
+									TEXT("World Boss fixture resume audit: active=%s normalMonsters=%d"),
+									Spawner && Spawner->IsWorldBossChallengeActive()
+										? TEXT("true") : TEXT("false"),
+									Spawner ? Spawner->GetAliveMonsterCount() : -1);
+							}),
+							bTestDefeatWorldBoss ? 4.0f : 2.40f,
+							false);
+					}
+					if (bTestLogWorldBoss)
+					{
+						const FImmortalWorldBossRuntimeSnapshot Runtime =
+							GetWorldBossRuntimeSnapshot();
+						UE_LOG(LogTemp, Display,
+							TEXT("World Boss development state: initialized=%s bosses=%d pending=%d revision=%d active=%s id=%s phase=%d hp=%.0f/%.0f remaining=%.1f"),
+							WorldBossState.bInitialized ? TEXT("true") : TEXT("false"),
+							WorldBossState.BossProgress.Num(),
+							WorldBossState.PendingRewards.Num(),
+							WorldBossState.Revision,
+							Runtime.bActive ? TEXT("true") : TEXT("false"),
+							*Runtime.BossId.ToString(),
+							Runtime.Phase,
+							Runtime.CurrentHealth,
+							Runtime.MaximumHealth,
+							Runtime.RemainingSeconds);
+						for (const FImmortalWorldBossProgress& Progress :
+							WorldBossState.BossProgress)
+						{
+							UE_LOG(LogTemp, Display,
+								TEXT("World Boss persistence: id=%s defeats=%d best=%.2f last=%lld firstArtifact=%s"),
+								*Progress.BossId.ToString(),
+								Progress.DefeatCount,
+								Progress.BestClearSeconds,
+								Progress.LastDefeatedUtcTicks,
+								Progress.bFirstClearArtifactClaimed
+									? TEXT("true") : TEXT("false"));
+						}
+					}
+					if (FParse::Param(
+						FCommandLine::Get(), TEXT("ImmortalTestExitAfterWorldBoss")))
+					{
+						FTimerHandle ExitTimer;
+						GetWorldTimerManager().SetTimer(
+							ExitTimer,
+							FTimerDelegate::CreateWeakLambda(this, []
+							{
+								UE_LOG(LogTemp, Display,
+									TEXT("World Boss runtime verification complete; requesting clean exit"));
+								FPlatformMisc::RequestExit(false);
+							}),
+							5.0f,
+							false);
+					}
+				}),
+			0.80f,
+			false);
+	}
+#endif
+
+#if !UE_BUILD_SHIPPING
+	int32 TestEndlessFloor = 0;
+	const bool bHasTestEndlessFloor = FParse::Value(
+		FCommandLine::Get(),
+		TEXT("ImmortalTestEndlessFloor="),
+		TestEndlessFloor);
+	const bool bTestPrepareEndless =
+		FParse::Param(FCommandLine::Get(), TEXT("ImmortalTestPrepareEndless"));
+	const bool bTestStartEndless =
+		FParse::Param(FCommandLine::Get(), TEXT("ImmortalTestStartEndless"));
+	const bool bTestOpenEndless =
+		FParse::Param(FCommandLine::Get(), TEXT("ImmortalTestOpenEndless"));
+	const bool bTestEndlessPhaseThree =
+		FParse::Param(FCommandLine::Get(), TEXT("ImmortalTestEndlessPhaseThree"));
+	const bool bTestClearEndlessFloor =
+		FParse::Param(FCommandLine::Get(), TEXT("ImmortalTestClearEndlessFloor"));
+	const bool bTestFailEndless =
+		FParse::Param(FCommandLine::Get(), TEXT("ImmortalTestFailEndless"));
+	const bool bTestEndlessPlayerDeath =
+		FParse::Param(FCommandLine::Get(), TEXT("ImmortalTestEndlessPlayerDeath"));
+	const bool bTestScreenshotEndlessUi =
+		FParse::Param(FCommandLine::Get(), TEXT("ImmortalTestScreenshotEndlessUI"));
+	const bool bTestScreenshotEndlessBattle =
+		FParse::Param(FCommandLine::Get(), TEXT("ImmortalTestScreenshotEndlessBattle"));
+	const bool bTestScreenshotEndlessReward =
+		FParse::Param(FCommandLine::Get(), TEXT("ImmortalTestScreenshotEndlessReward"));
+	const bool bTestLogEndless =
+		FParse::Param(FCommandLine::Get(), TEXT("ImmortalTestLogEndless"));
+	const bool bHasEndlessFixture =
+		bHasTestEndlessFloor || bTestPrepareEndless || bTestStartEndless
+		|| bTestOpenEndless || bTestEndlessPhaseThree
+		|| bTestClearEndlessFloor || bTestFailEndless
+		|| bTestEndlessPlayerDeath || bTestScreenshotEndlessUi
+		|| bTestScreenshotEndlessBattle || bTestScreenshotEndlessReward
+		|| bTestLogEndless;
+	if (bHasEndlessFixture)
+	{
+		if (TestEndlessFloor < 1)
+		{
+			TestEndlessFloor =
+				bTestEndlessPhaseThree || bTestScreenshotEndlessBattle
+					|| bTestScreenshotEndlessReward
+				? 10
+				: 1;
+		}
+		const bool bNeedsEndlessBattle =
+			bHasTestEndlessFloor || bTestStartEndless
+			|| bTestEndlessPhaseThree || bTestClearEndlessFloor
+			|| bTestFailEndless || bTestEndlessPlayerDeath
+			|| bTestScreenshotEndlessBattle
+			|| bTestScreenshotEndlessReward;
+		const bool bShouldClearEndlessFloor =
+			bTestClearEndlessFloor || bTestScreenshotEndlessReward;
+		FTimerHandle EndlessFixtureTimer;
+		GetWorldTimerManager().SetTimer(
+			EndlessFixtureTimer,
+			FTimerDelegate::CreateWeakLambda(
+				this,
+				[this,
+					TestEndlessFloor,
+					bTestPrepareEndless,
+					bTestOpenEndless,
+					bTestEndlessPhaseThree,
+					bTestFailEndless,
+					bTestEndlessPlayerDeath,
+					bTestScreenshotEndlessUi,
+					bTestScreenshotEndlessBattle,
+					bTestScreenshotEndlessReward,
+					bTestLogEndless,
+					bNeedsEndlessBattle,
+					bShouldClearEndlessFloor]
+				{
+					AImmortalMonsterSpawner* FixtureSpawner = FindMapSpawner();
+					const FName BaselineMapId = FixtureSpawner
+						? FixtureSpawner->GetActiveMapId() : NAME_None;
+					const int32 BaselineStage = FixtureSpawner
+						? FixtureSpawner->GetCurrentStage() : 0;
+					const int32 BaselineStageKills = FixtureSpawner
+						? FixtureSpawner->GetCurrentStageKills() : 0;
+					const int32 BaselineMapRevision = FixtureSpawner
+						? FixtureSpawner->GetMapRevision() : 0;
+					const int32 BaselineCultivation = CurrentCultivation;
+					const int32 BaselineGold = CurrentGold;
+					const int32 BaselineSectRevision = SectState.Revision;
+					const int32 BaselineInventoryItems = InventoryItems.Num();
+					const int32 BaselineEquipmentDrops = EquipmentDropCount;
+					UE_LOG(
+						LogTemp,
+						Display,
+						TEXT("Endless Dungeon fixture baseline: map=%s stage=%d kills=%d mapRevision=%d cultivation=%d stones=%d sectRevision=%d inventory=%d equipmentDrops=%d"),
+						*BaselineMapId.ToString(),
+						BaselineStage,
+						BaselineStageKills,
+						BaselineMapRevision,
+						BaselineCultivation,
+						BaselineGold,
+						BaselineSectRevision,
+						BaselineInventoryItems,
+						BaselineEquipmentDrops);
+
+					if (bTestPrepareEndless)
+					{
+						EndlessDungeonState =
+							UImmortalEndlessDungeonLibrary::CreateDefaultState();
+						EndlessDungeonState.HighestClearedFloor =
+							FMath::Max(TestEndlessFloor - 1, 0);
+						EndlessDungeonState.TotalFloorsCleared =
+							EndlessDungeonState.HighestClearedFloor;
+						UImmortalEndlessDungeonLibrary::NormalizeState(
+							EndlessDungeonState);
+						const bool bPreparedSave = SaveProgress();
+						UE_LOG(
+							LogTemp,
+							Display,
+							TEXT("Endless Dungeon fixture prepared: targetFloor=%d highest=%d checkpoint=%d saved=%s"),
+							TestEndlessFloor,
+							EndlessDungeonState.HighestClearedFloor,
+							UImmortalEndlessDungeonLibrary::GetCheckpointStartFloor(
+								EndlessDungeonState),
+							bPreparedSave ? TEXT("true") : TEXT("false"));
+					}
+
+					if ((bTestOpenEndless || bTestScreenshotEndlessUi)
+						&& PlayerEndlessDungeonWidget && !bEndlessDungeonOpen)
+					{
+						ToggleEndlessDungeon();
+					}
+
+					bool bStarted = false;
+					if (bNeedsEndlessBattle)
+					{
+						if (bEndlessDungeonOpen)
+						{
+							ToggleEndlessDungeon();
+						}
+						const FImmortalEndlessDungeonStartResult StartResult =
+							StartEndlessDungeon(TestEndlessFloor);
+						bStarted = StartResult.bSucceeded;
+						UE_LOG(
+							LogTemp,
+							Display,
+							TEXT("Endless Dungeon development start: floor=%d success=%s message=%s"),
+							TestEndlessFloor,
+							StartResult.bSucceeded ? TEXT("true") : TEXT("false"),
+							*StartResult.Message.ToString());
+						if (FixtureSpawner && bStarted)
+						{
+							const FImmortalMapTravelResult TravelProbe =
+								FixtureSpawner->TravelToMap(BaselineMapId);
+							const FImmortalWorldBossChallengeResult BossProbe =
+								FixtureSpawner->StartWorldBossChallenge(
+									TEXT("AzureScaleDragon"));
+							UE_LOG(
+								LogTemp,
+								Display,
+								TEXT("Endless Dungeon mutual exclusion audit: mapTravelBlocked=%s worldBossBlocked=%s mapMessage=%s bossMessage=%s"),
+								TravelProbe.bSucceeded
+									? TEXT("false") : TEXT("true"),
+								BossProbe.bSucceeded
+									? TEXT("false") : TEXT("true"),
+								*TravelProbe.Message.ToString(),
+								*BossProbe.Message.ToString());
+						}
+					}
+
+					if (bStarted
+						&& (bTestEndlessPhaseThree
+							|| bTestScreenshotEndlessBattle))
+					{
+						FTimerHandle PhaseTimer;
+						GetWorldTimerManager().SetTimer(
+							PhaseTimer,
+							FTimerDelegate::CreateWeakLambda(this, [this]
+							{
+								if (AImmortalMonsterSpawner* Spawner =
+									FindMapSpawner())
+								{
+									const bool bDamaged =
+										Spawner
+											->DamageActiveEndlessBossForDevelopment(
+												0.72f);
+									UE_LOG(
+										LogTemp,
+										Display,
+										TEXT("Endless Dungeon phase-three fixture damage applied=%s"),
+										bDamaged ? TEXT("true") : TEXT("false"));
+								}
+							}),
+							1.0f,
+							false);
+					}
+
+					if (bStarted && bShouldClearEndlessFloor)
+					{
+						FTimerHandle ClearTimer;
+						GetWorldTimerManager().SetTimer(
+							ClearTimer,
+							FTimerDelegate::CreateWeakLambda(this, [this]
+							{
+								if (AImmortalMonsterSpawner* Spawner =
+									FindMapSpawner())
+								{
+									const bool bCleared =
+										Spawner
+											->ClearActiveEndlessFloorForDevelopment();
+									UE_LOG(
+										LogTemp,
+										Display,
+										TEXT("Endless Dungeon development clear issued: success=%s"),
+										bCleared ? TEXT("true") : TEXT("false"));
+								}
+							}),
+							2.35f,
+							false);
+					}
+
+					if (bStarted
+						&& (bTestFailEndless || bTestEndlessPlayerDeath))
+					{
+						FTimerHandle FailureTimer;
+						GetWorldTimerManager().SetTimer(
+							FailureTimer,
+							FTimerDelegate::CreateWeakLambda(
+								this,
+								[this, bTestEndlessPlayerDeath]
+								{
+									if (AImmortalMonsterSpawner* Spawner =
+										FindMapSpawner())
+									{
+										if (bTestEndlessPlayerDeath)
+										{
+											UGameplayStatics::ApplyDamage(
+												this,
+												GetMaxHealth() + 1000000.0f,
+												nullptr,
+												Spawner,
+												UDamageType::StaticClass());
+										}
+										else
+										{
+											Spawner
+												->FailActiveEndlessDungeonForDevelopment();
+										}
+									}
+								}),
+							1.35f,
+							false);
+					}
+
+					if (bTestScreenshotEndlessUi
+						|| bTestScreenshotEndlessBattle)
+					{
+						FTimerHandle ScreenshotTimer;
+						GetWorldTimerManager().SetTimer(
+							ScreenshotTimer,
+							FTimerDelegate::CreateWeakLambda(
+								this,
+								[bTestScreenshotEndlessBattle]
+								{
+									const FString FileName =
+										bTestScreenshotEndlessBattle
+										? TEXT("Screenshots/Step31_EndlessDungeon_Battle_BossPhase3.png")
+										: TEXT("Screenshots/Step31_EndlessDungeon_UI.png");
+									const FString ScreenshotPath =
+										FPaths::Combine(
+											FPaths::ProjectSavedDir(),
+											FileName);
+									FScreenshotRequest::RequestScreenshot(
+										ScreenshotPath,
+										true,
+										false);
+									UE_LOG(
+										LogTemp,
+										Display,
+										TEXT("Endless Dungeon verification screenshot requested: %s"),
+										*ScreenshotPath);
+								}),
+							bTestScreenshotEndlessBattle ? 1.85f : 1.0f,
+							false);
+					}
+
+					if (bTestScreenshotEndlessReward)
+					{
+						FTimerHandle RewardScreenshotTimer;
+						GetWorldTimerManager().SetTimer(
+							RewardScreenshotTimer,
+							FTimerDelegate::CreateWeakLambda(this, []
+							{
+								const FString ScreenshotPath =
+									FPaths::Combine(
+										FPaths::ProjectSavedDir(),
+										TEXT("Screenshots/Step31_EndlessDungeon_Reward.png"));
+								FScreenshotRequest::RequestScreenshot(
+									ScreenshotPath,
+									true,
+									false);
+								UE_LOG(
+									LogTemp,
+									Display,
+									TEXT("Endless Dungeon reward screenshot requested: %s"),
+									*ScreenshotPath);
+							}),
+							2.85f,
+							false);
+					}
+
+					if (bStarted && !bTestFailEndless
+						&& !bTestEndlessPlayerDeath)
+					{
+						FTimerHandle CleanupTimer;
+						GetWorldTimerManager().SetTimer(
+							CleanupTimer,
+							FTimerDelegate::CreateWeakLambda(this, [this]
+							{
+								if (AImmortalMonsterSpawner* Spawner =
+									FindMapSpawner();
+									Spawner
+										&& Spawner->IsEndlessDungeonActive())
+								{
+									Spawner->CancelEndlessDungeon();
+								}
+							}),
+							bTestScreenshotEndlessReward ? 3.65f : 2.65f,
+							false);
+					}
+
+					if (bNeedsEndlessBattle || bTestLogEndless)
+					{
+						FTimerHandle RuntimeAuditTimer;
+						GetWorldTimerManager().SetTimer(
+							RuntimeAuditTimer,
+							FTimerDelegate::CreateWeakLambda(this, [this]
+							{
+								const FImmortalEndlessDungeonRuntimeSnapshot Runtime =
+									GetEndlessDungeonRuntimeSnapshot();
+								UE_LOG(
+									LogTemp,
+									Display,
+									TEXT("Endless Dungeon runtime audit: active=%s floor=%d kind=%s kills=%d/%d phase=%d hp=%.0f/%.0f elapsed=%.2f"),
+									Runtime.bActive ? TEXT("true") : TEXT("false"),
+									Runtime.Floor,
+									Runtime.bBoss
+										? TEXT("boss")
+										: (Runtime.bElite
+											? TEXT("elite") : TEXT("normal")),
+									Runtime.Kills,
+									Runtime.RequiredKills,
+									Runtime.BossPhase,
+									Runtime.CurrentHealth,
+									Runtime.MaximumHealth,
+									Runtime.ElapsedSeconds);
+							}),
+							1.95f,
+							false);
+
+						FTimerHandle InvariantAuditTimer;
+						GetWorldTimerManager().SetTimer(
+							InvariantAuditTimer,
+							FTimerDelegate::CreateWeakLambda(
+								this,
+								[this,
+									BaselineMapId,
+									BaselineStage,
+									BaselineStageKills,
+									BaselineMapRevision,
+									BaselineCultivation,
+									BaselineGold,
+									BaselineSectRevision,
+									BaselineInventoryItems,
+									BaselineEquipmentDrops]
+								{
+									const AImmortalMonsterSpawner* Spawner =
+										FindMapSpawner();
+									const bool bMapUnchanged = Spawner
+										&& Spawner->GetActiveMapId()
+											== BaselineMapId
+										&& Spawner->GetCurrentStage()
+											== BaselineStage
+										&& Spawner->GetCurrentStageKills()
+											== BaselineStageKills
+										&& Spawner->GetMapRevision()
+											== BaselineMapRevision;
+									UE_LOG(
+										LogTemp,
+										Display,
+										TEXT("Endless Dungeon invariant audit: mapUnchanged=%s cultivationDelta=%d(independent-training) sectUnchanged=%s active=%s stonesDelta=%d inventoryDelta=%d equipmentDropDelta=%d highest=%d totalFloors=%lld runs=%d pending=%d revision=%d"),
+										bMapUnchanged
+											? TEXT("true") : TEXT("false"),
+										CurrentCultivation
+											- BaselineCultivation,
+										SectState.Revision
+												== BaselineSectRevision
+											? TEXT("true") : TEXT("false"),
+										Spawner
+												&& Spawner
+													->IsEndlessDungeonActive()
+											? TEXT("true") : TEXT("false"),
+										CurrentGold - BaselineGold,
+										InventoryItems.Num()
+											- BaselineInventoryItems,
+										EquipmentDropCount
+											- BaselineEquipmentDrops,
+										EndlessDungeonState
+											.HighestClearedFloor,
+										EndlessDungeonState
+											.TotalFloorsCleared,
+										EndlessDungeonState.TotalRuns,
+										EndlessDungeonState
+											.PendingRewards.Num(),
+										EndlessDungeonState.Revision);
+								}),
+							bTestScreenshotEndlessReward ? 4.20f : 3.20f,
+							false);
+					}
+
+					if (FParse::Param(
+						FCommandLine::Get(),
+						TEXT("ImmortalTestExitAfterEndless")))
+					{
+						FTimerHandle ExitTimer;
+						GetWorldTimerManager().SetTimer(
+							ExitTimer,
+							FTimerDelegate::CreateWeakLambda(this, []
+							{
+								UE_LOG(
+									LogTemp,
+									Display,
+									TEXT("Endless Dungeon runtime verification complete; requesting clean exit"));
+								FPlatformMisc::RequestExit(false);
+							}),
+							6.20f,
+							false);
+					}
+				}),
+			0.85f,
+			false);
+	}
+#endif
+
+#if !UE_BUILD_SHIPPING
+	FString TestPetValue;
+	const bool bHasTestPet = FParse::Value(
+		FCommandLine::Get(), TEXT("ImmortalTestPet="), TestPetValue);
+	const bool bTestGrantPetResources =
+		FParse::Param(
+			FCommandLine::Get(), TEXT("ImmortalTestGrantPetResources"));
+	const bool bTestUnlockPet =
+		FParse::Param(
+			FCommandLine::Get(), TEXT("ImmortalTestUnlockPet"));
+	const bool bTestRaisePetStar =
+		FParse::Param(
+			FCommandLine::Get(), TEXT("ImmortalTestRaisePetStar"));
+	const bool bTestOpenPet =
+		FParse::Param(FCommandLine::Get(), TEXT("ImmortalTestOpenPet"));
+	const bool bTestPetForceKill =
+		FParse::Param(
+			FCommandLine::Get(), TEXT("ImmortalTestPetForceKill"));
+	const bool bTestPetOwnerDeath =
+		FParse::Param(
+			FCommandLine::Get(), TEXT("ImmortalTestPetOwnerDeath"));
+	const bool bTestPetPreviewHurt =
+		FParse::Param(
+			FCommandLine::Get(), TEXT("ImmortalTestPetPreviewHurt"));
+	const bool bTestPetPreviewDeath =
+		FParse::Param(
+			FCommandLine::Get(), TEXT("ImmortalTestPetPreviewDeath"));
+	const bool bTestScreenshotPetUi =
+		FParse::Param(
+			FCommandLine::Get(), TEXT("ImmortalTestScreenshotPetUI"));
+	const bool bTestScreenshotPetBattle =
+		FParse::Param(
+			FCommandLine::Get(), TEXT("ImmortalTestScreenshotPetBattle"));
+	const bool bTestScreenshotPetNotification =
+		FParse::Param(
+			FCommandLine::Get(),
+			TEXT("ImmortalTestScreenshotPetNotification"));
+	const bool bTestLogPet =
+		FParse::Param(FCommandLine::Get(), TEXT("ImmortalTestLogPet"));
+	const bool bTestSavePetFixture =
+		FParse::Param(
+			FCommandLine::Get(), TEXT("ImmortalTestSavePetFixture"));
+	const bool bHasPetFixture =
+		bHasTestPet || bTestGrantPetResources || bTestUnlockPet
+		|| bTestRaisePetStar || bTestOpenPet || bTestPetForceKill
+		|| bTestPetOwnerDeath || bTestPetPreviewHurt
+		|| bTestPetPreviewDeath || bTestScreenshotPetUi
+		|| bTestScreenshotPetBattle
+		|| bTestScreenshotPetNotification || bTestLogPet
+		|| bTestSavePetFixture;
+	if (bHasPetFixture)
+	{
+		FTimerHandle PetFixtureTimer;
+		GetWorldTimerManager().SetTimer(
+			PetFixtureTimer,
+			FTimerDelegate::CreateWeakLambda(
+				this,
+				[this,
+					TestPetValue,
+					bHasTestPet,
+					bTestGrantPetResources,
+					bTestUnlockPet,
+					bTestRaisePetStar,
+					bTestOpenPet,
+					bTestPetForceKill,
+					bTestPetOwnerDeath,
+					bTestPetPreviewHurt,
+					bTestPetPreviewDeath,
+					bTestScreenshotPetUi,
+					bTestScreenshotPetBattle,
+					bTestScreenshotPetNotification,
+					bTestLogPet,
+					bTestSavePetFixture]
+				{
+					FName RequestedPetId = PetState.ActivePetId;
+					if (bHasTestPet)
+					{
+						if (TestPetValue.Equals(
+							TEXT("Fox"), ESearchCase::IgnoreCase)
+							|| TestPetValue.Equals(
+								TEXT("SpiritFox"),
+								ESearchCase::IgnoreCase))
+						{
+							RequestedPetId = TEXT("SpiritFox");
+						}
+						else if (TestPetValue.Equals(
+							TEXT("Dog"), ESearchCase::IgnoreCase)
+							|| TestPetValue.Equals(
+								TEXT("Hound"), ESearchCase::IgnoreCase)
+							|| TestPetValue.Equals(
+								TEXT("SpiritHound"),
+								ESearchCase::IgnoreCase))
+						{
+							RequestedPetId = TEXT("SpiritHound");
+						}
+						else
+						{
+							RequestedPetId = FName(*TestPetValue);
+						}
+					}
+
+					AImmortalMonsterSpawner* FixtureSpawner =
+						FindMapSpawner();
+					const FName BaselineMapId = FixtureSpawner
+						? FixtureSpawner->GetActiveMapId() : NAME_None;
+					const int32 BaselineStage = FixtureSpawner
+						? FixtureSpawner->GetCurrentStage() : 0;
+					const int32 BaselineStageKills = FixtureSpawner
+						? FixtureSpawner->GetCurrentStageKills() : 0;
+					const int32 BaselineMapRevision = FixtureSpawner
+						? FixtureSpawner->GetMapRevision() : 0;
+					const int32 BaselineCultivation =
+						CurrentCultivation;
+					const int32 BaselineGold = CurrentGold;
+					const int32 BaselineInventory =
+						InventoryItems.Num();
+					const int64 BaselinePetKills =
+						PetState.TotalCombatKills;
+					const int32 BaselinePetRevision =
+						PetState.Revision;
+					UE_LOG(LogTemp, Display,
+						TEXT("Pet fixture baseline: requested=%s active=%s actor=%s map=%s stage=%d stageKills=%d mapRevision=%d cultivation=%d stones=%d inventory=%d petKills=%lld petRevision=%d"),
+						*RequestedPetId.ToString(),
+						*PetState.ActivePetId.ToString(),
+						*GetNameSafe(ActivePetActor),
+						*BaselineMapId.ToString(),
+						BaselineStage,
+						BaselineStageKills,
+						BaselineMapRevision,
+						BaselineCultivation,
+						BaselineGold,
+						BaselineInventory,
+						BaselinePetKills,
+						BaselinePetRevision);
+
+					if (bTestGrantPetResources)
+					{
+						const TArray<FImmortalMaterialStack>
+							PreviousMaterials = MaterialInventory;
+						const int32 AddedCores =
+							AddMaterialInternal(TEXT("DemonCore"), 100);
+						CurrentGold = static_cast<int32>(
+							FMath::Min<int64>(
+								static_cast<int64>(CurrentGold)
+									+ 10000,
+								MAX_int32));
+						PublishMaterialInventoryDiff(
+							PreviousMaterials);
+						UE_LOG(LogTemp, Display,
+							TEXT("Pet fixture resources granted: demonCore=+%d stones=%d"),
+							AddedCores,
+							CurrentGold);
+					}
+
+					FImmortalPetProgress RequestedProgress;
+					bool bHasProgress = GetPetProgress(
+						RequestedPetId, RequestedProgress);
+					if (bHasProgress && !RequestedProgress.bOwned
+						&& (bTestUnlockPet
+							|| bTestGrantPetResources))
+					{
+						const FImmortalPetOperationResult Unlock =
+							UnlockPet(RequestedPetId);
+						UE_LOG(LogTemp, Display,
+							TEXT("Pet fixture unlock: id=%s success=%s affordable=%s message=%s"),
+							*RequestedPetId.ToString(),
+							Unlock.bSucceeded
+								? TEXT("true") : TEXT("false"),
+							Unlock.bAffordable
+								? TEXT("true") : TEXT("false"),
+							*Unlock.Message.ToString());
+						bHasProgress = GetPetProgress(
+							RequestedPetId, RequestedProgress);
+					}
+					if (bHasProgress && RequestedProgress.bOwned
+						&& PetState.ActivePetId
+							!= RequestedPetId)
+					{
+						const FImmortalPetOperationResult Equip =
+							SetActivePet(RequestedPetId);
+						UE_LOG(LogTemp, Display,
+							TEXT("Pet fixture equip: id=%s success=%s message=%s"),
+							*RequestedPetId.ToString(),
+							Equip.bSucceeded
+								? TEXT("true") : TEXT("false"),
+							*Equip.Message.ToString());
+					}
+					if (bTestRaisePetStar)
+					{
+						const FImmortalPetOperationResult Star =
+							RaisePetStar(RequestedPetId);
+						UE_LOG(LogTemp, Display,
+							TEXT("Pet fixture star: id=%s success=%s affordable=%s message=%s"),
+							*RequestedPetId.ToString(),
+							Star.bSucceeded
+								? TEXT("true") : TEXT("false"),
+							Star.bAffordable
+								? TEXT("true") : TEXT("false"),
+							*Star.Message.ToString());
+					}
+
+					if ((bTestOpenPet || bTestScreenshotPetUi)
+						&& PlayerPetWidget && !bPetOpen)
+					{
+						TogglePet();
+					}
+					if (bTestScreenshotPetNotification
+						&& bPetOpen)
+					{
+						TogglePet();
+					}
+					if (bTestScreenshotPetNotification
+						&& CombatFeedbackWidget)
+					{
+						FImmortalPetDefinition NoticeDefinition;
+						UImmortalPetLibrary::GetPetDefinition(
+							PetState.ActivePetId,
+							NoticeDefinition);
+						CombatFeedbackWidget->ShowBossAnnouncement(
+							FText::FromString(FString::Printf(
+								TEXT("%s已出战，将自动跟随并协助攻击"),
+								*NoticeDefinition.DisplayName.ToString())),
+							NoticeDefinition.DisplayColor,
+							5.0f);
+					}
+
+					if (bTestPetPreviewHurt
+						&& ActivePetActor)
+					{
+						ActivePetActor
+							->PreviewHurtForDevelopment();
+					}
+					if (bTestPetPreviewDeath
+						&& ActivePetActor)
+					{
+						ActivePetActor
+							->PreviewDeathForDevelopment();
+					}
+
+					if (bTestPetOwnerDeath)
+					{
+						FTimerHandle OwnerDeathTimer;
+						GetWorldTimerManager().SetTimer(
+							OwnerDeathTimer,
+							FTimerDelegate::CreateWeakLambda(
+								this,
+								[this]
+								{
+									UGameplayStatics::ApplyDamage(
+										this,
+										GetMaxHealth()
+											+ 1000000.0f,
+										nullptr,
+										ActivePetActor,
+										UDamageType::StaticClass());
+									UE_LOG(LogTemp, Display,
+										TEXT("Pet owner-death fixture applied: playerDead=%s pet=%s"),
+										bDead
+											? TEXT("true")
+											: TEXT("false"),
+										*GetNameSafe(
+											ActivePetActor));
+								}),
+							1.20f,
+							false);
+					}
+
+					if (bTestPetForceKill && FixtureSpawner)
+					{
+						AImmortalMonsterCharacter* Target =
+							FixtureSpawner->SpawnMonster();
+						if (!Target)
+						{
+							for (TActorIterator<
+								AImmortalMonsterCharacter> It(
+									GetWorld());
+								It;
+								++It)
+							{
+								if (!It->IsDead())
+								{
+									Target = *It;
+									break;
+								}
+							}
+						}
+						const TWeakObjectPtr<
+							AImmortalMonsterCharacter>
+							WeakTarget(Target);
+						FTimerHandle LethalTimer;
+						GetWorldTimerManager().SetTimer(
+							LethalTimer,
+							FTimerDelegate::CreateWeakLambda(
+								this,
+								[this, WeakTarget]
+								{
+									AImmortalMonsterCharacter*
+										LiveTarget =
+											WeakTarget.Get();
+									if (!LiveTarget
+										|| LiveTarget->IsDead()
+										|| !ActivePetActor)
+									{
+										UE_LOG(LogTemp, Error,
+											TEXT("Pet lethal fixture could not find a live target"));
+										return;
+									}
+									LiveTarget->SetActorLocation(
+										ActivePetActor
+											->GetActorLocation()
+											+ FVector(
+												120.0f,
+												0.0f,
+												0.0f),
+										false,
+										nullptr,
+										ETeleportType
+											::TeleportPhysics);
+									const float Applied =
+										ResolvePetAttack(
+											ActivePetActor,
+											LiveTarget,
+											1000000000.0f);
+									UE_LOG(LogTemp, Display,
+										TEXT("Pet lethal fixture issued: target=%s applied=%.1f dead=%s"),
+										*GetNameSafe(
+											LiveTarget),
+										Applied,
+										LiveTarget->IsDead()
+											? TEXT("true")
+											: TEXT("false"));
+								}),
+							2.20f,
+							false);
+					}
+
+					if (bTestScreenshotPetUi
+						|| bTestScreenshotPetBattle
+						|| bTestScreenshotPetNotification)
+					{
+						FTimerHandle ScreenshotTimer;
+						GetWorldTimerManager().SetTimer(
+							ScreenshotTimer,
+							FTimerDelegate::CreateWeakLambda(
+								this,
+								[bTestScreenshotPetUi,
+									bTestScreenshotPetBattle,
+									RequestedPetId]
+								{
+									FString FileName;
+									if (bTestScreenshotPetUi)
+									{
+										FileName =
+											TEXT("Screenshots/Step32_Pet_UI.png");
+									}
+									else if (
+										bTestScreenshotPetBattle)
+									{
+										FileName =
+											RequestedPetId
+												== FName(
+													TEXT("SpiritHound"))
+											? TEXT("Screenshots/Step32_Pet_Battle_Dog.png")
+											: TEXT("Screenshots/Step32_Pet_Battle_Fox.png");
+									}
+									else
+									{
+										FileName =
+											TEXT("Screenshots/Step32_Pet_Notification.png");
+									}
+									const FString Path =
+										FPaths::Combine(
+											FPaths::ProjectSavedDir(),
+											FileName);
+									FScreenshotRequest
+										::RequestScreenshot(
+											Path,
+											true,
+											false);
+									UE_LOG(LogTemp, Display,
+										TEXT("Pet verification screenshot requested: %s"),
+										*Path);
+								}),
+							bTestScreenshotPetBattle
+								? 1.80f : 1.0f,
+							false);
+					}
+
+					if (bTestSavePetFixture)
+					{
+						const bool bSaved = SaveProgress();
+						UE_LOG(LogTemp, Display,
+							TEXT("Pet fixture explicit save: success=%s version=%d marker=%s"),
+							bSaved ? TEXT("true") : TEXT("false"),
+							UImmortalPathSaveGame
+								::CurrentSaveVersion,
+							PetState.bInitialized
+								? TEXT("true")
+								: TEXT("false"));
+					}
+
+					if (bTestLogPet || bTestPetForceKill
+						|| bTestPetOwnerDeath)
+					{
+						FTimerHandle AuditTimer;
+						GetWorldTimerManager().SetTimer(
+							AuditTimer,
+							FTimerDelegate::CreateWeakLambda(
+								this,
+								[this,
+									BaselineStage,
+									BaselineStageKills,
+									BaselineMapRevision,
+									BaselineCultivation,
+									BaselineGold,
+									BaselineInventory,
+									BaselinePetKills,
+									BaselinePetRevision]
+								{
+									const AImmortalMonsterSpawner*
+										Spawner = FindMapSpawner();
+									FImmortalPetProgress ActiveProgress;
+									GetPetProgress(
+										PetState.ActivePetId,
+										ActiveProgress);
+									UE_LOG(LogTemp, Display,
+										TEXT("Pet runtime audit: active=%s actor=%s level=%d exp=%d/%d stars=%d attacks=%d hits=%d petKillDelta=%lld petRevisionDelta=%d stage=%d->%d stageKills=%d->%d mapRevisionDelta=%d cultivationDelta=%d(independent-training-only) stonesDelta=%d inventoryDelta=%d playerDead=%s"),
+										*PetState.ActivePetId
+											.ToString(),
+										*GetNameSafe(
+											ActivePetActor),
+										ActiveProgress.Level,
+										ActiveProgress.Experience,
+										UImmortalPetLibrary
+											::GetExperienceRequiredForLevel(
+												ActiveProgress.Level),
+										ActiveProgress.Stars,
+										ActivePetActor
+											? ActivePetActor
+												->GetAttackCount()
+											: 0,
+										ActivePetActor
+											? ActivePetActor
+												->GetHitCount()
+											: 0,
+										PetState.TotalCombatKills
+											- BaselinePetKills,
+										PetState.Revision
+											- BaselinePetRevision,
+										BaselineStage,
+										Spawner
+											? Spawner
+												->GetCurrentStage()
+											: 0,
+										BaselineStageKills,
+										Spawner
+											? Spawner
+												->GetCurrentStageKills()
+											: 0,
+										Spawner
+											? Spawner
+												->GetMapRevision()
+												- BaselineMapRevision
+											: 0,
+										CurrentCultivation
+											- BaselineCultivation,
+										CurrentGold
+											- BaselineGold,
+										InventoryItems.Num()
+											- BaselineInventory,
+										bDead
+											? TEXT("true")
+											: TEXT("false"));
+								}),
+							3.35f,
+							false);
+					}
+
+					if (FParse::Param(
+						FCommandLine::Get(),
+						TEXT("ImmortalTestExitAfterPet")))
+					{
+						FTimerHandle ExitTimer;
+						GetWorldTimerManager().SetTimer(
+							ExitTimer,
+							FTimerDelegate::CreateWeakLambda(
+								this,
+								[]
+								{
+									UE_LOG(LogTemp, Display,
+										TEXT("Pet runtime verification complete; requesting clean exit"));
+									FPlatformMisc::RequestExit(
+										false);
+								}),
+							5.80f,
+							false);
+					}
+				}),
+			0.90f,
+			false);
+	}
+#endif
+
+#if !UE_BUILD_SHIPPING
+	const bool bTestOpenAscension =
+		FParse::Param(
+			FCommandLine::Get(),
+			TEXT("ImmortalTestOpenAscension"));
+	const bool bTestPrepareAscension =
+		FParse::Param(
+			FCommandLine::Get(),
+			TEXT("ImmortalTestPrepareAscension"));
+	const bool bTestPerformAscension =
+		FParse::Param(
+			FCommandLine::Get(),
+			TEXT("ImmortalTestPerformAscension"));
+	const bool bTestLogAscension =
+		FParse::Param(
+			FCommandLine::Get(),
+			TEXT("ImmortalTestLogAscension"));
+	const bool bTestScreenshotAscension =
+		FParse::Param(
+			FCommandLine::Get(),
+			TEXT("ImmortalTestScreenshotAscension"));
+	const bool bTestScreenshotAscensionStatus =
+		FParse::Param(
+			FCommandLine::Get(),
+			TEXT("ImmortalTestScreenshotAscensionStatus"));
+	const bool bTestSaveAscensionFixture =
+		FParse::Param(
+			FCommandLine::Get(),
+			TEXT("ImmortalTestSaveAscensionFixture"));
+	FString TestAscensionPath;
+	const bool bTestInvestAscension =
+		FParse::Value(
+			FCommandLine::Get(),
+			TEXT("ImmortalTestInvestAscension="),
+			TestAscensionPath);
+	if (bTestOpenAscension || bTestPrepareAscension
+		|| bTestPerformAscension || bTestLogAscension
+		|| bTestScreenshotAscension
+		|| bTestScreenshotAscensionStatus
+		|| bTestSaveAscensionFixture
+		|| bTestInvestAscension)
+	{
+		FTimerHandle AscensionFixtureTimer;
+		GetWorldTimerManager().SetTimer(
+			AscensionFixtureTimer,
+			FTimerDelegate::CreateWeakLambda(
+				this,
+				[this,
+					bTestOpenAscension,
+					bTestPrepareAscension,
+					bTestPerformAscension,
+					bTestLogAscension,
+					bTestScreenshotAscension,
+					bTestScreenshotAscensionStatus,
+					bTestSaveAscensionFixture,
+					bTestInvestAscension,
+					TestAscensionPath]
+				{
+					AImmortalMonsterSpawner* Spawner =
+						FindMapSpawner();
+					if (bTestPrepareAscension && Spawner)
+					{
+						if (Spawner->GetActiveMapId()
+							!= UImmortalMapLibrary
+								::GetQingyunMountainId())
+						{
+							Spawner->TravelToMap(
+								UImmortalMapLibrary
+									::GetQingyunMountainId());
+						}
+						if (CultivationComponent)
+						{
+							CultivationComponent
+								->InitializeProgress(
+									EImmortalCultivationRealm
+										::Ascension,
+									1,
+									0);
+							CurrentCultivation = 0;
+							CurrentHealth = GetMaxHealth();
+							CurrentMana = GetMaxMana();
+						}
+						int32 PreparedMapCount = 0;
+						for (const FName MapId :
+							UImmortalMapLibrary
+								::GetKnownMapIds())
+						{
+							PreparedMapCount +=
+								Spawner
+									->CompleteMapForDevelopment(
+										MapId)
+									? 1
+									: 0;
+						}
+						FImmortalMapProgress FinalMapProgress;
+						const bool bFinalMapPrepared =
+							Spawner->GetProgressForMap(
+								UImmortalMapLibrary
+									::GetImmortalPalaceRuinsId(),
+								FinalMapProgress)
+							&& FinalMapProgress.bCompleted;
+						const bool bPreparedSaved =
+							SaveProgress();
+						UE_LOG(LogTemp, Display,
+							TEXT("Ascension fixture prepared: completedMaps=%d finalMap=%s realm=%s activeMap=%s save=%s"),
+							PreparedMapCount,
+							bFinalMapPrepared
+								? TEXT("true")
+								: TEXT("false"),
+							*GetFullCultivationRealmName()
+								.ToString(),
+							*GetActiveMapId().ToString(),
+							bPreparedSaved
+								? TEXT("true")
+								: TEXT("false"));
+					}
+
+					if (bTestPerformAscension
+						|| bTestLogAscension
+						|| bTestInvestAscension)
+					{
+						// Freeze ordinary map settlement while the exact
+						// reset/preserve matrix is audited.
+						StopAutoAttack();
+						DespawnActivePetActor();
+					}
+
+					const FImmortalAscensionState
+						BaselineAscension = AscensionState;
+					const int32 BaselineGold = CurrentGold;
+					const int32 BaselineInventory =
+						InventoryItems.Num();
+					const int32 BaselineEquipment =
+						EquippedItems.Num();
+					const int32 BaselineMaterials =
+						MaterialInventory.Num();
+					const FImmortalMapSystemState BaselineMaps =
+						GetMapSystemState();
+					const FImmortalCaveState BaselineCave =
+						CaveState;
+					const FImmortalFarmingState BaselineFarming =
+						FarmingState;
+					const FImmortalSectState BaselineSect =
+						SectState;
+					const FImmortalPetState BaselinePet =
+						PetState;
+					const FImmortalWorldBossState BaselineBoss =
+						WorldBossState;
+					const FImmortalEndlessDungeonState
+						BaselineEndless = EndlessDungeonState;
+
+					if (bTestOpenAscension
+						|| bTestScreenshotAscension)
+					{
+						if (!bAscensionOpen)
+						{
+							ToggleAscension();
+						}
+					}
+
+					if (bTestPerformAscension)
+					{
+						const FImmortalAscensionOperationResult
+							Result = PerformAscension();
+						UE_LOG(LogTemp, Display,
+							TEXT("Ascension development perform: success=%s count=%d sealsGranted=%d seals=%d message=%s"),
+							Result.bSucceeded
+								? TEXT("true")
+								: TEXT("false"),
+							Result.AscensionCount,
+							Result.ImmortalSealsGranted,
+							Result.ImmortalSeals,
+							*Result.Message.ToString());
+					}
+
+					if (bTestInvestAscension)
+					{
+						EImmortalAscensionPath Path =
+							EImmortalAscensionPath::Battle;
+						if (TestAscensionPath.Equals(
+							TEXT("Enlightenment"),
+							ESearchCase::IgnoreCase))
+						{
+							Path = EImmortalAscensionPath
+								::Enlightenment;
+						}
+						else if (TestAscensionPath.Equals(
+							TEXT("Fortune"),
+							ESearchCase::IgnoreCase))
+						{
+							Path = EImmortalAscensionPath
+								::Fortune;
+						}
+						const FImmortalAscensionPathResult
+							Result = InvestAscensionPath(Path);
+						UE_LOG(LogTemp, Display,
+							TEXT("Ascension development invest: path=%s success=%s rank=%d cost=%d seals=%d message=%s"),
+							*TestAscensionPath,
+							Result.bSucceeded
+								? TEXT("true")
+								: TEXT("false"),
+							Result.CurrentRank,
+							Result.ImmortalSealsSpent,
+							Result.ImmortalSeals,
+							*Result.Message.ToString());
+					}
+
+					if (bTestPerformAscension)
+					{
+						const bool bCommitted =
+							AscensionState.AscensionCount
+								> BaselineAscension
+									.AscensionCount;
+						const bool bCycleInvariant =
+							bCommitted
+								? IsAscensionCycleStartState(
+									GetMapSystemState())
+								: HaveSameMapProgress(
+									GetMapSystemState(),
+									BaselineMaps);
+						const bool bLifetimeInvariant =
+							bCommitted
+								? HaveMergedLifetimeMapRecords(
+									BaselineAscension,
+									AscensionState,
+									BaselineMaps)
+								: HaveSameLifetimeMapRecords(
+									AscensionState,
+									BaselineAscension);
+						const bool bImmediatePreserved =
+							CurrentGold == BaselineGold
+							&& InventoryItems.Num()
+								== BaselineInventory
+							&& EquippedItems.Num()
+								== BaselineEquipment
+							&& MaterialInventory.Num()
+								== BaselineMaterials
+							&& bCycleInvariant
+							&& bLifetimeInvariant
+							&& CaveState.Revision
+								>= BaselineCave.Revision
+							&& FarmingState.Revision
+								>= BaselineFarming.Revision
+							&& SectState.SectId
+								== BaselineSect.SectId
+							&& PetState.ActivePetId
+								== BaselinePet.ActivePetId
+							&& WorldBossState.BossProgress.Num()
+								== BaselineBoss.BossProgress.Num()
+							&& EndlessDungeonState
+								.HighestClearedFloor
+								== BaselineEndless
+									.HighestClearedFloor;
+						UE_LOG(LogTemp, Display,
+							TEXT("Ascension immediate preservation audit: preserved=%s committed=%s mapInvariant=%s lifetimeInvariant=%s stones=%d inventory=%d equipped=%d materials=%d maps=%d caveRevision=%d farmingRevision=%d sect=%s pet=%s bossRecords=%d endlessHighest=%d"),
+							bImmediatePreserved
+								? TEXT("true")
+								: TEXT("false"),
+							bCommitted
+								? TEXT("true")
+								: TEXT("false"),
+							bCycleInvariant
+								? TEXT("true")
+								: TEXT("false"),
+							bLifetimeInvariant
+								? TEXT("true")
+								: TEXT("false"),
+							CurrentGold,
+							InventoryItems.Num(),
+							EquippedItems.Num(),
+							MaterialInventory.Num(),
+							GetMapSystemState()
+								.MapProgress.Num(),
+							CaveState.Revision,
+							FarmingState.Revision,
+							*SectState.SectId.ToString(),
+							*PetState.ActivePetId.ToString(),
+							WorldBossState.BossProgress.Num(),
+							EndlessDungeonState
+								.HighestClearedFloor);
+					}
+
+					if (bTestSaveAscensionFixture)
+					{
+						UE_LOG(LogTemp, Display,
+							TEXT("Ascension fixture explicit save: success=%s version=%d marker=%s"),
+							SaveProgress()
+								? TEXT("true")
+								: TEXT("false"),
+							UImmortalPathSaveGame
+								::CurrentSaveVersion,
+							AscensionState.bInitialized
+								? TEXT("true")
+								: TEXT("false"));
+					}
+
+					if (bTestScreenshotAscension
+						|| bTestScreenshotAscensionStatus)
+					{
+						FTimerHandle ScreenshotTimer;
+						GetWorldTimerManager().SetTimer(
+							ScreenshotTimer,
+							FTimerDelegate::CreateWeakLambda(
+								this,
+								[bTestScreenshotAscensionStatus]
+								{
+									const FString Path =
+										FPaths::Combine(
+											FPaths::ProjectSavedDir(),
+											bTestScreenshotAscensionStatus
+												? TEXT("Screenshots/Step33_Ascension_StatusButton.png")
+												: TEXT("Screenshots/Step33_Ascension_UI.png"));
+									FScreenshotRequest
+										::RequestScreenshot(
+											Path,
+											true,
+											false);
+									UE_LOG(LogTemp, Display,
+										TEXT("Ascension verification screenshot requested: %s"),
+										*Path);
+								}),
+							0.8f,
+							false);
+					}
+
+					if (bTestLogAscension
+						|| bTestPerformAscension
+						|| bTestInvestAscension)
+					{
+						FTimerHandle AuditTimer;
+						GetWorldTimerManager().SetTimer(
+							AuditTimer,
+							FTimerDelegate::CreateWeakLambda(
+								this,
+								[this,
+									BaselineAscension,
+									BaselineGold,
+									BaselineInventory,
+									BaselineEquipment,
+									BaselineMaterials,
+									BaselineMaps,
+									BaselineCave,
+									BaselineFarming,
+									BaselineSect,
+									BaselinePet,
+									BaselineBoss,
+									BaselineEndless]
+								{
+									const FImmortalMapSystemState
+										CurrentMaps =
+											GetMapSystemState();
+									FImmortalMapProgress FinalMap;
+									const bool
+										bFinalMapCompleted =
+											UImmortalMapLibrary
+												::GetMapProgress(
+													CurrentMaps,
+													UImmortalMapLibrary
+														::GetImmortalPalaceRuinsId(),
+													FinalMap)
+											&& FinalMap.bCompleted;
+									const bool bCommitted =
+										AscensionState
+											.AscensionCount
+											> BaselineAscension
+												.AscensionCount;
+									const bool bCycleInvariant =
+										bCommitted
+											? IsAscensionCycleStartState(
+												CurrentMaps)
+											: HaveSameMapProgress(
+												CurrentMaps,
+												BaselineMaps);
+									const bool bLifetimeInvariant =
+										bCommitted
+											? HaveMergedLifetimeMapRecords(
+												BaselineAscension,
+												AscensionState,
+												BaselineMaps)
+											: HaveSameLifetimeMapRecords(
+												AscensionState,
+												BaselineAscension);
+									const bool bPreserved =
+										CurrentGold == BaselineGold
+										&& InventoryItems.Num()
+											== BaselineInventory
+										&& EquippedItems.Num()
+											== BaselineEquipment
+										&& MaterialInventory.Num()
+											== BaselineMaterials
+										&& bCycleInvariant
+										&& bLifetimeInvariant
+										&& CaveState.Revision
+											>= BaselineCave.Revision
+										&& FarmingState.Revision
+											>= BaselineFarming.Revision
+										&& SectState.SectId
+											== BaselineSect.SectId
+										&& PetState.ActivePetId
+											== BaselinePet.ActivePetId
+										&& WorldBossState
+											.BossProgress.Num()
+											== BaselineBoss
+												.BossProgress.Num()
+										&& EndlessDungeonState
+											.HighestClearedFloor
+											== BaselineEndless
+												.HighestClearedFloor;
+									FImmortalAscensionMapLegacy
+										FinalMapLegacy;
+									UImmortalAscensionLibrary
+										::GetLifetimeMapRecord(
+											AscensionState,
+											UImmortalMapLibrary
+												::GetImmortalPalaceRuinsId(),
+											FinalMapLegacy);
+									UE_LOG(LogTemp, Display,
+										TEXT("Ascension runtime audit: count=%d(delta=%d) seals=%d paths=%d/%d/%d realm=%s cultivation=%d battle=x%.2f cultivationRate=x%.2f loot=x%.2f activeMap=%s finalMapCompleted=%s cycleInvariant=%s lifetimeInvariant=%s lifetimeCompleted=%d/%d finalLegacy=%d/%d preserved=%s aliveMonsters=%d worldBossActive=%s endlessActive=%s revision=%d"),
+										AscensionState
+											.AscensionCount,
+										AscensionState
+											.AscensionCount
+											- BaselineAscension
+												.AscensionCount,
+										AscensionState
+											.ImmortalSeals,
+										AscensionState
+											.BattlePathRank,
+										AscensionState
+											.EnlightenmentPathRank,
+										AscensionState
+											.FortunePathRank,
+										*GetFullCultivationRealmName()
+											.ToString(),
+										CurrentCultivation,
+										GetAscensionBattleMultiplier(),
+										GetAscensionCultivationMultiplier(),
+										GetAscensionEquipmentDropMultiplier(),
+										*CurrentMaps.ActiveMapId
+											.ToString(),
+										bFinalMapCompleted
+											? TEXT("true")
+											: TEXT("false"),
+										bCycleInvariant
+											? TEXT("true")
+											: TEXT("false"),
+										bLifetimeInvariant
+											? TEXT("true")
+											: TEXT("false"),
+										UImmortalAscensionLibrary
+											::GetLifetimeCompletedMapCount(
+												AscensionState),
+										UImmortalMapLibrary
+											::GetKnownMapIds().Num(),
+										FinalMapLegacy.HighestStage,
+										FinalMapLegacy.TimesCompleted,
+										bPreserved
+											? TEXT("true")
+											: TEXT("false"),
+										FindMapSpawner()
+											? FindMapSpawner()
+												->GetAliveMonsterCount()
+											: -1,
+										GetWorldBossRuntimeSnapshot()
+											.bActive
+											? TEXT("true")
+											: TEXT("false"),
+										GetEndlessDungeonRuntimeSnapshot()
+											.bActive
+											? TEXT("true")
+											: TEXT("false"),
+										AscensionState.Revision);
+									SpawnActivePetActor();
+									StartAutoAttack();
+								}),
+							1.7f,
+							false);
+					}
+
+					if (FParse::Param(
+						FCommandLine::Get(),
+						TEXT("ImmortalTestExitAfterAscension")))
+					{
+						FTimerHandle ExitTimer;
+						GetWorldTimerManager().SetTimer(
+							ExitTimer,
+							FTimerDelegate::CreateWeakLambda(
+								this,
+								[]
+								{
+									UE_LOG(LogTemp, Display,
+										TEXT("Ascension runtime verification complete; requesting clean exit"));
+									FPlatformMisc::RequestExit(
+										false);
+								}),
+							4.6f,
+							false);
+					}
+				}),
+			0.95f,
+			false);
+	}
+#endif
 
 #if !UE_BUILD_SHIPPING
 	if (PlayerInventoryWidget && FParse::Param(FCommandLine::Get(), TEXT("ImmortalTestOpenMaterials")))
@@ -2057,7 +4558,18 @@ void AImmortalPlayerCharacter::BeginPlay()
 		UE_LOG(LogTemp, Display, TEXT("Development verification disabled automatic battle"));
 	}
 #endif
-	if (bAutoAttackOnBeginPlay)
+	if (bAdventureSuspendedForDeathRecovery)
+	{
+		bAdventureSuspendedForDeathRecovery = true;
+		StopAutoAttack();
+		GetWorldTimerManager().SetTimer(
+			DeathCultivationStartupTimerHandle,
+			this,
+			&AImmortalPlayerCharacter::ApplyPersistedDeathCultivationRecovery,
+			0.15f,
+			false);
+	}
+	else if (bAutoAttackOnBeginPlay)
 	{
 		StartAutoAttack();
 	}
@@ -2093,6 +4605,352 @@ void AImmortalPlayerCharacter::BeginPlay()
 		&AImmortalPlayerCharacter::HandleCaveProductionTick,
 		1.0f,
 		true);
+
+#if !UE_BUILD_SHIPPING
+	const bool bTestDeathCultivationGate = FParse::Param(
+		FCommandLine::Get(), TEXT("ImmortalTestDeathCultivationGate"));
+	const bool bTestDeathCultivationPersistOnly = FParse::Param(
+		FCommandLine::Get(), TEXT("ImmortalTestDeathCultivationPersistOnly"));
+	const bool bTestDeathCultivationStartupAudit = FParse::Param(
+		FCommandLine::Get(), TEXT("ImmortalTestDeathCultivationStartupAudit"));
+	if (bTestDeathCultivationGate || bTestDeathCultivationPersistOnly)
+	{
+		FTimerHandle FatalDamageTimer;
+		GetWorldTimerManager().SetTimer(
+			FatalDamageTimer,
+			FTimerDelegate::CreateWeakLambda(
+				this,
+				[this]
+				{
+					ArtifactShield = 0.0f;
+					TechniqueShield = 0.0f;
+					CultivationPathShield = 0.0f;
+					CurrentHealth = 1.0f;
+					FDamageEvent FatalDamageEvent;
+					TakeDamage(
+						1000000.0f,
+						FatalDamageEvent,
+						nullptr,
+						this);
+					UE_LOG(
+						LogTemp,
+						Display,
+						TEXT("Death cultivation fixture fatal hit: dead=%s recoveryRequired=%s"),
+						bDead ? TEXT("true") : TEXT("false"),
+						bDeathCultivationRecoveryRequired
+							? TEXT("true") : TEXT("false"));
+				}),
+			0.80f,
+			false);
+
+		FTimerHandle DeathShotTimer;
+		GetWorldTimerManager().SetTimer(
+			DeathShotTimer,
+			FTimerDelegate::CreateWeakLambda(
+				this,
+				[]
+				{
+					FScreenshotRequest::RequestScreenshot(
+						FPaths::Combine(
+							FPaths::ProjectSavedDir(),
+							TEXT("Screenshots/DeathRecovery_Death_TBH.png")),
+						true,
+						false);
+				}),
+			1.25f,
+			false);
+
+		FTimerHandle LockedAuditTimer;
+		GetWorldTimerManager().SetTimer(
+			LockedAuditTimer,
+			FTimerDelegate::CreateWeakLambda(
+				this,
+				[this]
+				{
+					AImmortalMonsterSpawner* Spawner = FindMapSpawner();
+					UE_LOG(
+						LogTemp,
+						Display,
+						TEXT("Death cultivation fixture locked audit: required=%s suspended=%s managementOpen=%s activeFeature=%d autoAttack=%s spawning=%s alive=%d"),
+						bDeathCultivationRecoveryRequired ? TEXT("true") : TEXT("false"),
+						bAdventureSuspendedForDeathRecovery ? TEXT("true") : TEXT("false"),
+						bManagementInterfaceOpen ? TEXT("true") : TEXT("false"),
+						static_cast<int32>(ActiveManagementFeature),
+						GetWorldTimerManager().IsTimerActive(AutoAttackTimerHandle)
+							? TEXT("true") : TEXT("false"),
+						Spawner && Spawner->IsAdventureSpawningRequested()
+							? TEXT("true") : TEXT("false"),
+						Spawner ? Spawner->GetAliveMonsterCount() : -1);
+					FScreenshotRequest::RequestScreenshot(
+						FPaths::Combine(
+							FPaths::ProjectSavedDir(),
+							TEXT("Screenshots/DeathRecovery_CultivationLocked_TBH.png")),
+						true,
+						false);
+				}),
+			2.10f,
+			false);
+
+		FTimerHandle BlockedReturnTimer;
+		GetWorldTimerManager().SetTimer(
+			BlockedReturnTimer,
+			FTimerDelegate::CreateWeakLambda(
+				this,
+				[this]
+				{
+					CloseManagementInterface();
+					UE_LOG(
+						LogTemp,
+						Display,
+						TEXT("Death cultivation fixture blocked return audit: managementOpen=%s activeFeature=%d required=%s"),
+						bManagementInterfaceOpen ? TEXT("true") : TEXT("false"),
+						static_cast<int32>(ActiveManagementFeature),
+						bDeathCultivationRecoveryRequired
+							? TEXT("true") : TEXT("false"));
+				}),
+			2.55f,
+			false);
+
+		if (bTestDeathCultivationPersistOnly)
+		{
+			FTimerHandle PersistExitTimer;
+			GetWorldTimerManager().SetTimer(
+				PersistExitTimer,
+				FTimerDelegate::CreateWeakLambda(
+					this,
+					[] { FPlatformMisc::RequestExit(false); }),
+				2.90f,
+				false);
+		}
+		else
+		{
+			FTimerHandle BreakthroughTimer;
+			GetWorldTimerManager().SetTimer(
+				BreakthroughTimer,
+				FTimerDelegate::CreateWeakLambda(
+					this,
+					[this]
+					{
+						if (CultivationComponent
+							&& !CultivationComponent->HasReachedAscension())
+						{
+							CultivationComponent->AddCultivation(
+								FMath::Max(
+									CultivationComponent->GetRequiredCultivation()
+									- CultivationComponent->GetCurrentCultivation(),
+									1));
+						}
+					}),
+				4.20f,
+				false);
+
+			FTimerHandle ResumeAuditTimer;
+			GetWorldTimerManager().SetTimer(
+				ResumeAuditTimer,
+				FTimerDelegate::CreateWeakLambda(
+					this,
+					[this]
+					{
+						const bool bUnlocked =
+							!bDeathCultivationRecoveryRequired;
+						CloseManagementInterface();
+						AImmortalMonsterSpawner* Spawner = FindMapSpawner();
+						UE_LOG(
+							LogTemp,
+							Display,
+							TEXT("Death cultivation fixture resume audit: unlocked=%s managementOpen=%s suspended=%s autoAttack=%s spawning=%s alive=%d"),
+							bUnlocked ? TEXT("true") : TEXT("false"),
+							bManagementInterfaceOpen ? TEXT("true") : TEXT("false"),
+							bAdventureSuspendedForDeathRecovery ? TEXT("true") : TEXT("false"),
+							GetWorldTimerManager().IsTimerActive(AutoAttackTimerHandle)
+								? TEXT("true") : TEXT("false"),
+							Spawner && Spawner->IsAdventureSpawningRequested()
+								? TEXT("true") : TEXT("false"),
+							Spawner ? Spawner->GetAliveMonsterCount() : -1);
+						FScreenshotRequest::RequestScreenshot(
+							FPaths::Combine(
+								FPaths::ProjectSavedDir(),
+								TEXT("Screenshots/DeathRecovery_AdventureResumed_TBH.png")),
+							true,
+							false);
+					}),
+				4.80f,
+				false);
+
+			FTimerHandle GateExitTimer;
+			GetWorldTimerManager().SetTimer(
+				GateExitTimer,
+				FTimerDelegate::CreateWeakLambda(
+					this,
+					[] { FPlatformMisc::RequestExit(false); }),
+				6.10f,
+				false);
+		}
+	}
+
+	if (bTestDeathCultivationStartupAudit)
+	{
+		FTimerHandle StartupAuditTimer;
+		GetWorldTimerManager().SetTimer(
+			StartupAuditTimer,
+			FTimerDelegate::CreateWeakLambda(
+				this,
+				[this]
+				{
+					AImmortalMonsterSpawner* Spawner = FindMapSpawner();
+					UE_LOG(
+						LogTemp,
+						Display,
+						TEXT("Death cultivation restart audit: required=%s suspended=%s managementOpen=%s activeFeature=%d autoAttack=%s spawning=%s alive=%d"),
+						bDeathCultivationRecoveryRequired ? TEXT("true") : TEXT("false"),
+						bAdventureSuspendedForDeathRecovery ? TEXT("true") : TEXT("false"),
+						bManagementInterfaceOpen ? TEXT("true") : TEXT("false"),
+						static_cast<int32>(ActiveManagementFeature),
+						GetWorldTimerManager().IsTimerActive(AutoAttackTimerHandle)
+							? TEXT("true") : TEXT("false"),
+						Spawner && Spawner->IsAdventureSpawningRequested()
+							? TEXT("true") : TEXT("false"),
+						Spawner ? Spawner->GetAliveMonsterCount() : -1);
+					FScreenshotRequest::RequestScreenshot(
+						FPaths::Combine(
+							FPaths::ProjectSavedDir(),
+							TEXT("Screenshots/DeathRecovery_RestartLocked_TBH.png")),
+						true,
+						false);
+				}),
+			1.20f,
+			false);
+
+		FTimerHandle RestartExitTimer;
+		GetWorldTimerManager().SetTimer(
+			RestartExitTimer,
+			FTimerDelegate::CreateWeakLambda(
+				this,
+				[] { FPlatformMisc::RequestExit(false); }),
+			2.20f,
+			false);
+	}
+#endif
+
+#if !UE_BUILD_SHIPPING
+	if (FParse::Param(FCommandLine::Get(), TEXT("ImmortalTestMortalPlayerAnimations")))
+	{
+		StopAutoAttack();
+		auto RequestAnimationScreenshot = [this](const TCHAR* Filename, const TCHAR* State)
+		{
+			const FString ScreenshotPath = FPaths::Combine(
+				FPaths::ProjectSavedDir(),
+				FString::Printf(TEXT("Screenshots/%s"), Filename));
+			FScreenshotRequest::RequestScreenshot(ScreenshotPath, true, false);
+			UPaperFlipbookComponent* SpriteComponent = GetSprite();
+			UE_LOG(
+				LogTemp,
+				Display,
+				TEXT("Mortal player runtime animation audit: state=%s flipbook=%s looping=%s screenshot=%s"),
+				State,
+				SpriteComponent && SpriteComponent->GetFlipbook()
+					? *SpriteComponent->GetFlipbook()->GetPathName()
+					: TEXT("none"),
+				SpriteComponent && SpriteComponent->IsLooping() ? TEXT("true") : TEXT("false"),
+				*ScreenshotPath);
+		};
+
+		FTimerHandle IdleScreenshotTimer;
+		GetWorldTimerManager().SetTimer(
+			IdleScreenshotTimer,
+			FTimerDelegate::CreateWeakLambda(
+				this,
+				[this, RequestAnimationScreenshot]
+				{
+					FinishMortalRealmOneShotAnimation();
+					RequestAnimationScreenshot(TEXT("MortalPlayer_Idle_TBH.png"), TEXT("Idle"));
+				}),
+			0.8f,
+			false);
+
+		FTimerHandle AttackPreviewTimer;
+		GetWorldTimerManager().SetTimer(
+			AttackPreviewTimer,
+			FTimerDelegate::CreateWeakLambda(
+				this,
+				[this] { PlayMortalRealmAttackAnimation(); }),
+			1.2f,
+			false);
+		FTimerHandle AttackScreenshotTimer;
+		GetWorldTimerManager().SetTimer(
+			AttackScreenshotTimer,
+			FTimerDelegate::CreateWeakLambda(
+				this,
+				[RequestAnimationScreenshot]
+				{
+					RequestAnimationScreenshot(TEXT("MortalPlayer_Attack_TBH.png"), TEXT("Attack"));
+				}),
+			1.45f,
+			false);
+
+		FTimerHandle HurtPreviewTimer;
+		GetWorldTimerManager().SetTimer(
+			HurtPreviewTimer,
+			FTimerDelegate::CreateWeakLambda(
+				this,
+				[this] { PlayMortalRealmHurtAnimation(); }),
+			2.0f,
+			false);
+		FTimerHandle HurtScreenshotTimer;
+		GetWorldTimerManager().SetTimer(
+			HurtScreenshotTimer,
+			FTimerDelegate::CreateWeakLambda(
+				this,
+				[RequestAnimationScreenshot]
+				{
+					RequestAnimationScreenshot(TEXT("MortalPlayer_Hurt_TBH.png"), TEXT("Hurt"));
+				}),
+			2.25f,
+			false);
+
+		FTimerHandle DeathPreviewTimer;
+		GetWorldTimerManager().SetTimer(
+			DeathPreviewTimer,
+			FTimerDelegate::CreateWeakLambda(
+				this,
+				[this] { PlayMortalRealmDeathAnimation(); }),
+			2.8f,
+			false);
+		FTimerHandle DeathScreenshotTimer;
+		GetWorldTimerManager().SetTimer(
+			DeathScreenshotTimer,
+			FTimerDelegate::CreateWeakLambda(
+				this,
+				[RequestAnimationScreenshot]
+				{
+					RequestAnimationScreenshot(TEXT("MortalPlayer_Death_TBH.png"), TEXT("Death"));
+				}),
+			3.35f,
+			false);
+
+		FTimerHandle RestoreTimer;
+		GetWorldTimerManager().SetTimer(
+			RestoreTimer,
+			FTimerDelegate::CreateWeakLambda(
+				this,
+				[this, RequestAnimationScreenshot]
+				{
+					FinishMortalRealmOneShotAnimation();
+					RequestAnimationScreenshot(TEXT("MortalPlayer_RestoredIdle_TBH.png"), TEXT("RestoredIdle"));
+				}),
+			4.25f,
+			false);
+
+		FTimerHandle ExitTimer;
+		GetWorldTimerManager().SetTimer(
+			ExitTimer,
+			FTimerDelegate::CreateWeakLambda(
+				this,
+				[] { FPlatformMisc::RequestExit(false); }),
+			5.5f,
+			false);
+	}
+#endif
 }
 
 void AImmortalPlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
@@ -2110,11 +4968,373 @@ void AImmortalPlayerCharacter::SetupPlayerInputComponent(UInputComponent* Player
 		PlayerInputComponent->BindKey(EKeys::M, IE_Pressed, this, &AImmortalPlayerCharacter::ToggleMapSelection);
 		PlayerInputComponent->BindKey(EKeys::C, IE_Pressed, this, &AImmortalPlayerCharacter::ToggleCave);
 		PlayerInputComponent->BindKey(EKeys::J, IE_Pressed, this, &AImmortalPlayerCharacter::ToggleSect);
+		PlayerInputComponent->BindKey(EKeys::V, IE_Pressed, this, &AImmortalPlayerCharacter::ToggleWorldBoss);
+		PlayerInputComponent->BindKey(EKeys::N, IE_Pressed, this, &AImmortalPlayerCharacter::ToggleEndlessDungeon);
+		PlayerInputComponent->BindKey(EKeys::P, IE_Pressed, this, &AImmortalPlayerCharacter::TogglePet);
+		PlayerInputComponent->BindKey(EKeys::U, IE_Pressed, this, &AImmortalPlayerCharacter::ToggleAscension);
+		PlayerInputComponent->BindKey(EKeys::Tab, IE_Pressed, this, &AImmortalPlayerCharacter::HandleManagementToggleInput);
+		PlayerInputComponent->BindKey(EKeys::Escape, IE_Pressed, this, &AImmortalPlayerCharacter::HandleEscapePressed);
 	}
+}
+
+void AImmortalPlayerCharacter::SetManagementFeatureOpenFlags(
+	const EImmortalManagementFeature Feature)
+{
+	bInventoryOpen = Feature == EImmortalManagementFeature::Inventory;
+	bAlchemyOpen = Feature == EImmortalManagementFeature::Alchemy;
+	bCraftingOpen = Feature == EImmortalManagementFeature::Crafting;
+	bArtifactOpen = Feature == EImmortalManagementFeature::Artifact;
+	bTechniqueOpen = Feature == EImmortalManagementFeature::Technique;
+	bCharacterBuildOpen =
+		Feature == EImmortalManagementFeature::CharacterBuild;
+	bShopOpen = Feature == EImmortalManagementFeature::Shop;
+	bMapSelectionOpen = Feature == EImmortalManagementFeature::Map;
+	bQuestOpen = Feature == EImmortalManagementFeature::Quest;
+	bCaveOpen = Feature == EImmortalManagementFeature::Cave;
+	bFarmingOpen = Feature == EImmortalManagementFeature::Farming;
+	bSectOpen = Feature == EImmortalManagementFeature::Sect;
+	bWorldBossOpen = Feature == EImmortalManagementFeature::WorldBoss;
+	bEndlessDungeonOpen =
+		Feature == EImmortalManagementFeature::EndlessDungeon;
+	bPetOpen = Feature == EImmortalManagementFeature::Pet;
+	bSettingsOpen = Feature == EImmortalManagementFeature::Settings;
+}
+
+void AImmortalPlayerCharacter::RegisterManagementPages()
+{
+	if (!PlayerManagementWidget)
+	{
+		return;
+	}
+
+	PlayerManagementWidget->RegisterFeaturePage(
+		EImmortalManagementFeature::Cultivation,
+		PlayerCultivationWidget);
+	PlayerManagementWidget->RegisterFeaturePage(
+		EImmortalManagementFeature::Inventory,
+		PlayerInventoryWidget);
+	PlayerManagementWidget->RegisterFeaturePage(
+		EImmortalManagementFeature::Alchemy,
+		PlayerAlchemyWidget);
+	PlayerManagementWidget->RegisterFeaturePage(
+		EImmortalManagementFeature::Crafting,
+		PlayerCraftingWidget);
+	PlayerManagementWidget->RegisterFeaturePage(
+		EImmortalManagementFeature::Artifact,
+		PlayerArtifactWidget);
+	PlayerManagementWidget->RegisterFeaturePage(
+		EImmortalManagementFeature::Technique,
+		PlayerTechniqueWidget);
+	PlayerManagementWidget->RegisterFeaturePage(
+		EImmortalManagementFeature::CharacterBuild,
+		PlayerCharacterBuildWidget);
+	PlayerManagementWidget->RegisterFeaturePage(
+		EImmortalManagementFeature::Shop,
+		PlayerShopWidget);
+	PlayerManagementWidget->RegisterFeaturePage(
+		EImmortalManagementFeature::Map,
+		PlayerMapWidget);
+	PlayerManagementWidget->RegisterFeaturePage(
+		EImmortalManagementFeature::Quest,
+		PlayerQuestWidget);
+	PlayerManagementWidget->RegisterFeaturePage(
+		EImmortalManagementFeature::Cave,
+		PlayerCaveWidget);
+	PlayerManagementWidget->RegisterFeaturePage(
+		EImmortalManagementFeature::Farming,
+		PlayerFarmingWidget);
+	PlayerManagementWidget->RegisterFeaturePage(
+		EImmortalManagementFeature::Sect,
+		PlayerSectWidget);
+	PlayerManagementWidget->RegisterFeaturePage(
+		EImmortalManagementFeature::WorldBoss,
+		PlayerWorldBossWidget);
+	PlayerManagementWidget->RegisterFeaturePage(
+		EImmortalManagementFeature::EndlessDungeon,
+		PlayerEndlessDungeonWidget);
+	PlayerManagementWidget->RegisterFeaturePage(
+		EImmortalManagementFeature::Pet,
+		PlayerPetWidget);
+	PlayerManagementWidget->RegisterFeaturePage(
+		EImmortalManagementFeature::Settings,
+		PlayerSettingsWidget);
+	PlayerManagementWidget->ShowFeature(
+		EImmortalManagementFeature::Home);
+}
+
+void AImmortalPlayerCharacter::QueueManagementNotification(
+	const FText& Message,
+	const FLinearColor& Color,
+	const float DurationSeconds)
+{
+	if (PlayerManagementWidget)
+	{
+		PlayerManagementWidget->QueueNotification(
+			Message,
+			Color,
+			FMath::Max(DurationSeconds, 0.1f));
+	}
+}
+
+void AImmortalPlayerCharacter::OpenManagementInterface()
+{
+	OpenManagementFeature(EImmortalManagementFeature::Home);
+}
+
+void AImmortalPlayerCharacter::CloseManagementInterface()
+{
+	if (bDeathCultivationRecoveryRequired)
+	{
+		OpenManagementFeature(
+			EImmortalManagementFeature::Cultivation);
+		QueueManagementNotification(
+			FText::FromString(TEXT(
+				"历练通道仍处于关闭状态：完成下一次修炼突破后才能重返历练。")),
+			FLinearColor(1.0f, 0.58f, 0.32f, 1.0f),
+			5.0f);
+		UE_LOG(
+			LogTemp,
+			Display,
+			TEXT("Return to adventure blocked by death cultivation recovery"));
+		return;
+	}
+
+	const bool bShouldResumeAdventure =
+		bAdventureSuspendedForDeathRecovery;
+	if (PlayerManagementWidget)
+	{
+		PlayerManagementWidget->SetVisibility(
+			ESlateVisibility::Collapsed);
+		PlayerManagementWidget->ShowFeature(
+			EImmortalManagementFeature::Home);
+	}
+	bManagementInterfaceOpen = false;
+	ActiveManagementFeature = EImmortalManagementFeature::Home;
+	SetManagementFeatureOpenFlags(EImmortalManagementFeature::Home);
+	if (PlayerStatusWidget)
+	{
+		PlayerStatusWidget->SetVisibility(
+			ESlateVisibility::Visible);
+	}
+	ConfigureModalWidget(nullptr, false);
+	if (bShouldResumeAdventure)
+	{
+		ResumeAdventureAfterDeathRecovery();
+	}
+	UE_LOG(
+		LogTemp,
+		Display,
+		TEXT("Management interface closed: combatPaused=%s autoAttackActive=%s"),
+		UGameplayStatics::IsGamePaused(this) ? TEXT("true") : TEXT("false"),
+		GetWorldTimerManager().IsTimerActive(AutoAttackTimerHandle)
+			? TEXT("true")
+			: TEXT("false"));
+}
+
+void AImmortalPlayerCharacter::OpenManagementFeature(
+	const EImmortalManagementFeature Feature)
+{
+	if (!PlayerManagementWidget)
+	{
+		return;
+	}
+	const EImmortalManagementFeature EffectiveFeature =
+		bDeathCultivationRecoveryRequired
+		&& Feature != EImmortalManagementFeature::Cultivation
+			? EImmortalManagementFeature::Cultivation
+			: Feature;
+
+	if (bAscensionOpen && PlayerAscensionWidget)
+	{
+		PlayerAscensionWidget->SetVisibility(
+			ESlateVisibility::Collapsed);
+	}
+	bAscensionOpen = false;
+	bManagementInterfaceOpen = true;
+	ActiveManagementFeature = EffectiveFeature;
+	SetManagementFeatureOpenFlags(EffectiveFeature);
+
+	switch (EffectiveFeature)
+	{
+	case EImmortalManagementFeature::Cultivation:
+		if (PlayerCultivationWidget)
+		{
+			PlayerCultivationWidget->RefreshFromPlayer();
+		}
+		break;
+	case EImmortalManagementFeature::Inventory:
+		if (PlayerInventoryWidget)
+		{
+			PlayerInventoryWidget->ResetTransientInteraction();
+			PlayerInventoryWidget->RefreshFromPlayer();
+		}
+		break;
+	case EImmortalManagementFeature::Alchemy:
+		if (PlayerAlchemyWidget) PlayerAlchemyWidget->RefreshFromPlayer();
+		break;
+	case EImmortalManagementFeature::Crafting:
+		if (PlayerCraftingWidget) PlayerCraftingWidget->RefreshFromPlayer();
+		break;
+	case EImmortalManagementFeature::Artifact:
+		if (PlayerArtifactWidget) PlayerArtifactWidget->RefreshFromPlayer();
+		break;
+	case EImmortalManagementFeature::Technique:
+		if (PlayerTechniqueWidget) PlayerTechniqueWidget->RefreshFromPlayer();
+		break;
+	case EImmortalManagementFeature::CharacterBuild:
+		if (PlayerCharacterBuildWidget) PlayerCharacterBuildWidget->RefreshFromPlayer();
+		break;
+	case EImmortalManagementFeature::Shop:
+		EnsureDailyShopRefresh();
+		if (PlayerShopWidget) PlayerShopWidget->RefreshFromPlayer();
+		break;
+	case EImmortalManagementFeature::Map:
+		if (PlayerMapWidget) PlayerMapWidget->SelectMap(GetActiveMapId());
+		break;
+	case EImmortalManagementFeature::Quest:
+		EnsureQuestDailyState();
+		if (PlayerQuestWidget) PlayerQuestWidget->RefreshFromPlayer();
+		break;
+	case EImmortalManagementFeature::Cave:
+		SettleCaveProduction();
+		if (PlayerCaveWidget) PlayerCaveWidget->RefreshFromPlayer();
+		break;
+	case EImmortalManagementFeature::Farming:
+		SettleFarmingGrowth();
+		if (PlayerFarmingWidget) PlayerFarmingWidget->RefreshFromPlayer();
+		break;
+	case EImmortalManagementFeature::Sect:
+		EnsureSectDailyState();
+		if (PlayerSectWidget) PlayerSectWidget->RefreshFromPlayer();
+		break;
+	case EImmortalManagementFeature::WorldBoss:
+		RetryPendingWorldBossRewards();
+		if (PlayerWorldBossWidget) PlayerWorldBossWidget->RefreshFromPlayer();
+		break;
+	case EImmortalManagementFeature::EndlessDungeon:
+		RetryPendingEndlessDungeonRewards();
+		if (PlayerEndlessDungeonWidget)
+		{
+			PlayerEndlessDungeonWidget->RefreshFromPlayer();
+		}
+		break;
+	case EImmortalManagementFeature::Pet:
+		if (PlayerPetWidget) PlayerPetWidget->RefreshFromPlayer();
+		break;
+	case EImmortalManagementFeature::Settings:
+		if (PlayerSettingsWidget) PlayerSettingsWidget->RefreshFromPlayer();
+		break;
+	default:
+		break;
+	}
+
+	PlayerManagementWidget->ShowFeature(EffectiveFeature);
+	PlayerManagementWidget->RefreshTheme();
+	PlayerManagementWidget->SetVisibility(ESlateVisibility::Visible);
+	if (PlayerStatusWidget)
+	{
+		PlayerStatusWidget->SetVisibility(
+			ESlateVisibility::Collapsed);
+	}
+	ConfigureModalWidget(PlayerManagementWidget, true);
+	UE_LOG(
+		LogTemp,
+		Display,
+		TEXT("Management feature opened: page=%d combatPaused=%s autoAttackActive=%s cultivationRate=%.2f"),
+		static_cast<int32>(EffectiveFeature),
+		UGameplayStatics::IsGamePaused(this) ? TEXT("true") : TEXT("false"),
+		GetWorldTimerManager().IsTimerActive(AutoAttackTimerHandle)
+			? TEXT("true")
+			: TEXT("false"),
+		GetCultivationPerSecond());
+	if (EffectiveFeature != Feature)
+	{
+		QueueManagementNotification(
+			FText::FromString(TEXT(
+				"历练失败后必须先修炼：完成下一次突破即可解锁其他功能和重返历练。")),
+			FLinearColor(1.0f, 0.58f, 0.32f, 1.0f),
+			5.0f);
+	}
+}
+
+void AImmortalPlayerCharacter::ToggleManagementFeature(
+	const EImmortalManagementFeature Feature)
+{
+	if (bManagementInterfaceOpen
+		&& ActiveManagementFeature == Feature)
+	{
+		OpenManagementFeature(EImmortalManagementFeature::Home);
+		return;
+	}
+	OpenManagementFeature(Feature);
+}
+
+void AImmortalPlayerCharacter::HandleManagementToggleInput()
+{
+	if (bAscensionOpen)
+	{
+		OpenManagementFeature(EImmortalManagementFeature::Cultivation);
+	}
+	else if (bManagementInterfaceOpen)
+	{
+		CloseManagementInterface();
+	}
+	else
+	{
+		OpenManagementInterface();
+	}
+}
+
+void AImmortalPlayerCharacter::OpenAscensionInterface()
+{
+	if (bDeathCultivationRecoveryRequired)
+	{
+		OpenManagementFeature(
+			EImmortalManagementFeature::Cultivation);
+		QueueManagementNotification(
+			FText::FromString(TEXT(
+				"历练失败后需先完成修炼恢复，当前不能离开修炼界面。")),
+			FLinearColor(1.0f, 0.58f, 0.32f, 1.0f),
+			5.0f);
+		return;
+	}
+	if (!PlayerAscensionWidget)
+	{
+		return;
+	}
+	if (PlayerManagementWidget)
+	{
+		PlayerManagementWidget->SetVisibility(
+			ESlateVisibility::Collapsed);
+	}
+	bManagementInterfaceOpen = false;
+	SetManagementFeatureOpenFlags(EImmortalManagementFeature::Home);
+	bAscensionOpen = true;
+	PlayerAscensionWidget->RefreshFromPlayer();
+	PlayerAscensionWidget->SetVisibility(ESlateVisibility::Visible);
+	if (PlayerStatusWidget)
+	{
+		PlayerStatusWidget->SetVisibility(
+			ESlateVisibility::Collapsed);
+	}
+	ConfigureModalWidget(PlayerAscensionWidget, true);
+	UE_LOG(
+		LogTemp,
+		Display,
+		TEXT("Independent ascension interface opened: combatPaused=%s autoAttackActive=%s"),
+		UGameplayStatics::IsGamePaused(this) ? TEXT("true") : TEXT("false"),
+		GetWorldTimerManager().IsTimerActive(AutoAttackTimerHandle)
+			? TEXT("true")
+			: TEXT("false"));
 }
 
 void AImmortalPlayerCharacter::ToggleInventory()
 {
+	if (PlayerManagementWidget)
+	{
+		ToggleManagementFeature(EImmortalManagementFeature::Inventory);
+		return;
+	}
 	if (!PlayerInventoryWidget)
 	{
 		return;
@@ -2137,6 +5357,11 @@ void AImmortalPlayerCharacter::ToggleInventory()
 
 void AImmortalPlayerCharacter::ToggleAlchemy()
 {
+	if (PlayerManagementWidget)
+	{
+		ToggleManagementFeature(EImmortalManagementFeature::Alchemy);
+		return;
+	}
 	if (!PlayerAlchemyWidget)
 	{
 		return;
@@ -2156,6 +5381,11 @@ void AImmortalPlayerCharacter::ToggleAlchemy()
 
 void AImmortalPlayerCharacter::ToggleCrafting()
 {
+	if (PlayerManagementWidget)
+	{
+		ToggleManagementFeature(EImmortalManagementFeature::Crafting);
+		return;
+	}
 	if (!PlayerCraftingWidget) return;
 	const bool bWantsOpen = !bCraftingOpen;
 	if (bWantsOpen) CloseAllModalWidgetsExcept(PlayerCraftingWidget);
@@ -2172,6 +5402,11 @@ void AImmortalPlayerCharacter::ToggleCrafting()
 
 void AImmortalPlayerCharacter::ToggleArtifacts()
 {
+	if (PlayerManagementWidget)
+	{
+		ToggleManagementFeature(EImmortalManagementFeature::Artifact);
+		return;
+	}
 	if (!PlayerArtifactWidget) return;
 	const bool bWantsOpen = !bArtifactOpen;
 	if (bWantsOpen) CloseAllModalWidgetsExcept(PlayerArtifactWidget);
@@ -2188,6 +5423,11 @@ void AImmortalPlayerCharacter::ToggleArtifacts()
 
 void AImmortalPlayerCharacter::ToggleTechniques()
 {
+	if (PlayerManagementWidget)
+	{
+		ToggleManagementFeature(EImmortalManagementFeature::Technique);
+		return;
+	}
 	if (!PlayerTechniqueWidget) return;
 	const bool bWantsOpen = !bTechniqueOpen;
 	if (bWantsOpen) CloseAllModalWidgetsExcept(PlayerTechniqueWidget);
@@ -2204,6 +5444,12 @@ void AImmortalPlayerCharacter::ToggleTechniques()
 
 void AImmortalPlayerCharacter::ToggleCharacterBuild()
 {
+	if (PlayerManagementWidget)
+	{
+		ToggleManagementFeature(
+			EImmortalManagementFeature::CharacterBuild);
+		return;
+	}
 	if (!PlayerCharacterBuildWidget) return;
 	const bool bWantsOpen = !bCharacterBuildOpen;
 	if (bWantsOpen) CloseAllModalWidgetsExcept(PlayerCharacterBuildWidget);
@@ -2222,6 +5468,11 @@ void AImmortalPlayerCharacter::ToggleCharacterBuild()
 
 void AImmortalPlayerCharacter::ToggleShop()
 {
+	if (PlayerManagementWidget)
+	{
+		ToggleManagementFeature(EImmortalManagementFeature::Shop);
+		return;
+	}
 	if (!PlayerShopWidget) return;
 	const bool bWantsOpen = !bShopOpen;
 	if (bWantsOpen)
@@ -2244,6 +5495,11 @@ void AImmortalPlayerCharacter::ToggleShop()
 
 void AImmortalPlayerCharacter::ToggleMapSelection()
 {
+	if (PlayerManagementWidget)
+	{
+		ToggleManagementFeature(EImmortalManagementFeature::Map);
+		return;
+	}
 	if (!PlayerMapWidget) return;
 	const bool bWantsOpen = !bMapSelectionOpen;
 	if (bWantsOpen) CloseAllModalWidgetsExcept(PlayerMapWidget);
@@ -2260,6 +5516,11 @@ void AImmortalPlayerCharacter::ToggleMapSelection()
 
 void AImmortalPlayerCharacter::ToggleCave()
 {
+	if (PlayerManagementWidget)
+	{
+		ToggleManagementFeature(EImmortalManagementFeature::Cave);
+		return;
+	}
 	if (!PlayerCaveWidget) return;
 	const bool bWantsOpen = !bCaveOpen;
 	if (bWantsOpen)
@@ -2283,6 +5544,11 @@ void AImmortalPlayerCharacter::ToggleCave()
 
 void AImmortalPlayerCharacter::ToggleFarming()
 {
+	if (PlayerManagementWidget)
+	{
+		ToggleManagementFeature(EImmortalManagementFeature::Farming);
+		return;
+	}
 	if (!PlayerFarmingWidget) return;
 	const bool bWantsOpen = !bFarmingOpen;
 	if (bWantsOpen)
@@ -2307,6 +5573,11 @@ void AImmortalPlayerCharacter::ToggleFarming()
 
 void AImmortalPlayerCharacter::ToggleSect()
 {
+	if (PlayerManagementWidget)
+	{
+		ToggleManagementFeature(EImmortalManagementFeature::Sect);
+		return;
+	}
 	if (!PlayerSectWidget) return;
 	const bool bWantsOpen = !bSectOpen;
 	if (bWantsOpen)
@@ -2325,6 +5596,1314 @@ void AImmortalPlayerCharacter::ToggleSect()
 			*SectState.SectId.ToString(), SectState.Contribution, SectState.TotalContributionEarned,
 			SectState.DailyTasks.Num(), SectState.Revision);
 	}
+}
+
+void AImmortalPlayerCharacter::ToggleWorldBoss()
+{
+	if (PlayerManagementWidget)
+	{
+		ToggleManagementFeature(EImmortalManagementFeature::WorldBoss);
+		return;
+	}
+	if (!PlayerWorldBossWidget)
+	{
+		return;
+	}
+	const bool bWantsOpen = !bWorldBossOpen;
+	if (bWantsOpen)
+	{
+		CloseAllModalWidgetsExcept(PlayerWorldBossWidget);
+		RetryPendingWorldBossRewards();
+	}
+	bWorldBossOpen = bWantsOpen;
+	PlayerWorldBossWidget->SetVisibility(
+		bWorldBossOpen ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
+	if (bWorldBossOpen)
+	{
+		PlayerWorldBossWidget->RefreshFromPlayer();
+	}
+	ConfigureModalWidget(PlayerWorldBossWidget, bWorldBossOpen);
+	if (bWorldBossOpen)
+	{
+		const FImmortalWorldBossRuntimeSnapshot Runtime = GetWorldBossRuntimeSnapshot();
+		UE_LOG(LogTemp, Display,
+			TEXT("World Boss screen opened: bosses=%d pendingRewards=%d active=%s revision=%d"),
+			UImmortalWorldBossLibrary::GetKnownWorldBossIds().Num(),
+			WorldBossState.PendingRewards.Num(),
+			Runtime.bActive ? TEXT("true") : TEXT("false"),
+			WorldBossState.Revision);
+	}
+}
+
+void AImmortalPlayerCharacter::ToggleEndlessDungeon()
+{
+	if (PlayerManagementWidget)
+	{
+		ToggleManagementFeature(
+			EImmortalManagementFeature::EndlessDungeon);
+		return;
+	}
+	if (!PlayerEndlessDungeonWidget)
+	{
+		return;
+	}
+	const bool bWantsOpen = !bEndlessDungeonOpen;
+	if (bWantsOpen)
+	{
+		CloseAllModalWidgetsExcept(PlayerEndlessDungeonWidget);
+		RetryPendingEndlessDungeonRewards();
+	}
+	bEndlessDungeonOpen = bWantsOpen;
+	PlayerEndlessDungeonWidget->SetVisibility(
+		bEndlessDungeonOpen
+			? ESlateVisibility::Visible
+			: ESlateVisibility::Collapsed);
+	if (bEndlessDungeonOpen)
+	{
+		PlayerEndlessDungeonWidget->RefreshFromPlayer();
+	}
+	ConfigureModalWidget(
+		PlayerEndlessDungeonWidget,
+		bEndlessDungeonOpen);
+	if (bEndlessDungeonOpen)
+	{
+		const FImmortalEndlessDungeonRuntimeSnapshot Runtime =
+			GetEndlessDungeonRuntimeSnapshot();
+		UE_LOG(LogTemp, Display,
+			TEXT("Endless Dungeon screen opened: highest=%d totalFloors=%lld runs=%d pendingRewards=%d active=%s revision=%d"),
+			EndlessDungeonState.HighestClearedFloor,
+			EndlessDungeonState.TotalFloorsCleared,
+			EndlessDungeonState.TotalRuns,
+			EndlessDungeonState.PendingRewards.Num(),
+			Runtime.bActive ? TEXT("true") : TEXT("false"),
+			EndlessDungeonState.Revision);
+	}
+}
+
+void AImmortalPlayerCharacter::TogglePet()
+{
+	if (PlayerManagementWidget)
+	{
+		ToggleManagementFeature(EImmortalManagementFeature::Pet);
+		return;
+	}
+	if (!PlayerPetWidget)
+	{
+		return;
+	}
+	const bool bWantsOpen = !bPetOpen;
+	if (bWantsOpen)
+	{
+		CloseAllModalWidgetsExcept(PlayerPetWidget);
+	}
+	bPetOpen = bWantsOpen;
+	PlayerPetWidget->SetVisibility(
+		bPetOpen ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
+	if (bPetOpen)
+	{
+		PlayerPetWidget->RefreshFromPlayer();
+	}
+	ConfigureModalWidget(PlayerPetWidget, bPetOpen);
+	if (bPetOpen)
+	{
+		UE_LOG(LogTemp, Display,
+			TEXT("Pet screen opened: active=%s pets=%d kills=%lld revision=%d"),
+			*PetState.ActivePetId.ToString(),
+			PetState.Pets.Num(),
+			PetState.TotalCombatKills,
+			PetState.Revision);
+	}
+}
+
+void AImmortalPlayerCharacter::ToggleAscension()
+{
+	if (PlayerManagementWidget)
+	{
+		if (bAscensionOpen)
+		{
+			OpenManagementFeature(
+				EImmortalManagementFeature::Cultivation);
+		}
+		else
+		{
+			OpenAscensionInterface();
+		}
+		return;
+	}
+	if (!PlayerAscensionWidget)
+	{
+		return;
+	}
+	const bool bWantsOpen = !bAscensionOpen;
+	if (bWantsOpen)
+	{
+		CloseAllModalWidgetsExcept(PlayerAscensionWidget);
+	}
+	bAscensionOpen = bWantsOpen;
+	PlayerAscensionWidget->SetVisibility(
+		bAscensionOpen
+			? ESlateVisibility::Visible
+			: ESlateVisibility::Collapsed);
+	if (bAscensionOpen)
+	{
+		PlayerAscensionWidget->RefreshFromPlayer();
+	}
+	ConfigureModalWidget(
+		PlayerAscensionWidget, bAscensionOpen);
+	if (bAscensionOpen)
+	{
+		const FImmortalAscensionEligibility Eligibility =
+			EvaluateAscensionEligibility();
+		UE_LOG(LogTemp, Display,
+			TEXT("Ascension screen opened: count=%d seals=%d paths=%d/%d/%d eligible=%s revision=%d"),
+			AscensionState.AscensionCount,
+			AscensionState.ImmortalSeals,
+			AscensionState.BattlePathRank,
+			AscensionState.EnlightenmentPathRank,
+			AscensionState.FortunePathRank,
+			Eligibility.bEligible ? TEXT("true") : TEXT("false"),
+			AscensionState.Revision);
+	}
+}
+
+void AImmortalPlayerCharacter::HandleEscapePressed()
+{
+	if (bAscensionOpen && PlayerManagementWidget)
+	{
+		OpenManagementFeature(
+			EImmortalManagementFeature::Cultivation);
+		return;
+	}
+	if (bManagementInterfaceOpen && PlayerManagementWidget)
+	{
+		if (ActiveManagementFeature
+			!= EImmortalManagementFeature::Home)
+		{
+			OpenManagementFeature(
+				EImmortalManagementFeature::Home);
+		}
+		else
+		{
+			CloseManagementInterface();
+		}
+		return;
+	}
+	if (bSettingsOpen)
+	{
+		ToggleSettings();
+		return;
+	}
+	const bool bAnyGameplayModalOpen =
+		bInventoryOpen
+		|| bAlchemyOpen
+		|| bCraftingOpen
+		|| bArtifactOpen
+		|| bTechniqueOpen
+		|| bCharacterBuildOpen
+		|| bShopOpen
+		|| bMapSelectionOpen
+		|| bCaveOpen
+		|| bFarmingOpen
+		|| bSectOpen
+		|| bWorldBossOpen
+		|| bEndlessDungeonOpen
+		|| bPetOpen
+		|| bAscensionOpen;
+	if (bAnyGameplayModalOpen)
+	{
+		CloseAllModalWidgetsExcept(nullptr);
+		ConfigureModalWidget(nullptr, false);
+		return;
+	}
+	ToggleSettings();
+}
+
+void AImmortalPlayerCharacter::ToggleSettings()
+{
+	if (PlayerManagementWidget)
+	{
+		ToggleManagementFeature(EImmortalManagementFeature::Settings);
+		return;
+	}
+	if (!PlayerSettingsWidget)
+	{
+		return;
+	}
+	const bool bWantsOpen = !bSettingsOpen;
+	if (bWantsOpen)
+	{
+		CloseAllModalWidgetsExcept(PlayerSettingsWidget);
+	}
+	bSettingsOpen = bWantsOpen;
+	PlayerSettingsWidget->SetVisibility(
+		bSettingsOpen
+			? ESlateVisibility::Visible
+			: ESlateVisibility::Collapsed);
+	if (bSettingsOpen)
+	{
+		PlayerSettingsWidget->RefreshFromPlayer();
+	}
+	ConfigureModalWidget(PlayerSettingsWidget, bSettingsOpen);
+	UE_LOG(
+		LogTemp,
+		Display,
+		TEXT("Desktop settings %s: topmost=%s muted=%s fps=%d height=%d"),
+		bSettingsOpen ? TEXT("opened") : TEXT("closed"),
+		IsDesktopAlwaysOnTopEnabled() ? TEXT("true") : TEXT("false"),
+		IsDesktopMuted() ? TEXT("true") : TEXT("false"),
+		GetDesktopFrameRateLimit(),
+		GetDesktopWindowHeight());
+}
+
+bool AImmortalPlayerCharacter::IsDesktopAlwaysOnTopEnabled() const
+{
+	const UImmortalDesktopSettings* Settings =
+		GetDefault<UImmortalDesktopSettings>();
+	return Settings
+		? Settings->bAlwaysOnTop
+		: bTaskbarWindowAlwaysOnTop;
+}
+
+bool AImmortalPlayerCharacter::IsDesktopMuted() const
+{
+	const UImmortalDesktopSettings* Settings =
+		GetDefault<UImmortalDesktopSettings>();
+	return Settings ? Settings->bMuted : false;
+}
+
+int32 AImmortalPlayerCharacter::GetDesktopFrameRateLimit() const
+{
+	const UImmortalDesktopSettings* Settings =
+		GetDefault<UImmortalDesktopSettings>();
+	return Settings
+		? Settings->FrameRateLimit
+		: UImmortalDesktopSettings::HighFrameRateLimit;
+}
+
+int32 AImmortalPlayerCharacter::GetDesktopWindowHeight() const
+{
+	const UImmortalDesktopSettings* Settings =
+		GetDefault<UImmortalDesktopSettings>();
+	return Settings
+		? Settings->WindowHeight
+		: TaskbarWindowHeight;
+}
+
+void AImmortalPlayerCharacter::ToggleDesktopAlwaysOnTop()
+{
+	UImmortalDesktopSettings* Settings =
+		UImmortalDesktopSettings::GetMutable();
+	if (!Settings) return;
+	Settings->bAlwaysOnTop = !Settings->bAlwaysOnTop;
+	Settings->SaveToDisk();
+	bTaskbarWindowAlwaysOnTop = Settings->bAlwaysOnTop;
+	ApplyTaskbarWindowPlacement();
+}
+
+void AImmortalPlayerCharacter::ToggleDesktopMute()
+{
+	UImmortalDesktopSettings* Settings =
+		UImmortalDesktopSettings::GetMutable();
+	if (!Settings) return;
+	Settings->bMuted = !Settings->bMuted;
+	Settings->SaveToDisk();
+	FApp::SetVolumeMultiplier(
+		Settings->bMuted ? 0.0f : 1.0f);
+}
+
+void AImmortalPlayerCharacter::CycleDesktopFrameRateLimit()
+{
+	UImmortalDesktopSettings* Settings =
+		UImmortalDesktopSettings::GetMutable();
+	if (!Settings) return;
+	Settings->CycleFrameRateLimit();
+	Settings->SaveToDisk();
+	if (GEngine)
+	{
+		GEngine->SetMaxFPS(
+			static_cast<float>(Settings->FrameRateLimit));
+	}
+}
+
+bool AImmortalPlayerCharacter::MinimizeDesktopWindow()
+{
+#if PLATFORM_WINDOWS
+	if (!GetWorld()) return false;
+	const EWorldType::Type WorldType = GetWorld()->WorldType;
+	if (WorldType == EWorldType::PIE
+		|| WorldType == EWorldType::Editor
+		|| WorldType == EWorldType::EditorPreview)
+	{
+		return false;
+	}
+	if (!GEngine || !GEngine->GameViewport) return false;
+	const TSharedPtr<SWindow> GameWindow =
+		GEngine->GameViewport->GetWindow();
+	if (!GameWindow.IsValid()
+		|| !GameWindow->GetNativeWindow().IsValid())
+	{
+		return false;
+	}
+	HWND WindowHandle = static_cast<HWND>(
+		GameWindow->GetNativeWindow()->GetOSWindowHandle());
+	if (!WindowHandle) return false;
+	ShowWindow(WindowHandle, SW_MINIMIZE);
+	UE_LOG(LogTemp, Display, TEXT("TBH window minimized"));
+	return true;
+#else
+	return false;
+#endif
+}
+
+bool AImmortalPlayerCharacter::SaveAndQuitDesktop()
+{
+	if (!GetWorld()) return false;
+	const EWorldType::Type WorldType = GetWorld()->WorldType;
+	if (WorldType == EWorldType::PIE
+		|| WorldType == EWorldType::Editor
+		|| WorldType == EWorldType::EditorPreview)
+	{
+		UE_LOG(
+			LogTemp,
+			Warning,
+			TEXT("Save-and-quit is disabled in editor preview"));
+		return false;
+	}
+	FImmortalMapSystemState CurrentMapState =
+		GetMapSystemState();
+	UImmortalMapLibrary::NormalizeState(CurrentMapState);
+	if (!SaveProgressWithMapOverride(&CurrentMapState))
+	{
+		UE_LOG(
+			LogTemp,
+			Error,
+			TEXT("Save-and-quit aborted because the atomic player/map write failed"));
+		return false;
+	}
+	bSaveAndQuitRequested = true;
+	UE_LOG(
+		LogTemp,
+		Display,
+		TEXT("Save-and-quit committed: map=%s stage=%d"),
+		*CurrentMapState.ActiveMapId.ToString(),
+		GetActiveMapStage());
+	FPlatformMisc::RequestExit(false);
+	return true;
+}
+
+bool AImmortalPlayerCharacter::GetPetProgress(
+	const FName PetId,
+	FImmortalPetProgress& OutProgress) const
+{
+	return UImmortalPetLibrary::GetPetProgress(
+		PetState, PetId, OutProgress);
+}
+
+FImmortalPetOperationResult AImmortalPlayerCharacter::UnlockPet(
+	const FName PetId)
+{
+	FImmortalPetOperationResult Result;
+	Result.PetId = PetId;
+	FImmortalPetDefinition Definition;
+	FImmortalPetProgress Progress;
+	if (!UImmortalPetLibrary::GetPetDefinition(PetId, Definition)
+		|| !GetPetProgress(PetId, Progress))
+	{
+		Result.Message = FText::FromString(TEXT("灵宠目录中不存在该灵兽"));
+		return Result;
+	}
+	if (Progress.bOwned)
+	{
+		Result.bSucceeded = true;
+		Result.bAlreadyOwned = true;
+		Result.bAffordable = true;
+		Result.Message = FText::FromString(FString::Printf(
+			TEXT("%s已经认主"),
+			*Definition.DisplayName.ToString()));
+		return Result;
+	}
+	Result.bAffordable = UImmortalCraftingLibrary::CanAfford(
+		MaterialInventory, CurrentGold, Definition.UnlockCost);
+	if (!Result.bAffordable)
+	{
+		Result.Message = FText::FromString(FString::Printf(
+			TEXT("驯服%s所需资源不足：%s"),
+			*Definition.DisplayName.ToString(),
+			*UImmortalCraftingLibrary::FormatCost(
+				Definition.UnlockCost,
+				MaterialInventory,
+				CurrentGold).ToString()));
+		return Result;
+	}
+
+	const FImmortalPetState PreviousPetState = PetState;
+	const TArray<FImmortalMaterialStack> PreviousMaterials =
+		MaterialInventory;
+	const int32 PreviousGold = CurrentGold;
+	const int32 PreviousMaterialRevision = MaterialInventoryRevision;
+	if (!UImmortalCraftingLibrary::ConsumeCost(
+		MaterialInventory, CurrentGold, Definition.UnlockCost)
+		|| !UImmortalPetLibrary::UnlockPet(PetState, PetId))
+	{
+		PetState = PreviousPetState;
+		MaterialInventory = PreviousMaterials;
+		CurrentGold = PreviousGold;
+		Result.Message = FText::FromString(TEXT("灵宠驯服事务未能完成"));
+		return Result;
+	}
+	++MaterialInventoryRevision;
+	if (ShouldForcePetPersistenceFailure(TEXT("Unlock"))
+		|| !SaveProgress())
+	{
+		PetState = PreviousPetState;
+		MaterialInventory = PreviousMaterials;
+		CurrentGold = PreviousGold;
+		MaterialInventoryRevision = PreviousMaterialRevision;
+		Result.Message = FText::FromString(TEXT("存档写入失败，驯服消耗已全部回滚"));
+		return Result;
+	}
+
+	Result.bSucceeded = true;
+	Result.Message = FText::FromString(FString::Printf(
+		TEXT("%s已认主，可在灵宠界面选择出战"),
+		*Definition.DisplayName.ToString()));
+	PublishMaterialInventoryDiff(PreviousMaterials);
+	BP_OnPetStateChanged(PetState);
+	if (CombatFeedbackWidget)
+	{
+		CombatFeedbackWidget->ShowBossAnnouncement(
+			Result.Message,
+			Definition.DisplayColor,
+			5.0f);
+	}
+	UE_LOG(LogTemp, Display,
+		TEXT("Pet unlocked atomically: %s | stones %d -> %d | pets=%d revision=%d"),
+		*PetId.ToString(),
+		PreviousGold,
+		CurrentGold,
+		PetState.Pets.Num(),
+		PetState.Revision);
+	return Result;
+}
+
+FImmortalPetOperationResult AImmortalPlayerCharacter::SetActivePet(
+	const FName PetId)
+{
+	FImmortalPetOperationResult Result;
+	Result.PetId = PetId;
+	FImmortalPetDefinition Definition;
+	FImmortalPetProgress Progress;
+	if (!UImmortalPetLibrary::GetPetDefinition(PetId, Definition)
+		|| !GetPetProgress(PetId, Progress))
+	{
+		Result.Message = FText::FromString(TEXT("灵宠目录中不存在该灵兽"));
+		return Result;
+	}
+	if (!Progress.bOwned)
+	{
+		Result.Message = FText::FromString(TEXT("该灵宠尚未认主"));
+		return Result;
+	}
+	Result.bAffordable = true;
+	if (PetState.ActivePetId == PetId)
+	{
+		Result.bSucceeded = true;
+		Result.bAlreadyOwned = true;
+		Result.Message = FText::FromString(FString::Printf(
+			TEXT("%s正在出战"),
+			*Definition.DisplayName.ToString()));
+		return Result;
+	}
+
+	const FImmortalPetState PreviousState = PetState;
+	if (!UImmortalPetLibrary::SetActivePet(PetState, PetId)
+		|| ShouldForcePetPersistenceFailure(TEXT("Equip"))
+		|| !SaveProgress())
+	{
+		PetState = PreviousState;
+		Result.Message = FText::FromString(TEXT("存档写入失败，出战灵宠未改变"));
+		return Result;
+	}
+	RefreshActivePetActor();
+	Result.bSucceeded = true;
+	Result.Message = FText::FromString(FString::Printf(
+		TEXT("%s已出战"),
+		*Definition.DisplayName.ToString()));
+	BP_OnPetStateChanged(PetState);
+	if (CombatFeedbackWidget)
+	{
+		CombatFeedbackWidget->ShowBossAnnouncement(
+			Result.Message,
+			Definition.DisplayColor,
+			5.0f);
+	}
+	UE_LOG(LogTemp, Display,
+		TEXT("Active pet switched atomically: %s -> %s | revision=%d"),
+		*PreviousState.ActivePetId.ToString(),
+		*PetState.ActivePetId.ToString(),
+		PetState.Revision);
+	return Result;
+}
+
+FImmortalPetOperationResult AImmortalPlayerCharacter::RaisePetStar(
+	const FName PetId)
+{
+	FImmortalPetOperationResult Result;
+	Result.PetId = PetId;
+	FImmortalPetDefinition Definition;
+	FImmortalPetProgress Progress;
+	if (!UImmortalPetLibrary::GetPetDefinition(PetId, Definition)
+		|| !GetPetProgress(PetId, Progress))
+	{
+		Result.Message = FText::FromString(TEXT("灵宠目录中不存在该灵兽"));
+		return Result;
+	}
+	if (!Progress.bOwned)
+	{
+		Result.Message = FText::FromString(TEXT("未认主的灵宠无法升星"));
+		return Result;
+	}
+	if (Progress.Stars >= UImmortalPetLibrary::MaximumPetStars)
+	{
+		Result.bAffordable = true;
+		Result.Message = FText::FromString(TEXT("该灵宠已经达到五星"));
+		return Result;
+	}
+	const FImmortalCraftingCost Cost =
+		UImmortalPetLibrary::GetStarUpCost(Progress);
+	Result.bAffordable = UImmortalCraftingLibrary::CanAfford(
+		MaterialInventory, CurrentGold, Cost);
+	if (!Result.bAffordable)
+	{
+		Result.Message = FText::FromString(FString::Printf(
+			TEXT("%s升星资源不足：%s"),
+			*Definition.DisplayName.ToString(),
+			*UImmortalCraftingLibrary::FormatCost(
+				Cost, MaterialInventory, CurrentGold).ToString()));
+		return Result;
+	}
+
+	const FImmortalPetState PreviousPetState = PetState;
+	const TArray<FImmortalMaterialStack> PreviousMaterials =
+		MaterialInventory;
+	const int32 PreviousGold = CurrentGold;
+	const int32 PreviousMaterialRevision = MaterialInventoryRevision;
+	if (!UImmortalCraftingLibrary::ConsumeCost(
+		MaterialInventory, CurrentGold, Cost)
+		|| !UImmortalPetLibrary::RaiseStar(PetState, PetId))
+	{
+		PetState = PreviousPetState;
+		MaterialInventory = PreviousMaterials;
+		CurrentGold = PreviousGold;
+		Result.Message = FText::FromString(TEXT("灵宠升星事务未能完成"));
+		return Result;
+	}
+	++MaterialInventoryRevision;
+	if (ShouldForcePetPersistenceFailure(TEXT("Star"))
+		|| !SaveProgress())
+	{
+		PetState = PreviousPetState;
+		MaterialInventory = PreviousMaterials;
+		CurrentGold = PreviousGold;
+		MaterialInventoryRevision = PreviousMaterialRevision;
+		Result.Message = FText::FromString(TEXT("存档写入失败，升星消耗已全部回滚"));
+		return Result;
+	}
+	RefreshActivePetActor();
+	FImmortalPetProgress NewProgress;
+	GetPetProgress(PetId, NewProgress);
+	Result.bSucceeded = true;
+	Result.Message = FText::FromString(FString::Printf(
+		TEXT("%s提升至 %d 星"),
+		*Definition.DisplayName.ToString(),
+		NewProgress.Stars));
+	PublishMaterialInventoryDiff(PreviousMaterials);
+	BP_OnPetStateChanged(PetState);
+	if (CombatFeedbackWidget)
+	{
+		CombatFeedbackWidget->ShowBossAnnouncement(
+			Result.Message,
+			Definition.DisplayColor,
+			5.0f);
+	}
+	UE_LOG(LogTemp, Display,
+		TEXT("Pet star raised atomically: %s %d -> %d | stones %d -> %d | revision=%d"),
+		*PetId.ToString(),
+		Progress.Stars,
+		NewProgress.Stars,
+		PreviousGold,
+		CurrentGold,
+		PetState.Revision);
+	return Result;
+}
+
+bool AImmortalPlayerCharacter::SpawnActivePetActor()
+{
+	DespawnActivePetActor();
+	if (!GetWorld() || PetState.ActivePetId.IsNone())
+	{
+		return false;
+	}
+	FImmortalPetProgress Progress;
+	FImmortalPetDefinition Definition;
+	if (!GetPetProgress(PetState.ActivePetId, Progress)
+		|| !Progress.bOwned
+		|| !UImmortalPetLibrary::GetPetDefinition(
+			PetState.ActivePetId, Definition))
+	{
+		return false;
+	}
+
+	FActorSpawnParameters SpawnParameters;
+	SpawnParameters.Owner = this;
+	SpawnParameters.Instigator = this;
+	SpawnParameters.SpawnCollisionHandlingOverride =
+		ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+	const FVector SpawnLocation = GetActorLocation()
+		+ FVector(Definition.FollowOffsetX, 0.0f, 6.0f);
+	ActivePetActor = GetWorld()->SpawnActor<AImmortalPetCharacter>(
+		AImmortalPetCharacter::StaticClass(),
+		SpawnLocation,
+		GetActorRotation(),
+		SpawnParameters);
+	if (!ActivePetActor
+		|| !ActivePetActor->InitializeForPlayer(
+			this, PetState.ActivePetId))
+	{
+		DespawnActivePetActor();
+		UE_LOG(LogTemp, Error,
+			TEXT("Failed to spawn active pet actor: %s"),
+			*PetState.ActivePetId.ToString());
+		return false;
+	}
+	UE_LOG(LogTemp, Display,
+		TEXT("Active pet actor spawned: %s at %s"),
+		*PetState.ActivePetId.ToString(),
+		*SpawnLocation.ToCompactString());
+	return true;
+}
+
+void AImmortalPlayerCharacter::DespawnActivePetActor()
+{
+	if (IsValid(ActivePetActor))
+	{
+		ActivePetActor->Destroy();
+	}
+	ActivePetActor = nullptr;
+}
+
+void AImmortalPlayerCharacter::RefreshActivePetActor()
+{
+	if (!IsValid(ActivePetActor)
+		|| ActivePetActor->GetPetId() != PetState.ActivePetId)
+	{
+		SpawnActivePetActor();
+		return;
+	}
+	ActivePetActor->RefreshFromPersistentState();
+}
+
+float AImmortalPlayerCharacter::ResolvePetAttack(
+	AImmortalPetCharacter* SourcePet,
+	AActor* Target,
+	const float RequestedDamageOverride)
+{
+	if (bDead || !IsValid(SourcePet) || SourcePet != ActivePetActor
+		|| SourcePet->GetOwner() != this
+		|| SourcePet->GetPetId() != PetState.ActivePetId
+		|| !IsTargetAttackable(Target, false))
+	{
+		return 0.0f;
+	}
+	FImmortalPetDefinition Definition;
+	FImmortalPetProgress Progress;
+	if (!UImmortalPetLibrary::GetPetDefinition(
+			PetState.ActivePetId, Definition)
+		|| !GetPetProgress(PetState.ActivePetId, Progress)
+		|| !Progress.bOwned)
+	{
+		return 0.0f;
+	}
+
+	const bool bCritical =
+		FMath::FRand() < FMath::Clamp(
+			Definition.CriticalChance, 0.0f, 1.0f);
+	const AImmortalMonsterCharacter* TargetMonster =
+		Cast<AImmortalMonsterCharacter>(Target);
+	const bool bTargetWasAlive =
+		TargetMonster && !TargetMonster->IsDead();
+	const float BaseRequestedDamage = RequestedDamageOverride > 0.0f
+		? RequestedDamageOverride
+		: GetTotalAttackDamage()
+			* UImmortalPetLibrary::CalculateDamageRatio(
+				Definition, Progress);
+	const float AppliedDamage = ApplyOutgoingDamage(
+		Target,
+		FMath::Max(BaseRequestedDamage, 0.0f)
+			* (bCritical ? 1.5f : 1.0f));
+	if (AppliedDamage > 0.0f && CombatFeedbackWidget)
+	{
+		CombatFeedbackWidget->ShowDamage(
+			Target->GetActorLocation()
+				+ FVector(0.0f, 0.0f, 92.0f),
+			AppliedDamage,
+			bCritical,
+			false);
+	}
+	if (AppliedDamage > 0.0f)
+	{
+		UE_LOG(LogTemp, Verbose,
+			TEXT("Pet attack resolved: pet=%s target=%s damage=%.1f critical=%s damageCauser=Player"),
+			*SourcePet->GetPetId().ToString(),
+			*GetNameSafe(Target),
+			AppliedDamage,
+			bCritical ? TEXT("true") : TEXT("false"));
+		if (bTargetWasAlive && TargetMonster->IsDead())
+		{
+			UE_LOG(LogTemp, Display,
+				TEXT("Pet lethal strike settled through player attribution: pet=%s target=%s damageCauser=Player duplicateRewards=0"),
+				*SourcePet->GetPetId().ToString(),
+				*GetNameSafe(Target));
+		}
+	}
+	return AppliedDamage;
+}
+
+void AImmortalPlayerCharacter::NotifyPetCombatKill(
+	AImmortalMonsterCharacter* DefeatedMonster)
+{
+	if (!DefeatedMonster || PetState.ActivePetId.IsNone())
+	{
+		return;
+	}
+
+	int32 DifficultyIndex = GetActiveMapStage();
+	bool bElite = false;
+	bool bBoss = DefeatedMonster->IsBoss();
+	const bool bWorldBoss = DefeatedMonster->IsWorldBoss();
+	if (DefeatedMonster->IsEndlessEnemy())
+	{
+		DifficultyIndex = DefeatedMonster->GetEndlessFloor();
+		bElite = DefeatedMonster->IsEndlessElite();
+	}
+	else if (bWorldBoss)
+	{
+		FImmortalWorldBossDefinition Definition;
+		if (UImmortalWorldBossLibrary::GetWorldBossDefinition(
+			DefeatedMonster->GetWorldBossId(), Definition))
+		{
+			DifficultyIndex = Definition.RecommendedStage;
+		}
+	}
+	const int32 Experience =
+		UImmortalPetLibrary::CalculateCombatExperienceReward(
+			DifficultyIndex, bElite, bBoss, bWorldBoss);
+	const FImmortalPetExperienceResult Growth =
+		UImmortalPetLibrary::GrantActivePetExperience(
+			PetState, Experience, 1);
+	if (!Growth.bSucceeded)
+	{
+		return;
+	}
+	// Real damage always reads the latest persistent level/star values. Do
+	// not rebuild the runtime actor on each kill: doing so would clear a
+	// different target that is already inside the pet's attack windup.
+	BP_OnPetStateChanged(PetState);
+	if (Growth.LevelsGained > 0 && CombatFeedbackWidget)
+	{
+		FImmortalPetDefinition Definition;
+		UImmortalPetLibrary::GetPetDefinition(
+			Growth.PetId, Definition);
+		CombatFeedbackWidget->ShowBossAnnouncement(
+			FText::FromString(FString::Printf(
+				TEXT("%s提升至 %d 级（+%d 灵兽历练）"),
+				*Definition.DisplayName.ToString(),
+				Growth.CurrentLevel,
+				Growth.ExperienceGranted)),
+			Definition.DisplayColor,
+			5.0f);
+	}
+	UE_LOG(LogTemp, Display,
+		TEXT("Pet combat growth recorded: pet=%s xp=+%d level=%d exp=%d/%d kills=%lld revision=%d cultivationReward=0"),
+		*Growth.PetId.ToString(),
+		Growth.ExperienceGranted,
+		Growth.CurrentLevel,
+		Growth.CurrentExperience,
+		Growth.ExperienceToNextLevel,
+		PetState.TotalCombatKills,
+		PetState.Revision);
+}
+
+FImmortalAscensionEligibility
+AImmortalPlayerCharacter::EvaluateAscensionEligibility() const
+{
+	const bool bReachedAscension =
+		CultivationComponent
+		&& CultivationComponent->HasReachedAscension();
+	const FImmortalMapSystemState MapState =
+		GetMapSystemState();
+	FImmortalMapProgress FinalMapProgress;
+	const bool bFinalMapCompleted =
+		UImmortalMapLibrary::GetMapProgress(
+			MapState,
+			UImmortalMapLibrary::GetImmortalPalaceRuinsId(),
+			FinalMapProgress)
+		&& FinalMapProgress.bCompleted
+		&& FinalMapProgress.Stage >= 999;
+	const bool bAtQingyun =
+		MapState.ActiveMapId
+			== UImmortalMapLibrary::GetQingyunMountainId();
+	FImmortalAscensionEligibility Result =
+		UImmortalAscensionLibrary::EvaluateEligibility(
+		AscensionState,
+		bReachedAscension,
+		bFinalMapCompleted,
+		bAtQingyun,
+		GetWorldBossRuntimeSnapshot().bActive,
+		GetEndlessDungeonRuntimeSnapshot().bActive);
+	if (Result.bEligible && bDead)
+	{
+		Result.bEligible = false;
+		Result.Message = FText::FromString(
+			TEXT("重伤状态不可飞升，请等待自动复苏"));
+	}
+	if (Result.bEligible)
+	{
+		const AImmortalMonsterSpawner* Spawner =
+			FindMapSpawner();
+		if (!Spawner
+			|| !Spawner->CanApplyAscensionCycleReset())
+		{
+			Result.bEligible = false;
+			Result.Message = FText::FromString(
+				TEXT("地图或战利品正在结算，请稍后再飞升"));
+		}
+	}
+	return Result;
+}
+
+FImmortalAscensionOperationResult
+AImmortalPlayerCharacter::PerformAscension()
+{
+	const FImmortalAscensionEligibility Eligibility =
+		EvaluateAscensionEligibility();
+	if (!Eligibility.bEligible)
+	{
+		FImmortalAscensionOperationResult Result;
+		Result.AscensionCount =
+			AscensionState.AscensionCount;
+		Result.ImmortalSeals = AscensionState.ImmortalSeals;
+		Result.Message = Eligibility.Message;
+		return Result;
+	}
+	if (!CultivationComponent)
+	{
+		FImmortalAscensionOperationResult Result;
+		Result.Message =
+			FText::FromString(TEXT("修炼组件不可用，飞升已取消"));
+		return Result;
+	}
+	AImmortalMonsterSpawner* Spawner =
+		FindMapSpawner();
+	if (!Spawner
+		|| !Spawner->CanApplyAscensionCycleReset())
+	{
+		FImmortalAscensionOperationResult Result;
+		Result.AscensionCount =
+			AscensionState.AscensionCount;
+		Result.ImmortalSeals = AscensionState.ImmortalSeals;
+		Result.Message = FText::FromString(
+			TEXT("地图或战利品正在结算，飞升已取消"));
+		return Result;
+	}
+
+	const FImmortalAscensionState PreviousState =
+		AscensionState;
+	const FImmortalQuestState PreviousQuestState = QuestState;
+	const EImmortalCultivationRealm PreviousRealm =
+		CultivationComponent->GetCurrentRealm();
+	const int32 PreviousMinorStage =
+		CultivationComponent->GetCurrentMinorStage();
+	const int32 PreviousCultivation =
+		CultivationComponent->GetCurrentCultivation();
+	const float PreviousHealth = CurrentHealth;
+	const float PreviousMana = CurrentMana;
+	FImmortalMapSystemState CompletedCycleMapState =
+		Spawner->GetMapSystemState();
+	UImmortalMapLibrary::NormalizeState(
+		CompletedCycleMapState);
+	const FImmortalMapSystemState NewCycleMapState =
+		UImmortalAscensionLibrary::CreateNewCycleMapState();
+	if (!Spawner->IsCanonicalAscensionCycleState(
+		NewCycleMapState))
+	{
+		FImmortalAscensionOperationResult Result;
+		Result.AscensionCount =
+			AscensionState.AscensionCount;
+		Result.ImmortalSeals = AscensionState.ImmortalSeals;
+		Result.Message = FText::FromString(
+			TEXT("新轮回地图状态无效，飞升已取消"));
+		return Result;
+	}
+
+	FImmortalAscensionOperationResult Result =
+		UImmortalAscensionLibrary::GrantAscension(
+			AscensionState,
+			CompletedCycleMapState,
+			FDateTime::UtcNow().GetTicks());
+	if (!Result.bSucceeded)
+	{
+		return Result;
+	}
+	const bool bQuestChanged = RecordQuestProgressWithoutSave(
+		EImmortalQuestMetric::Ascensions, 1);
+
+	CultivationComponent->StopCultivating();
+	CultivationComponent->InitializeProgress(
+		EImmortalCultivationRealm::QiRefining, 1, 0);
+	CurrentCultivation = 0;
+	RecalculateAscensionBonuses();
+	CurrentHealth = FMath::Clamp(
+		PreviousHealth, 0.0f, GetMaxHealth());
+	CurrentMana = FMath::Clamp(
+		PreviousMana, 0.0f, GetMaxMana());
+
+	bool bAscensionSaved = false;
+#if !UE_BUILD_SHIPPING
+	const bool bInjectAscensionWriteFailure =
+		ShouldForceAscensionPersistenceFailure(TEXT("Ascend"));
+	UImmortalPathSaveGame::SetDevelopmentWriteFailure(
+		bInjectAscensionWriteFailure);
+#endif
+	bAscensionSaved = SaveProgressWithMapOverride(
+		&NewCycleMapState);
+#if !UE_BUILD_SHIPPING
+	UImmortalPathSaveGame::SetDevelopmentWriteFailure(false);
+#endif
+	if (!bAscensionSaved)
+	{
+		AscensionState = PreviousState;
+		QuestState = PreviousQuestState;
+		CultivationComponent->InitializeProgress(
+			PreviousRealm,
+			PreviousMinorStage,
+			PreviousCultivation);
+		CurrentCultivation = PreviousCultivation;
+		RecalculateAscensionBonuses();
+		CurrentHealth = FMath::Clamp(
+			PreviousHealth, 0.0f, GetMaxHealth());
+		CurrentMana = FMath::Clamp(
+			PreviousMana, 0.0f, GetMaxMana());
+		CultivationComponent->StartCultivating();
+		Result.bSucceeded = false;
+		Result.ImmortalSealsGranted = 0;
+		Result.AscensionCount =
+			AscensionState.AscensionCount;
+		Result.ImmortalSeals = AscensionState.ImmortalSeals;
+		Result.Message = FText::FromString(
+			TEXT("存档失败，飞升与境界重置均已回滚"));
+		UE_LOG(LogTemp, Error,
+			TEXT("Ascension transaction rolled back because persistence failed"));
+		return Result;
+	}
+
+	Spawner->ApplyPersistedAscensionCycleState(
+		NewCycleMapState);
+	CachedMapSystemState = NewCycleMapState;
+	CultivationComponent->StartCultivating();
+	BP_OnAscensionStateChanged(AscensionState);
+	if (bQuestChanged) BP_OnQuestStateChanged(QuestState);
+	if (!bAscensionOpen)
+	{
+		OpenAscensionInterface();
+	}
+	if (PlayerAscensionWidget)
+	{
+		PlayerAscensionWidget->PlayAscensionSequence();
+	}
+	if (CombatFeedbackWidget)
+	{
+		CombatFeedbackWidget->ShowBossAnnouncement(
+			FText::FromString(FString::Printf(
+				TEXT("羽化飞升 · 第 %d 次轮回开启 · 仙印 +%d"),
+				Result.AscensionCount,
+				Result.ImmortalSealsGranted)),
+			FLinearColor(0.84f, 0.58f, 1.0f, 1.0f),
+			5.0f);
+	}
+	UE_LOG(LogTemp, Display,
+		TEXT("Ascension committed: count=%d sealsGranted=%d seals=%d realmReset=QiRefining1 cultivation=0 cycleReset=QingyunMountain/1/0 lifetimeMaps=%d preserved=equipment,inventory,stones,mapLegacy,cave,farming,sect,pet,boss,endless revision=%d"),
+		AscensionState.AscensionCount,
+		Result.ImmortalSealsGranted,
+		AscensionState.ImmortalSeals,
+		AscensionState.LifetimeMapRecords.Num(),
+		AscensionState.Revision);
+	return Result;
+}
+
+FImmortalAscensionPathResult
+AImmortalPlayerCharacter::InvestAscensionPath(
+	const EImmortalAscensionPath Path)
+{
+	const FImmortalAscensionState PreviousState =
+		AscensionState;
+	FImmortalAscensionPathResult Result =
+		UImmortalAscensionLibrary::InvestPath(
+			AscensionState, Path);
+	if (!Result.bSucceeded)
+	{
+		return Result;
+	}
+
+	RecalculateAscensionBonuses();
+	bool bPathSaved = false;
+#if !UE_BUILD_SHIPPING
+	const bool bInjectPathWriteFailure =
+		ShouldForceAscensionPersistenceFailure(TEXT("Path"));
+	UImmortalPathSaveGame::SetDevelopmentWriteFailure(
+		bInjectPathWriteFailure);
+#endif
+	bPathSaved = SaveProgress();
+#if !UE_BUILD_SHIPPING
+	UImmortalPathSaveGame::SetDevelopmentWriteFailure(false);
+#endif
+	if (!bPathSaved)
+	{
+		AscensionState = PreviousState;
+		RecalculateAscensionBonuses();
+		Result.bSucceeded = false;
+		Result.CurrentRank = Result.PreviousRank;
+		Result.ImmortalSeals = AscensionState.ImmortalSeals;
+		Result.ImmortalSealsSpent = 0;
+		Result.Message = FText::FromString(
+			TEXT("存档失败，本次仙途加点已回滚"));
+		UE_LOG(LogTemp, Error,
+			TEXT("Ascension path transaction rolled back because persistence failed"));
+		return Result;
+	}
+
+	BP_OnAscensionStateChanged(AscensionState);
+	UE_LOG(LogTemp, Display,
+		TEXT("Ascension path invested: path=%d rank=%d cost=%d seals=%d battle=x%.2f cultivation=x%.2f loot=x%.2f revision=%d"),
+		static_cast<int32>(Path),
+		Result.CurrentRank,
+		Result.ImmortalSealsSpent,
+		AscensionState.ImmortalSeals,
+		GetAscensionBattleMultiplier(),
+		GetAscensionCultivationMultiplier(),
+		GetAscensionEquipmentDropMultiplier(),
+		AscensionState.Revision);
+	return Result;
+}
+
+float AImmortalPlayerCharacter::GetAscensionBattleMultiplier() const
+{
+	return UImmortalAscensionLibrary::
+		CalculateBattleDamageMultiplier(AscensionState);
+}
+
+float AImmortalPlayerCharacter::GetAscensionCultivationMultiplier() const
+{
+	return UImmortalAscensionLibrary::
+		CalculateCultivationRateMultiplier(AscensionState);
+}
+
+float AImmortalPlayerCharacter::GetAscensionEquipmentDropMultiplier() const
+{
+	return UImmortalAscensionLibrary::
+		CalculateEquipmentDropMultiplier(AscensionState);
+}
+
+bool AImmortalPlayerCharacter::EnsureQuestDailyState(
+	const int64 CurrentUtcTicks)
+{
+	const int64 EffectiveTicks = CurrentUtcTicks > 0
+		? CurrentUtcTicks : FDateTime::UtcNow().GetTicks();
+	const FImmortalQuestState PreviousState = QuestState;
+	const FImmortalQuestDailyRefreshResult Result =
+		UImmortalQuestLibrary::EnsureDailyState(
+			QuestState, EffectiveTicks, SectUtcOffsetMinutes);
+	if (!Result.bStateChanged)
+	{
+		return Result.bSucceeded && !Result.bClockRollbackDetected;
+	}
+	if (!SaveProgress())
+	{
+		QuestState = PreviousState;
+		UE_LOG(LogTemp, Error,
+			TEXT("Quest daily refresh rolled back because persistence failed"));
+		return false;
+	}
+	BP_OnQuestStateChanged(QuestState);
+	return true;
+}
+
+bool AImmortalPlayerCharacter::RecordQuestProgressWithoutSave(
+	const EImmortalQuestMetric Metric,
+	const int64 Amount)
+{
+	const FImmortalQuestRecordResult Result =
+		UImmortalQuestLibrary::RecordProgress(
+			QuestState,
+			Metric,
+			Amount,
+			FDateTime::UtcNow().GetTicks(),
+			SectUtcOffsetMinutes);
+	return Result.bSucceeded && Result.bStateChanged;
+}
+
+bool AImmortalPlayerCharacter::RecordQuestProgress(
+	const EImmortalQuestMetric Metric,
+	const int64 Amount)
+{
+	if (Amount <= 0)
+	{
+		return false;
+	}
+	const FImmortalQuestState PreviousState = QuestState;
+	if (!RecordQuestProgressWithoutSave(Metric, Amount))
+	{
+		return false;
+	}
+	if (!SaveProgress())
+	{
+		QuestState = PreviousState;
+		UE_LOG(LogTemp, Error,
+			TEXT("Quest progress rolled back because persistence failed: metric=%d amount=%lld"),
+			static_cast<int32>(Metric), Amount);
+		return false;
+	}
+	BP_OnQuestStateChanged(QuestState);
+	return true;
+}
+
+FImmortalQuestClaimResult AImmortalPlayerCharacter::EvaluateQuestClaim(
+	const FName QuestId) const
+{
+	return UImmortalQuestLibrary::EvaluateClaim(
+		QuestState,
+		QuestId,
+		FDateTime::UtcNow().GetTicks(),
+		SectUtcOffsetMinutes);
+}
+
+FImmortalQuestClaimResult AImmortalPlayerCharacter::ClaimQuest(
+	const FName QuestId)
+{
+	FImmortalQuestClaimResult Result = EvaluateQuestClaim(QuestId);
+	if (!Result.bCanClaim)
+	{
+		return Result;
+	}
+	if (Result.Reward.SpiritStones < 0
+		|| CurrentGold > MAX_int32 - Result.Reward.SpiritStones)
+	{
+		Result.bCanClaim = false;
+		Result.Message = FText::FromString(
+			TEXT("灵石已达到上限，暂时无法领取任务奖励"));
+		return Result;
+	}
+	if (Result.Reward.TechniqueInsight < 0
+		|| TechniqueInsightPoints > 9999 - Result.Reward.TechniqueInsight)
+	{
+		Result.bCanClaim = false;
+		Result.Message = FText::FromString(
+			TEXT("悟道点已达到上限，暂时无法领取任务奖励"));
+		return Result;
+	}
+	if (!Result.Reward.MaterialId.IsNone()
+		&& Result.Reward.MaterialQuantity > 0)
+	{
+		TArray<FImmortalMaterialStack> CandidateMaterials = MaterialInventory;
+		if (UImmortalMaterialLibrary::AddMaterialStack(
+			CandidateMaterials,
+			Result.Reward.MaterialId,
+			Result.Reward.MaterialQuantity)
+			!= Result.Reward.MaterialQuantity)
+		{
+			Result.bCanClaim = false;
+			Result.Message = FText::FromString(
+				TEXT("材料堆叠已满，暂时无法领取任务奖励"));
+			return Result;
+		}
+	}
+
+	const FImmortalQuestState PreviousQuestState = QuestState;
+	const TArray<FImmortalMaterialStack> PreviousMaterials = MaterialInventory;
+	const int32 PreviousGold = CurrentGold;
+	const int32 PreviousInsight = TechniqueInsightPoints;
+	const int32 PreviousMaterialRevision = MaterialInventoryRevision;
+	const int32 PreviousTechniqueRevision = TechniqueRevision;
+	Result = UImmortalQuestLibrary::TryClaim(
+		QuestState,
+		QuestId,
+		FDateTime::UtcNow().GetTicks(),
+		SectUtcOffsetMinutes);
+	if (!Result.bSucceeded)
+	{
+		QuestState = PreviousQuestState;
+		return Result;
+	}
+
+	CurrentGold += Result.Reward.SpiritStones;
+	if (Result.Reward.TechniqueInsight > 0)
+	{
+		TechniqueInsightPoints += Result.Reward.TechniqueInsight;
+		++TechniqueRevision;
+	}
+	bool bRewardApplied = true;
+	if (!Result.Reward.MaterialId.IsNone()
+		&& Result.Reward.MaterialQuantity > 0)
+	{
+		bRewardApplied = AddMaterialInternal(
+			Result.Reward.MaterialId,
+			Result.Reward.MaterialQuantity)
+			== Result.Reward.MaterialQuantity;
+	}
+	if (!bRewardApplied || !SaveProgress())
+	{
+		QuestState = PreviousQuestState;
+		MaterialInventory = PreviousMaterials;
+		CurrentGold = PreviousGold;
+		TechniqueInsightPoints = PreviousInsight;
+		MaterialInventoryRevision = PreviousMaterialRevision;
+		TechniqueRevision = PreviousTechniqueRevision;
+		Result.bSucceeded = false;
+		Result.bCanClaim = false;
+		Result.bPersistenceFailed = true;
+		Result.Message = bRewardApplied
+			? FText::FromString(TEXT("领取失败：存档未写入，任务状态与奖励已完整回滚"))
+			: FText::FromString(TEXT("领取失败：奖励无法写入，任务状态未改变"));
+		return Result;
+	}
+
+	if (Result.Reward.SpiritStones > 0)
+	{
+		BP_OnRewardsChanged(
+			CurrentCultivation,
+			CurrentGold,
+			0,
+			CurrentGold - PreviousGold);
+	}
+	if (!Result.Reward.MaterialId.IsNone()
+		&& Result.Reward.MaterialQuantity > 0)
+	{
+		PublishMaterialInventoryDiff(PreviousMaterials);
+	}
+	BP_OnQuestStateChanged(QuestState);
+	QueueManagementNotification(
+		Result.Message,
+		FLinearColor(0.58f, 1.0f, 0.66f, 1.0f),
+		5.0f);
+	UE_LOG(LogTemp, Display,
+		TEXT("Quest reward claimed: %s | stones +%d | insight +%d | material %s x%d | totalClaims=%lld"),
+		*QuestId.ToString(),
+		Result.Reward.SpiritStones,
+		Result.Reward.TechniqueInsight,
+		*Result.Reward.MaterialId.ToString(),
+		Result.Reward.MaterialQuantity,
+		QuestState.TotalClaims);
+	return Result;
 }
 
 bool AImmortalPlayerCharacter::EnsureSectDailyState(const int64 CurrentUtcTicks)
@@ -2396,15 +6975,19 @@ FImmortalSectTaskClaimResult AImmortalPlayerCharacter::EvaluateSectTaskClaim(con
 FImmortalSectTaskClaimResult AImmortalPlayerCharacter::ClaimSectTask(const FName TaskId)
 {
 	const FImmortalSectState PreviousState = SectState;
+	const FImmortalQuestState PreviousQuestState = QuestState;
 	FImmortalSectTaskClaimResult Result = UImmortalSectLibrary::TryClaimTask(
 		SectState, TaskId, FDateTime::UtcNow().GetTicks(), SectUtcOffsetMinutes);
 	if (!Result.bSucceeded)
 	{
 		return Result;
 	}
+	const bool bQuestChanged = RecordQuestProgressWithoutSave(
+		EImmortalQuestMetric::SectTasksClaimed, 1);
 	if (!SaveProgress())
 	{
 		SectState = PreviousState;
+		QuestState = PreviousQuestState;
 		Result.bSucceeded = false;
 		Result.bCanClaim = false;
 		Result.bPersistenceFailed = true;
@@ -2414,6 +6997,7 @@ FImmortalSectTaskClaimResult AImmortalPlayerCharacter::ClaimSectTask(const FName
 		return Result;
 	}
 	BP_OnSectStateChanged(SectState);
+	if (bQuestChanged) BP_OnQuestStateChanged(QuestState);
 	UE_LOG(LogTemp, Display, TEXT("Sect task claimed: %s | contribution +%d => %d"),
 		*TaskId.ToString(), Result.ContributionAwarded, SectState.Contribution);
 	return Result;
@@ -2577,31 +7161,58 @@ FImmortalSectExchangeResult AImmortalPlayerCharacter::ExchangeSectOffer(const FN
 void AImmortalPlayerCharacter::NotifySectCombatProgress(
 	const int32 MonsterKills,
 	const int32 StageClears,
-	const int32 BossKills)
+	const int32 BossKills,
+	const int32 MapCompletions)
 {
-	if (!SectState.HasJoined() || (MonsterKills <= 0 && StageClears <= 0 && BossKills <= 0))
+	const int32 SafeKills = FMath::Max(MonsterKills, 0);
+	const int32 SafeStages = FMath::Max(StageClears, 0);
+	const int32 SafeBosses = FMath::Max(BossKills, 0);
+	const int32 SafeMaps = FMath::Max(MapCompletions, 0);
+	if (SafeKills <= 0 && SafeStages <= 0
+		&& SafeBosses <= 0 && SafeMaps <= 0)
 	{
 		return;
 	}
-	const FImmortalSectState PreviousState = SectState;
-	const FImmortalSectTaskProgressResult Result = UImmortalSectLibrary::RecordCombatProgress(
-		SectState,
-		FMath::Max(MonsterKills, 0),
-		FMath::Max(StageClears, 0),
-		FMath::Max(BossKills, 0),
-		FDateTime::UtcNow().GetTicks(),
-		SectUtcOffsetMinutes);
-	if (!Result.bStateChanged)
+
+	const FImmortalQuestState PreviousQuestState = QuestState;
+	const FImmortalSectState PreviousSectState = SectState;
+	bool bQuestChanged = false;
+	bQuestChanged |= RecordQuestProgressWithoutSave(
+		EImmortalQuestMetric::MonsterKills, SafeKills);
+	bQuestChanged |= RecordQuestProgressWithoutSave(
+		EImmortalQuestMetric::StageClears, SafeStages);
+	bQuestChanged |= RecordQuestProgressWithoutSave(
+		EImmortalQuestMetric::BossKills, SafeBosses);
+	bQuestChanged |= RecordQuestProgressWithoutSave(
+		EImmortalQuestMetric::MapCompletions, SafeMaps);
+
+	bool bSectChanged = false;
+	if (SectState.HasJoined())
+	{
+		const FImmortalSectTaskProgressResult SectResult =
+			UImmortalSectLibrary::RecordCombatProgress(
+				SectState,
+				SafeKills,
+				SafeStages,
+				SafeBosses,
+				FDateTime::UtcNow().GetTicks(),
+				SectUtcOffsetMinutes);
+		bSectChanged = SectResult.bStateChanged;
+	}
+	if (!bQuestChanged && !bSectChanged)
 	{
 		return;
 	}
 	if (!SaveProgress())
 	{
-		SectState = PreviousState;
-		UE_LOG(LogTemp, Error, TEXT("Sect combat progress rolled back because persistence failed"));
+		QuestState = PreviousQuestState;
+		SectState = PreviousSectState;
+		UE_LOG(LogTemp, Error,
+			TEXT("Combat quest/sect progress rolled back because persistence failed"));
 		return;
 	}
-	BP_OnSectStateChanged(SectState);
+	if (bQuestChanged) BP_OnQuestStateChanged(QuestState);
+	if (bSectChanged) BP_OnSectStateChanged(SectState);
 }
 
 FImmortalCaveProductionSnapshot AImmortalPlayerCharacter::GetCaveProductionSnapshot() const
@@ -3090,6 +7701,670 @@ FImmortalMapTravelResult AImmortalPlayerCharacter::TravelToMap(const FName MapId
 	return Result;
 }
 
+bool AImmortalPlayerCharacter::GetWorldBossProgress(
+	const FName BossId,
+	FImmortalWorldBossProgress& OutProgress) const
+{
+	return UImmortalWorldBossLibrary::GetProgress(
+		WorldBossState, BossId, OutProgress);
+}
+
+bool AImmortalPlayerCharacter::IsWorldBossUnlocked(const FName BossId) const
+{
+	FImmortalWorldBossDefinition Definition;
+	return UImmortalWorldBossLibrary::GetWorldBossDefinition(BossId, Definition)
+		&& UImmortalWorldBossLibrary::IsUnlocked(
+			Definition, static_cast<int32>(GetCultivationRealm()));
+}
+
+FImmortalWorldBossChallengeResult AImmortalPlayerCharacter::StartWorldBossChallenge(
+	const FName BossId)
+{
+	if (AImmortalMonsterSpawner* Spawner = FindMapSpawner())
+	{
+		return Spawner->StartWorldBossChallenge(BossId);
+	}
+	FImmortalWorldBossChallengeResult Result;
+	Result.BossId = BossId;
+	Result.Message = FText::FromString(TEXT("世界妖王控制器尚未就绪，请稍后再试"));
+	return Result;
+}
+
+FImmortalWorldBossChallengeResult AImmortalPlayerCharacter::CancelWorldBossChallenge()
+{
+	if (AImmortalMonsterSpawner* Spawner = FindMapSpawner())
+	{
+		return Spawner->CancelWorldBossChallenge();
+	}
+	FImmortalWorldBossChallengeResult Result;
+	Result.Message = FText::FromString(TEXT("世界妖王控制器尚未就绪"));
+	return Result;
+}
+
+FImmortalWorldBossRuntimeSnapshot AImmortalPlayerCharacter::GetWorldBossRuntimeSnapshot() const
+{
+	if (const AImmortalMonsterSpawner* Spawner = FindMapSpawner())
+	{
+		return Spawner->GetWorldBossRuntimeSnapshot();
+	}
+	return FImmortalWorldBossRuntimeSnapshot();
+}
+
+FImmortalWorldBossVictoryResult AImmortalPlayerCharacter::CommitWorldBossVictory(
+	const FName BossId,
+	const float ClearSeconds)
+{
+	FImmortalWorldBossVictoryResult Result;
+	FImmortalWorldBossDefinition Definition;
+	if (!UImmortalWorldBossLibrary::GetWorldBossDefinition(BossId, Definition)
+		|| ClearSeconds <= 0.0f)
+	{
+		Result.Message = FText::FromString(TEXT("世界妖王胜利数据无效，未结算奖励"));
+		return Result;
+	}
+
+	const FImmortalWorldBossState PreviousState = WorldBossState;
+	const int64 CurrentUtcTicks = FDateTime::UtcNow().GetTicks();
+	const FImmortalWorldBossRecordResult Record =
+		UImmortalWorldBossLibrary::RecordDefeat(
+			WorldBossState, BossId, ClearSeconds, CurrentUtcTicks);
+	if (!Record.bSucceeded)
+	{
+		Result.Message = FText::FromString(TEXT("世界妖王胜利记录生成失败"));
+		return Result;
+	}
+	const int32 EquipmentItemLevel = FMath::Max(
+		1 + (Definition.RecommendedStage - 1) / 5 + Definition.EquipmentLevelBonus,
+		1);
+	const FImmortalWorldBossRewardBundle Reward =
+		UImmortalWorldBossLibrary::CreateRewardBundle(
+			Definition,
+			EquipmentItemLevel,
+			Record.bFirstClear,
+			CurrentUtcTicks);
+	if (!Reward.IsValid())
+	{
+		WorldBossState = PreviousState;
+		Result.Message = FText::FromString(TEXT("世界妖王独立掉落池生成失败"));
+		return Result;
+	}
+	WorldBossState.PendingRewards.Add(Reward);
+	++WorldBossState.Revision;
+	if (ShouldForceWorldBossPersistenceFailure(TEXT("Commit")) || !SaveProgress())
+	{
+		WorldBossState = PreviousState;
+		Result.Message = FText::FromString(TEXT("世界妖王胜利首次写盘失败，记录与奖励均已回滚"));
+		UE_LOG(LogTemp, Error,
+			TEXT("World Boss victory rolled back before delivery: %s"),
+			*BossId.ToString());
+		return Result;
+	}
+
+	Result.bSucceeded = true;
+	Result.bFirstClear = Record.bFirstClear;
+	Result.bNewBestTime = Record.bNewBestTime;
+	Result.RewardId = Reward.RewardId;
+	Result.bRewardDelivered = TryDeliverPendingWorldBossReward(Reward.RewardId);
+	Result.bRewardPending = WorldBossState.PendingRewards.ContainsByPredicate(
+		[&Reward](const FImmortalWorldBossRewardBundle& Pending)
+		{
+			return Pending.RewardId == Reward.RewardId;
+		});
+	Result.Message = Result.bRewardDelivered
+		? FText::FromString(TEXT("世界妖王奖励已自动发放并保存"))
+		: FText::FromString(TEXT("世界妖王胜利已保存；奖励等待背包空间或下次写盘"));
+	UE_LOG(LogTemp, Display,
+		TEXT("World Boss victory committed: %s | clear %.2fs | first=%s | best=%s | delivered=%s | pending=%s | revision=%d"),
+		*BossId.ToString(), ClearSeconds,
+		Result.bFirstClear ? TEXT("true") : TEXT("false"),
+		Result.bNewBestTime ? TEXT("true") : TEXT("false"),
+		Result.bRewardDelivered ? TEXT("true") : TEXT("false"),
+		Result.bRewardPending ? TEXT("true") : TEXT("false"),
+		WorldBossState.Revision);
+	return Result;
+}
+
+bool AImmortalPlayerCharacter::TryDeliverPendingWorldBossReward(
+	const FGuid RewardId)
+{
+	const FImmortalWorldBossRewardBundle* Pending =
+		WorldBossState.PendingRewards.FindByPredicate(
+			[RewardId](const FImmortalWorldBossRewardBundle& Reward)
+			{
+				return Reward.RewardId == RewardId;
+			});
+	if (!Pending || !Pending->IsValid())
+	{
+		return false;
+	}
+	const FImmortalWorldBossRewardBundle Reward = *Pending;
+
+	const TArray<FImmortalEquipmentItem> PreviousInventory = InventoryItems;
+	const TArray<FImmortalEquipmentItem> PreviousEquipped = EquippedItems;
+	const TArray<FImmortalMaterialStack> PreviousMaterials = MaterialInventory;
+	const TArray<FImmortalArtifactItem> PreviousArtifacts = ArtifactInventory;
+	const FGuid PreviousEquippedArtifact = EquippedArtifactInstanceId;
+	const FImmortalWorldBossState PreviousWorldBossState = WorldBossState;
+	const int32 PreviousGold = CurrentGold;
+	const int32 PreviousDropCount = EquipmentDropCount;
+	const int32 PreviousEquipmentRevision = EquipmentInventoryRevision;
+	const int32 PreviousMaterialRevision = MaterialInventoryRevision;
+	const int32 PreviousArtifactRevision = ArtifactInventoryRevision;
+	const float PreviousHealth = CurrentHealth;
+	const float PreviousMana = CurrentMana;
+
+	auto Rollback = [this,
+		&PreviousInventory,
+		&PreviousEquipped,
+		&PreviousMaterials,
+		&PreviousArtifacts,
+		PreviousEquippedArtifact,
+		&PreviousWorldBossState,
+		PreviousGold,
+		PreviousDropCount,
+		PreviousEquipmentRevision,
+		PreviousMaterialRevision,
+		PreviousArtifactRevision,
+		PreviousHealth,
+		PreviousMana]
+	{
+		InventoryItems = PreviousInventory;
+		EquippedItems = PreviousEquipped;
+		MaterialInventory = PreviousMaterials;
+		ArtifactInventory = PreviousArtifacts;
+		EquippedArtifactInstanceId = PreviousEquippedArtifact;
+		WorldBossState = PreviousWorldBossState;
+		CurrentGold = PreviousGold;
+		EquipmentDropCount = PreviousDropCount;
+		EquipmentInventoryRevision = PreviousEquipmentRevision;
+		MaterialInventoryRevision = PreviousMaterialRevision;
+		ArtifactInventoryRevision = PreviousArtifactRevision;
+		RecalculateEquipmentBonuses();
+		CurrentHealth = FMath::Clamp(PreviousHealth, 0.0f, GetMaxHealth());
+		CurrentMana = FMath::Clamp(PreviousMana, 0.0f, GetMaxMana());
+	};
+
+	for (const FImmortalEquipmentItem& Item : Reward.EquipmentItems)
+	{
+		if (!ProcessEquipmentItem(Item, false, false, false))
+		{
+			Rollback();
+			UE_LOG(LogTemp, Warning,
+				TEXT("World Boss reward remains pending: equipment backpack cannot accept all %d items"),
+				Reward.EquipmentItems.Num());
+			return false;
+		}
+	}
+	for (const FImmortalMaterialStack& Material : Reward.Materials)
+	{
+		if (AddMaterialInternal(Material.MaterialId, Material.Quantity)
+			!= Material.Quantity)
+		{
+			Rollback();
+			UE_LOG(LogTemp, Warning,
+				TEXT("World Boss reward remains pending: material %s could not be added in full"),
+				*Material.MaterialId.ToString());
+			return false;
+		}
+	}
+	if (Reward.SpiritStones > 0)
+	{
+		const int64 NewTotal = static_cast<int64>(CurrentGold) + Reward.SpiritStones;
+		if (NewTotal > MAX_int32)
+		{
+			Rollback();
+			UE_LOG(LogTemp, Warning,
+				TEXT("World Boss reward remains pending: spirit-stone total would overflow"));
+			return false;
+		}
+		CurrentGold = static_cast<int32>(NewTotal);
+	}
+
+	FImmortalArtifactItem GrantedArtifact;
+	if (!Reward.ArtifactId.IsNone())
+	{
+		GrantedArtifact = UImmortalArtifactLibrary::CreateArtifact(Reward.ArtifactId);
+		if (!GrantedArtifact.IsValid())
+		{
+			Rollback();
+			return false;
+		}
+		ArtifactInventory.Add(GrantedArtifact);
+		++ArtifactInventoryRevision;
+	}
+
+	WorldBossState.PendingRewards.RemoveAll(
+		[RewardId](const FImmortalWorldBossRewardBundle& Entry)
+		{
+			return Entry.RewardId == RewardId;
+		});
+	++WorldBossState.Revision;
+	if (ShouldForceWorldBossPersistenceFailure(TEXT("Delivery")) || !SaveProgress())
+	{
+		Rollback();
+		UE_LOG(LogTemp, Error,
+			TEXT("World Boss delivery second write failed; the durable pending bundle was restored"));
+		return false;
+	}
+
+	BP_OnEquipmentPickedUp(EquipmentDropCount, Reward.EquipmentItems.Num());
+	BP_OnInventoryChanged(InventoryItems.Num(), GetInventoryCapacity());
+	PublishMaterialInventoryDiff(PreviousMaterials);
+	if (Reward.SpiritStones > 0)
+	{
+		BP_OnRewardsChanged(CurrentCultivation, CurrentGold, 0, Reward.SpiritStones);
+	}
+	if (GrantedArtifact.IsValid())
+	{
+		BP_OnArtifactChanged(GrantedArtifact, false);
+	}
+	if (CombatFeedbackWidget)
+	{
+		CombatFeedbackWidget->ShowWorldBossRewardSummary(
+			Reward.EquipmentItems.Num(),
+			Reward.SpiritStones,
+			Reward.Materials,
+			GrantedArtifact.IsValid() ? GrantedArtifact.ArtifactId : NAME_None);
+	}
+	UE_LOG(LogTemp, Display,
+		TEXT("World Boss reward delivered atomically: %s | equipment=%d stones=%d materials=%d artifact=%s cultivationReward=0"),
+		*Reward.BossId.ToString(), Reward.EquipmentItems.Num(), Reward.SpiritStones,
+		Reward.Materials.Num(),
+		Reward.ArtifactId.IsNone() ? TEXT("none") : *Reward.ArtifactId.ToString());
+	return true;
+}
+
+bool AImmortalPlayerCharacter::RetryPendingWorldBossRewards()
+{
+	TArray<FGuid> RewardIds;
+	for (const FImmortalWorldBossRewardBundle& Reward : WorldBossState.PendingRewards)
+	{
+		RewardIds.Add(Reward.RewardId);
+	}
+	bool bAllDelivered = true;
+	for (const FGuid RewardId : RewardIds)
+	{
+		bAllDelivered = TryDeliverPendingWorldBossReward(RewardId) && bAllDelivered;
+	}
+	return bAllDelivered && WorldBossState.PendingRewards.IsEmpty();
+}
+
+FImmortalEndlessDungeonStartResult
+AImmortalPlayerCharacter::StartEndlessDungeon(const int32 RequestedFloor)
+{
+	FImmortalEndlessDungeonStartResult Result;
+	UImmortalEndlessDungeonLibrary::NormalizeState(EndlessDungeonState);
+	const FImmortalEndlessDungeonRules Rules =
+		UImmortalEndlessDungeonLibrary::GetRules();
+	const int32 CheckpointFloor =
+		UImmortalEndlessDungeonLibrary::GetCheckpointStartFloor(
+			EndlessDungeonState);
+	const int32 MaximumUnlockedFloor = FMath::Clamp(
+		EndlessDungeonState.HighestClearedFloor + 1,
+		1,
+		FMath::Max(Rules.MaximumFloor, 1));
+	const int32 StartFloor = RequestedFloor <= 0
+		? CheckpointFloor
+		: RequestedFloor;
+	Result.StartFloor = StartFloor;
+	if (StartFloor < CheckpointFloor
+		|| StartFloor > MaximumUnlockedFloor)
+	{
+		Result.Message = FText::FromString(FString::Printf(
+			TEXT("Endless Dungeon start floor must be between %d and %d"),
+			CheckpointFloor,
+			MaximumUnlockedFloor));
+		return Result;
+	}
+
+	AImmortalMonsterSpawner* Spawner = FindMapSpawner();
+	if (!Spawner)
+	{
+		Result.Message = FText::FromString(
+			TEXT("Endless Dungeon controller is not ready"));
+		return Result;
+	}
+	const FImmortalEndlessDungeonState PreviousState = EndlessDungeonState;
+	Result = Spawner->StartEndlessDungeon(StartFloor);
+	if (!Result.bSucceeded)
+	{
+		return Result;
+	}
+
+	EndlessDungeonState.TotalRuns =
+		EndlessDungeonState.TotalRuns < MAX_int32
+			? EndlessDungeonState.TotalRuns + 1
+			: MAX_int32;
+	if (EndlessDungeonState.Revision < MAX_int32)
+	{
+		++EndlessDungeonState.Revision;
+	}
+	if (ShouldForceEndlessDungeonPersistenceFailure(TEXT("Start"))
+		|| !SaveProgress())
+	{
+		Spawner->CancelEndlessDungeon();
+		EndlessDungeonState = PreviousState;
+		Result.bSucceeded = false;
+		Result.Message = FText::FromString(
+			TEXT("Endless Dungeon run save failed; entry was rolled back"));
+		UE_LOG(LogTemp, Error,
+			TEXT("Endless Dungeon start rolled back before combat: floor=%d"),
+			StartFloor);
+		return Result;
+	}
+	UE_LOG(LogTemp, Display,
+		TEXT("Endless Dungeon run persisted: start=%d checkpoint=%d highest=%d runs=%d revision=%d"),
+		StartFloor,
+		CheckpointFloor,
+		EndlessDungeonState.HighestClearedFloor,
+		EndlessDungeonState.TotalRuns,
+		EndlessDungeonState.Revision);
+	return Result;
+}
+
+FImmortalEndlessDungeonStartResult
+AImmortalPlayerCharacter::CancelEndlessDungeon()
+{
+	if (AImmortalMonsterSpawner* Spawner = FindMapSpawner())
+	{
+		return Spawner->CancelEndlessDungeon();
+	}
+	FImmortalEndlessDungeonStartResult Result;
+	Result.Message = FText::FromString(
+		TEXT("Endless Dungeon controller is not ready"));
+	return Result;
+}
+
+FImmortalEndlessDungeonRuntimeSnapshot
+AImmortalPlayerCharacter::GetEndlessDungeonRuntimeSnapshot() const
+{
+	if (const AImmortalMonsterSpawner* Spawner = FindMapSpawner())
+	{
+		return Spawner->GetEndlessDungeonRuntimeSnapshot();
+	}
+	return FImmortalEndlessDungeonRuntimeSnapshot();
+}
+
+FImmortalEndlessDungeonFloorClearResult
+AImmortalPlayerCharacter::CommitEndlessDungeonFloorClear(
+	const int32 ClearedFloor,
+	const float ClearSeconds)
+{
+	FImmortalEndlessDungeonFloorClearResult Result;
+	if (ClearSeconds <= 0.0f)
+	{
+		Result.Message = FText::FromString(
+			TEXT("Endless Dungeon clear time is invalid"));
+		return Result;
+	}
+	UImmortalEndlessDungeonLibrary::NormalizeState(EndlessDungeonState);
+
+	// Floors inside the current checkpoint segment are replays after a failed
+	// run. They must be cleared again, but never create duplicate rewards.
+	if (ClearedFloor >= 1
+		&& ClearedFloor <= EndlessDungeonState.HighestClearedFloor)
+	{
+		Result.bSucceeded = true;
+		Result.bRewardDelivered = true;
+		Result.bRewardPending = false;
+		Result.bNewRecord = false;
+		Result.Message = FText::FromString(
+			TEXT("Checkpoint replay cleared; no duplicate reward was generated"));
+		UE_LOG(LogTemp, Display,
+			TEXT("Endless Dungeon replay floor cleared without reward: floor=%d highest=%d elapsed=%.2f"),
+			ClearedFloor,
+			EndlessDungeonState.HighestClearedFloor,
+			ClearSeconds);
+		return Result;
+	}
+
+	FImmortalEndlessFloorDescriptor Descriptor;
+	if (!UImmortalEndlessDungeonLibrary::GetFloorDescriptor(
+		ClearedFloor, Descriptor))
+	{
+		Result.Message = FText::FromString(
+			TEXT("Endless Dungeon floor reward definition is invalid"));
+		return Result;
+	}
+	const FImmortalEndlessDungeonState PreviousState =
+		EndlessDungeonState;
+	const int64 CurrentUtcTicks = FDateTime::UtcNow().GetTicks();
+	const FImmortalEndlessRecordResult Record =
+		UImmortalEndlessDungeonLibrary::RecordFloorClear(
+			EndlessDungeonState,
+			ClearedFloor,
+			CurrentUtcTicks);
+	if (!Record.bSucceeded)
+	{
+		Result.Message = FText::FromString(
+			TEXT("Endless Dungeon rejected a duplicate or skipped floor clear"));
+		return Result;
+	}
+	const FImmortalEndlessRewardBundle Reward =
+		UImmortalEndlessDungeonLibrary::CreateRewardBundle(
+			Descriptor,
+			CurrentUtcTicks);
+	if (!Reward.IsValid())
+	{
+		EndlessDungeonState = PreviousState;
+		Result.Message = FText::FromString(
+			TEXT("Endless Dungeon reward generation failed"));
+		return Result;
+	}
+	EndlessDungeonState.PendingRewards.Add(Reward);
+	if (EndlessDungeonState.Revision < MAX_int32)
+	{
+		++EndlessDungeonState.Revision;
+	}
+	if (ShouldForceEndlessDungeonPersistenceFailure(TEXT("Commit"))
+		|| !SaveProgress())
+	{
+		EndlessDungeonState = PreviousState;
+		Result.Message = FText::FromString(
+			TEXT("Endless Dungeon first reward write failed; floor and reward rolled back"));
+		UE_LOG(LogTemp, Error,
+			TEXT("Endless Dungeon floor commit rolled back: floor=%d"),
+			ClearedFloor);
+		return Result;
+	}
+
+	Result.bSucceeded = true;
+	Result.bNewRecord = Record.bNewHighest;
+	Result.RewardId = Reward.RewardId;
+	Result.bRewardDelivered =
+		TryDeliverPendingEndlessDungeonReward(Reward.RewardId);
+	Result.bRewardPending =
+		EndlessDungeonState.PendingRewards.ContainsByPredicate(
+			[&Reward](const FImmortalEndlessRewardBundle& Pending)
+			{
+				return Pending.RewardId == Reward.RewardId;
+			});
+	Result.Message = Result.bRewardDelivered
+		? FText::FromString(
+			TEXT("Endless Dungeon floor reward was auto-collected and saved"))
+		: FText::FromString(
+			TEXT("Endless Dungeon progress is saved; reward remains pending"));
+	UE_LOG(LogTemp, Display,
+		TEXT("Endless Dungeon floor committed: floor=%d elapsed=%.2f delivered=%s pending=%s highest=%d total=%lld revision=%d"),
+		ClearedFloor,
+		ClearSeconds,
+		Result.bRewardDelivered ? TEXT("true") : TEXT("false"),
+		Result.bRewardPending ? TEXT("true") : TEXT("false"),
+		EndlessDungeonState.HighestClearedFloor,
+		EndlessDungeonState.TotalFloorsCleared,
+		EndlessDungeonState.Revision);
+	return Result;
+}
+
+bool AImmortalPlayerCharacter::TryDeliverPendingEndlessDungeonReward(
+	const FGuid RewardId)
+{
+	const FImmortalEndlessRewardBundle* Pending =
+		EndlessDungeonState.PendingRewards.FindByPredicate(
+			[RewardId](const FImmortalEndlessRewardBundle& Reward)
+			{
+				return Reward.RewardId == RewardId;
+			});
+	if (!Pending || !Pending->IsValid())
+	{
+		return false;
+	}
+	const FImmortalEndlessRewardBundle Reward = *Pending;
+
+	const TArray<FImmortalEquipmentItem> PreviousInventory =
+		InventoryItems;
+	const TArray<FImmortalEquipmentItem> PreviousEquipped =
+		EquippedItems;
+	const TArray<FImmortalMaterialStack> PreviousMaterials =
+		MaterialInventory;
+	const FImmortalEndlessDungeonState PreviousEndlessState =
+		EndlessDungeonState;
+	const int32 PreviousGold = CurrentGold;
+	const int32 PreviousDropCount = EquipmentDropCount;
+	const int32 PreviousEquipmentRevision =
+		EquipmentInventoryRevision;
+	const int32 PreviousMaterialRevision = MaterialInventoryRevision;
+	const float PreviousHealth = CurrentHealth;
+	const float PreviousMana = CurrentMana;
+
+	auto Rollback = [this,
+		&PreviousInventory,
+		&PreviousEquipped,
+		&PreviousMaterials,
+		&PreviousEndlessState,
+		PreviousGold,
+		PreviousDropCount,
+		PreviousEquipmentRevision,
+		PreviousMaterialRevision,
+		PreviousHealth,
+		PreviousMana]
+	{
+		InventoryItems = PreviousInventory;
+		EquippedItems = PreviousEquipped;
+		MaterialInventory = PreviousMaterials;
+		EndlessDungeonState = PreviousEndlessState;
+		CurrentGold = PreviousGold;
+		EquipmentDropCount = PreviousDropCount;
+		EquipmentInventoryRevision = PreviousEquipmentRevision;
+		MaterialInventoryRevision = PreviousMaterialRevision;
+		RecalculateEquipmentBonuses();
+		CurrentHealth = FMath::Clamp(
+			PreviousHealth, 0.0f, GetMaxHealth());
+		CurrentMana = FMath::Clamp(
+			PreviousMana, 0.0f, GetMaxMana());
+	};
+
+	for (const FImmortalEquipmentItem& Item : Reward.EquipmentItems)
+	{
+		if (!ProcessEquipmentItem(Item, false, false, false))
+		{
+			Rollback();
+			UE_LOG(LogTemp, Warning,
+				TEXT("Endless Dungeon reward remains pending: equipment could not be stored (%d items)"),
+				Reward.EquipmentItems.Num());
+			return false;
+		}
+	}
+	for (const FImmortalMaterialStack& Material : Reward.Materials)
+	{
+		if (AddMaterialInternal(
+			Material.MaterialId,
+			Material.Quantity) != Material.Quantity)
+		{
+			Rollback();
+			UE_LOG(LogTemp, Warning,
+				TEXT("Endless Dungeon reward remains pending: material %s could not be added in full"),
+				*Material.MaterialId.ToString());
+			return false;
+		}
+	}
+	if (Reward.SpiritStones > 0)
+	{
+		const int64 NewTotal =
+			static_cast<int64>(CurrentGold)
+			+ static_cast<int64>(Reward.SpiritStones);
+		if (NewTotal > MAX_int32)
+		{
+			Rollback();
+			UE_LOG(LogTemp, Warning,
+				TEXT("Endless Dungeon reward remains pending: spirit-stone total would overflow"));
+			return false;
+		}
+		CurrentGold = static_cast<int32>(NewTotal);
+	}
+
+	EndlessDungeonState.PendingRewards.RemoveAll(
+		[RewardId](const FImmortalEndlessRewardBundle& Entry)
+		{
+			return Entry.RewardId == RewardId;
+		});
+	if (EndlessDungeonState.Revision < MAX_int32)
+	{
+		++EndlessDungeonState.Revision;
+	}
+	if (ShouldForceEndlessDungeonPersistenceFailure(TEXT("Delivery"))
+		|| !SaveProgress())
+	{
+		Rollback();
+		UE_LOG(LogTemp, Error,
+			TEXT("Endless Dungeon delivery second write failed; durable pending bundle restored"));
+		return false;
+	}
+
+	if (!Reward.EquipmentItems.IsEmpty())
+	{
+		BP_OnEquipmentPickedUp(
+			EquipmentDropCount,
+			Reward.EquipmentItems.Num());
+		BP_OnInventoryChanged(
+			InventoryItems.Num(),
+			GetInventoryCapacity());
+	}
+	PublishMaterialInventoryDiff(PreviousMaterials);
+	if (Reward.SpiritStones > 0)
+	{
+		BP_OnRewardsChanged(
+			CurrentCultivation,
+			CurrentGold,
+			0,
+			Reward.SpiritStones);
+	}
+	if (CombatFeedbackWidget)
+	{
+		CombatFeedbackWidget->ShowEndlessDungeonRewardSummary(
+			Reward.ClearedFloor,
+			Reward.EquipmentItems.Num(),
+			Reward.SpiritStones,
+			Reward.Materials);
+	}
+	UE_LOG(LogTemp, Display,
+		TEXT("Endless Dungeon reward delivered atomically: floor=%d equipment=%d stones=%d materials=%d cultivationReward=0"),
+		Reward.ClearedFloor,
+		Reward.EquipmentItems.Num(),
+		Reward.SpiritStones,
+		Reward.Materials.Num());
+	return true;
+}
+
+bool AImmortalPlayerCharacter::RetryPendingEndlessDungeonRewards()
+{
+	TArray<FGuid> RewardIds;
+	for (const FImmortalEndlessRewardBundle& Reward :
+		EndlessDungeonState.PendingRewards)
+	{
+		RewardIds.Add(Reward.RewardId);
+	}
+	bool bAllDelivered = true;
+	for (const FGuid RewardId : RewardIds)
+	{
+		bAllDelivered =
+			TryDeliverPendingEndlessDungeonReward(RewardId)
+			&& bAllDelivered;
+	}
+	return bAllDelivered
+		&& EndlessDungeonState.PendingRewards.IsEmpty();
+}
+
 void AImmortalPlayerCharacter::CloseAllModalWidgetsExcept(const UUserWidget* ExceptWidget)
 {
 	auto Close = [ExceptWidget](UUserWidget* Widget, bool& bOpen)
@@ -3111,6 +8386,11 @@ void AImmortalPlayerCharacter::CloseAllModalWidgetsExcept(const UUserWidget* Exc
 	Close(PlayerCaveWidget, bCaveOpen);
 	Close(PlayerFarmingWidget, bFarmingOpen);
 	Close(PlayerSectWidget, bSectOpen);
+	Close(PlayerWorldBossWidget, bWorldBossOpen);
+	Close(PlayerEndlessDungeonWidget, bEndlessDungeonOpen);
+	Close(PlayerPetWidget, bPetOpen);
+	Close(PlayerAscensionWidget, bAscensionOpen);
+	Close(PlayerSettingsWidget, bSettingsOpen);
 }
 
 void AImmortalPlayerCharacter::ConfigureModalWidget(UUserWidget* Widget, const bool bOpen)
@@ -3131,14 +8411,27 @@ void AImmortalPlayerCharacter::ConfigureModalWidget(UUserWidget* Widget, const b
 		int32 ViewportWidth = 0;
 		int32 ViewportHeight = 0;
 		PlayerController->GetViewportSize(ViewportWidth, ViewportHeight);
+		const bool bIsFullViewportScene = Widget == PlayerManagementWidget;
 		const bool bIsTaskbarStripWidget = Widget == PlayerInventoryWidget
-			|| Widget == PlayerFarmingWidget || Widget == PlayerSectWidget;
-		const FVector2D InventorySize = bIsTaskbarStripWidget
-			? FVector2D(1600.0f, 300.0f)
+			|| Widget == PlayerManagementWidget
+			|| Widget == PlayerFarmingWidget || Widget == PlayerSectWidget
+			|| Widget == PlayerWorldBossWidget
+			|| Widget == PlayerEndlessDungeonWidget
+			|| Widget == PlayerPetWidget
+			|| Widget == PlayerAscensionWidget
+			|| Widget == PlayerSettingsWidget;
+		const FVector2D InventorySize = bIsFullViewportScene
+			? FVector2D(
+				FMath::Max(ViewportWidth, 1),
+				FMath::Max(ViewportHeight, 1))
+			: bIsTaskbarStripWidget
+				? FVector2D(1600.0f, 300.0f)
 			: FVector2D(900.0f, 600.0f);
 		const float AvailableWidth = FMath::Max(static_cast<float>(ViewportWidth) - 16.0f, 1.0f);
 		const float AvailableHeight = FMath::Max(static_cast<float>(ViewportHeight) - 16.0f, 1.0f);
-		const float FitScale = ViewportWidth > 0 && ViewportHeight > 0
+		const float FitScale = bIsFullViewportScene
+			? 1.0f
+			: ViewportWidth > 0 && ViewportHeight > 0
 			? FMath::Clamp(FMath::Min(
 				AvailableWidth / InventorySize.X,
 				AvailableHeight / InventorySize.Y), 0.1f, 1.0f)
@@ -3149,9 +8442,11 @@ void AImmortalPlayerCharacter::ConfigureModalWidget(UUserWidget* Widget, const b
 		// TBH-window pixels (1707x320 currently uses roughly 0.44 DPI scale).
 		const float RenderScale = FitScale / DpiScale;
 		const FVector2D RenderedSize = InventorySize * FitScale;
-		const FVector2D CentredPosition(
-			FMath::Max((static_cast<float>(ViewportWidth) - RenderedSize.X) * 0.5f, 0.0f),
-			FMath::Max((static_cast<float>(ViewportHeight) - RenderedSize.Y) * 0.5f, 0.0f));
+		const FVector2D CentredPosition = bIsFullViewportScene
+			? FVector2D::ZeroVector
+			: FVector2D(
+				FMath::Max((static_cast<float>(ViewportWidth) - RenderedSize.X) * 0.5f, 0.0f),
+				FMath::Max((static_cast<float>(ViewportHeight) - RenderedSize.Y) * 0.5f, 0.0f));
 		// Apply layout only after AddToViewport has registered the widget with
 		// UE 5.7's GameViewportSubsystem; early consecutive setters can replace
 		// one another while the viewport slot is still unmanaged.
@@ -3344,7 +8639,10 @@ FImmortalShopTransactionResult AImmortalPlayerCharacter::BuyShopListing(const FG
 				CompatibleLoadout,
 				AttackDamage + CultivationAttack,
 				Defense + CultivationDefense,
-				MaxHealth + CultivationHealth);
+				MaxHealth + CultivationHealth,
+				AttackSpeedMultiplier + ArtifactAttackSpeedBonus + TechniqueAttackSpeedBonus + CharacterPathAttackSpeedBonus,
+				CriticalChance + ArtifactCriticalChanceBonus + TechniqueCriticalChanceBonus + CharacterPathCriticalChanceBonus,
+				CriticalDamageMultiplier);
 		};
 		const float ExistingLoadoutPower = CalculateCompatibleLoadoutPower(EquippedItems);
 		TArray<FImmortalEquipmentItem> CandidateLoadout = EquippedItems;
@@ -3679,6 +8977,34 @@ void AImmortalPlayerCharacter::ConfigureCombatCamera()
 	}
 }
 
+void AImmortalPlayerCharacter::ApplyDesktopSettings()
+{
+	UImmortalDesktopSettings* Settings =
+		UImmortalDesktopSettings::GetMutable();
+	if (!Settings)
+	{
+		return;
+	}
+	Settings->LoadFromDisk();
+	bTaskbarWindowAlwaysOnTop = Settings->bAlwaysOnTop;
+	TaskbarWindowHeight = Settings->WindowHeight;
+	FApp::SetVolumeMultiplier(
+		Settings->bMuted ? 0.0f : 1.0f);
+	if (GEngine)
+	{
+		GEngine->SetMaxFPS(
+			static_cast<float>(Settings->FrameRateLimit));
+	}
+	UE_LOG(
+		LogTemp,
+		Display,
+		TEXT("Desktop settings applied: topmost=%s muted=%s fps=%d height=%d"),
+		Settings->bAlwaysOnTop ? TEXT("true") : TEXT("false"),
+		Settings->bMuted ? TEXT("true") : TEXT("false"),
+		Settings->FrameRateLimit,
+		Settings->WindowHeight);
+}
+
 void AImmortalPlayerCharacter::ConfigureTaskbarWindow()
 {
 	if (!bEnableTaskbarWindowMode || !GetWorld()) return;
@@ -3700,6 +9026,14 @@ void AImmortalPlayerCharacter::ConfigureTaskbarWindow()
 void AImmortalPlayerCharacter::ApplyTaskbarWindowPlacement()
 {
 #if PLATFORM_WINDOWS
+	if (!GetWorld()) return;
+	const EWorldType::Type WorldType = GetWorld()->WorldType;
+	if (WorldType == EWorldType::PIE
+		|| WorldType == EWorldType::Editor
+		|| WorldType == EWorldType::EditorPreview)
+	{
+		return;
+	}
 	if (!GEngine || !GEngine->GameViewport) return;
 	const TSharedPtr<SWindow> GameWindow = GEngine->GameViewport->GetWindow();
 	if (!GameWindow.IsValid() || !GameWindow->GetNativeWindow().IsValid()) return;
@@ -3728,9 +9062,64 @@ void AImmortalPlayerCharacter::ApplyTaskbarWindowPlacement()
 		SWP_FRAMECHANGED | SWP_SHOWWINDOW);
 	UE_LOG(LogTemp, Display, TEXT("TBH taskbar window applied: %dx%d at %d,%d | topmost=%s"),
 		Width, Height, WorkArea.left, Top, bTaskbarWindowAlwaysOnTop ? TEXT("true") : TEXT("false"));
+	if (PlayerStatusWidget)
+	{
+		APlayerController* PlayerController =
+			GetWorld()
+				? GetWorld()->GetFirstPlayerController()
+				: nullptr;
+		int32 ViewportWidth = 0;
+		int32 ViewportHeight = 0;
+		if (PlayerController)
+		{
+			PlayerController->GetViewportSize(
+				ViewportWidth, ViewportHeight);
+		}
+		const FVector2D StatusSize(512.0f, 64.0f);
+		const float AvailableWidth = FMath::Max(
+			static_cast<float>(ViewportWidth) - 16.0f,
+			1.0f);
+		const float FitScale =
+			ViewportWidth > 0
+				? FMath::Clamp(
+					AvailableWidth / StatusSize.X,
+					0.1f,
+					1.0f)
+				: 1.0f;
+		const float DpiScale = FMath::Max(
+			UWidgetLayoutLibrary::GetViewportScale(this),
+			0.01f);
+		const FVector2D StatusPosition(
+			24.0f,
+			16.0f);
+		PlayerStatusWidget->SetDesiredSizeInViewport(
+			StatusSize);
+		PlayerStatusWidget->SetRenderTransformPivot(
+			FVector2D::ZeroVector);
+		PlayerStatusWidget->SetRenderScale(FVector2D(
+			FitScale / DpiScale,
+			FitScale / DpiScale));
+		PlayerStatusWidget->SetAnchorsInViewport(
+			FAnchors(0.0f, 0.0f));
+		PlayerStatusWidget->SetAlignmentInViewport(
+			FVector2D::ZeroVector);
+		PlayerStatusWidget->SetPositionInViewport(
+			StatusPosition, true);
+		UE_LOG(LogTemp, Display,
+			TEXT("TBH player health fit applied: logical=512x64 viewport=%dx%d fit=%.3f dpi=%.3f render=%.3f position=%.0f,%.0f"),
+			ViewportWidth,
+			ViewportHeight,
+			FitScale,
+			DpiScale,
+			FitScale / DpiScale,
+			StatusPosition.X,
+			StatusPosition.Y);
+	}
 	// The viewport scale changes after the native TBH window is resized. Reapply
 	// the active modal's viewport geometry so it remains centered and fully visible.
-	if (bInventoryOpen) ConfigureModalWidget(PlayerInventoryWidget, true);
+	if (bAscensionOpen) ConfigureModalWidget(PlayerAscensionWidget, true);
+	else if (bManagementInterfaceOpen) ConfigureModalWidget(PlayerManagementWidget, true);
+	else if (bInventoryOpen) ConfigureModalWidget(PlayerInventoryWidget, true);
 	else if (bAlchemyOpen) ConfigureModalWidget(PlayerAlchemyWidget, true);
 	else if (bCraftingOpen) ConfigureModalWidget(PlayerCraftingWidget, true);
 	else if (bArtifactOpen) ConfigureModalWidget(PlayerArtifactWidget, true);
@@ -3741,6 +9130,10 @@ void AImmortalPlayerCharacter::ApplyTaskbarWindowPlacement()
 	else if (bCaveOpen) ConfigureModalWidget(PlayerCaveWidget, true);
 	else if (bFarmingOpen) ConfigureModalWidget(PlayerFarmingWidget, true);
 	else if (bSectOpen) ConfigureModalWidget(PlayerSectWidget, true);
+	else if (bWorldBossOpen) ConfigureModalWidget(PlayerWorldBossWidget, true);
+	else if (bEndlessDungeonOpen) ConfigureModalWidget(PlayerEndlessDungeonWidget, true);
+	else if (bPetOpen) ConfigureModalWidget(PlayerPetWidget, true);
+	else if (bSettingsOpen) ConfigureModalWidget(PlayerSettingsWidget, true);
 #endif
 }
 
@@ -3791,6 +9184,8 @@ float AImmortalPlayerCharacter::TakeDamage(
 		GetCharacterMovement()->DisableMovement();
 		GetCapsuleComponent()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 		BP_OnPlayerDied(DamageCauser);
+		PlayMortalRealmDeathAnimation();
+		BeginDeathCultivationRecovery();
 		if (GetWorld())
 		{
 			GetWorldTimerManager().SetTimer(
@@ -3800,6 +9195,10 @@ float AImmortalPlayerCharacter::TakeDamage(
 				FMath::Max(AutoReviveDelay, 0.1f),
 				false);
 		}
+	}
+	else if (DamageApplied > 0.0f)
+	{
+		PlayMortalRealmHurtAnimation();
 	}
 
 	return DamageApplied + ArtifactShieldAbsorbed + TechniqueShieldAbsorbed + PathShieldAbsorbed;
@@ -3832,7 +9231,9 @@ float AImmortalPlayerCharacter::GetTotalAttackDamage() const
 {
 	const float CultivationBonus = CultivationComponent ? CultivationComponent->GetAttackBonus() : 0.0f;
 	return (AttackDamage + EquippedAttackBonus + CultivationBonus)
-		* EquipmentAttackMultiplier * ArtifactAttackMultiplier * TechniqueAttackMultiplier * CharacterPathAttackMultiplier;
+		* EquipmentAttackMultiplier * ArtifactAttackMultiplier
+		* TechniqueAttackMultiplier * CharacterPathAttackMultiplier
+		* GetAscensionBattleMultiplier();
 }
 
 float AImmortalPlayerCharacter::GetTotalDefense() const
@@ -3840,6 +9241,15 @@ float AImmortalPlayerCharacter::GetTotalDefense() const
 	const float CultivationBonus = CultivationComponent ? CultivationComponent->GetDefenseBonus() : 0.0f;
 	return (Defense + EquippedDefenseBonus + CultivationBonus)
 		* EquipmentDefenseMultiplier * ArtifactDefenseMultiplier * TechniqueDefenseMultiplier * CharacterPathDefenseMultiplier;
+}
+
+float AImmortalPlayerCharacter::GetEquipmentDropChanceMultiplier() const
+{
+	return FMath::Clamp(
+		(1.0f + EquippedLootFindBonus)
+			* GetAscensionEquipmentDropMultiplier(),
+		0.0f,
+		5.0f);
 }
 
 float AImmortalPlayerCharacter::GetEffectiveAttackInterval() const
@@ -3858,7 +9268,9 @@ float AImmortalPlayerCharacter::GetCombatPower() const
 		+ (EquippedFireDamageBonus + EquippedThunderDamageBonus + EquippedIceDamageBonus) * 55.0f
 		+ EquippedLifeStealBonus * 160.0f + EquippedCultivationGainBonus * 60.0f
 		+ EquippedLootFindBonus * 80.0f + EquippedBossDamageBonus * 70.0f
-		+ EquipmentFinalDamageBonus * 90.0f + EquipmentDamageReduction * 120.0f;
+		+ EquipmentFinalDamageBonus * 90.0f + EquipmentDamageReduction * 120.0f
+		+ (GetAscensionCultivationMultiplier() - 1.0f) * 120.0f
+		+ (GetAscensionEquipmentDropMultiplier() - 1.0f) * 100.0f;
 }
 
 FText AImmortalPlayerCharacter::GetEquipmentSetSummaryText() const
@@ -3916,13 +9328,25 @@ void AImmortalPlayerCharacter::ReceiveSpiritStones(const int32 Amount, const FVe
 		static_cast<int64>(CurrentGold) + SafeAmount, MAX_int32));
 	const int32 GrantedAmount = CurrentGold - PreviousGold;
 	if (GrantedAmount <= 0) return;
+	const bool bQuestChanged = RecordQuestProgressWithoutSave(
+		EImmortalQuestMetric::SpiritStonesCollected,
+		GrantedAmount);
 	if (CombatFeedbackWidget)
 	{
 		CombatFeedbackWidget->ShowRewards(PickupWorldLocation, 0, GrantedAmount);
 	}
+	QueueManagementNotification(
+		FText::FromString(FString::Printf(
+			TEXT("\u7075\u77F3 +%d\uFF08\u5DF2\u81EA\u52A8\u62FE\u53D6\uFF09"),
+			GrantedAmount)),
+		FLinearColor(1.0f, 0.82f, 0.32f, 1.0f),
+		5.0f);
 	BP_OnRewardsChanged(CurrentCultivation, CurrentGold, 0, GrantedAmount);
 	UE_LOG(LogTemp, Display, TEXT("Spirit stones collected: +%d | total %d"), GrantedAmount, CurrentGold);
-	SaveProgress();
+	if (SaveProgress() && bQuestChanged)
+	{
+		BP_OnQuestStateChanged(QuestState);
+	}
 }
 
 void AImmortalPlayerCharacter::UpdateStageProgress(
@@ -3971,6 +9395,37 @@ void AImmortalPlayerCharacter::ShowBossMessage(const FText& Message, const FLine
 	}
 }
 
+void AImmortalPlayerCharacter::UpdateWorldBossProgress(
+	const FImmortalWorldBossRuntimeSnapshot& Snapshot)
+{
+	if (CombatFeedbackWidget && Snapshot.bActive)
+	{
+		CombatFeedbackWidget->SetWorldBossProgress(
+			Snapshot.DisplayName,
+			Snapshot.Phase,
+			Snapshot.CurrentHealth,
+			Snapshot.MaximumHealth,
+			Snapshot.RemainingSeconds);
+	}
+}
+
+void AImmortalPlayerCharacter::UpdateEndlessDungeonProgress(
+	const FImmortalEndlessDungeonRuntimeSnapshot& Snapshot)
+{
+	if (CombatFeedbackWidget && Snapshot.bActive)
+	{
+		CombatFeedbackWidget->SetEndlessDungeonProgress(
+			Snapshot.Floor,
+			Snapshot.Kills,
+			Snapshot.RequiredKills,
+			Snapshot.bElite,
+			Snapshot.bBoss,
+			Snapshot.BossPhase,
+			Snapshot.CurrentHealth,
+			Snapshot.MaximumHealth);
+	}
+}
+
 void AImmortalPlayerCharacter::ShowRewardFeedback(const FVector& WorldLocation, const int32 Cultivation, const int32 SpiritStones)
 {
 	if (CombatFeedbackWidget)
@@ -4003,6 +9458,9 @@ void AImmortalPlayerCharacter::HandleCultivationBreakthrough(
 	const int32 NewMinorStage)
 {
 	CurrentCultivation = CultivationComponent ? CultivationComponent->GetCurrentCultivation() : 0;
+	const bool bQuestChanged = RecordQuestProgressWithoutSave(
+		EImmortalQuestMetric::CultivationBreakthroughs,
+		1);
 	CurrentHealth = GetMaxHealth();
 	CurrentMana = GetMaxMana();
 	if (CombatFeedbackWidget && CultivationComponent)
@@ -4015,6 +9473,15 @@ void AImmortalPlayerCharacter::HandleCultivationBreakthrough(
 			CultivationComponent->GetDefenseBonus());
 	}
 	BP_OnCultivationBreakthrough(PreviousRealmName, NewRealmName, NewRealm, NewMinorStage);
+	if (bQuestChanged)
+	{
+		BP_OnQuestStateChanged(QuestState);
+	}
+	if (bDeathCultivationRecoveryRequired)
+	{
+		UnlockDeathCultivationRecovery(
+			TEXT("cultivation breakthrough"));
+	}
 	// A high cultivation rate can cross several stages inside one AddCultivation call.
 	// Defer and coalesce the save so only the final valid stage/progress pair is written.
 	GetWorldTimerManager().SetTimer(
@@ -4504,6 +9971,13 @@ int32 AImmortalPlayerCharacter::ReceiveMaterial(
 		CombatFeedbackWidget->ShowMaterialPickup(Definition.DisplayName, Definition.DisplayColor, Added);
 		ShowRewardFeedback(PickupWorldLocation, 0, 0);
 	}
+	QueueManagementNotification(
+		FText::FromString(FString::Printf(
+			TEXT("%s x%d\uFF08\u5DF2\u81EA\u52A8\u62FE\u53D6\uFF09"),
+			*Definition.DisplayName.ToString(),
+			Added)),
+		Definition.DisplayColor,
+		5.0f);
 	SaveProgress();
 	UE_LOG(LogTemp, Display, TEXT("Material collected: %s x%d | total %d | material types %d"),
 		*Definition.DisplayName.ToString(), Added, NewQuantity, MaterialInventory.Num());
@@ -4610,7 +10084,13 @@ FImmortalAlchemyCraftResult AImmortalPlayerCharacter::CraftPillInternal(
 			Result.PillQuantityGranted));
 	}
 
-	SaveProgress();
+	const bool bQuestChanged = RecordQuestProgressWithoutSave(
+		EImmortalQuestMetric::AlchemyCrafts,
+		1);
+	if (SaveProgress() && bQuestChanged)
+	{
+		BP_OnQuestStateChanged(QuestState);
+	}
 	BP_OnAlchemyCompleted(RecipeId, Result.Outcome, Result.Message);
 	UE_LOG(LogTemp, Display, TEXT("Alchemy completed: recipe %s | roll %.4f | outcome %d | consumed=true | pills +%d | material types %d"),
 		*RecipeId.ToString(), Roll, static_cast<int32>(Result.Outcome), Result.PillQuantityGranted, MaterialInventory.Num());
@@ -4795,6 +10275,7 @@ bool AImmortalPlayerCharacter::ProcessEquipmentItem(
 	TArray<FImmortalEquipmentItem> PreviousEquipped;
 	int32 PreviousDropCount = EquipmentDropCount;
 	int32 PreviousRevision = EquipmentInventoryRevision;
+	FImmortalQuestState PreviousQuestState = QuestState;
 	float PreviousHealth = CurrentHealth;
 	float PreviousMana = CurrentMana;
 	if (bSaveAfter)
@@ -4803,13 +10284,15 @@ bool AImmortalPlayerCharacter::ProcessEquipmentItem(
 		PreviousEquipped = EquippedItems;
 	}
 	auto RollbackAcquisition = [this, bSaveAfter, &PreviousInventory, &PreviousEquipped,
-		PreviousDropCount, PreviousRevision, PreviousHealth, PreviousMana]
+		PreviousDropCount, PreviousRevision, PreviousQuestState,
+		PreviousHealth, PreviousMana]
 	{
 		if (!bSaveAfter) return;
 		InventoryItems = PreviousInventory;
 		EquippedItems = PreviousEquipped;
 		EquipmentDropCount = PreviousDropCount;
 		EquipmentInventoryRevision = PreviousRevision;
+		QuestState = PreviousQuestState;
 		RecalculateEquipmentBonuses();
 		CurrentHealth = FMath::Clamp(PreviousHealth, 0.0f, GetMaxHealth());
 		CurrentMana = FMath::Clamp(PreviousMana, 0.0f, GetMaxMana());
@@ -4817,6 +10300,9 @@ bool AImmortalPlayerCharacter::ProcessEquipmentItem(
 	auto FinalizeAcquisition = [this, bSaveAfter, bNotifyChanges, &RollbackAcquisition]()
 	{
 		++EquipmentDropCount;
+		const bool bQuestChanged = bSaveAfter
+			&& RecordQuestProgressWithoutSave(
+				EImmortalQuestMetric::EquipmentPickups, 1);
 		if (bSaveAfter && !SaveProgress())
 		{
 			bLastEquipmentReceivePersistenceFailure = true;
@@ -4825,6 +10311,7 @@ bool AImmortalPlayerCharacter::ProcessEquipmentItem(
 			return false;
 		}
 		if (bNotifyChanges) BP_OnEquipmentPickedUp(EquipmentDropCount, 1);
+		if (bQuestChanged) BP_OnQuestStateChanged(QuestState);
 		return true;
 	};
 
@@ -4854,7 +10341,10 @@ bool AImmortalPlayerCharacter::ProcessEquipmentItem(
 			CompatibleLoadout,
 			AttackDamage + CultivationAttack,
 			Defense + CultivationDefense,
-			MaxHealth + CultivationHealth);
+			MaxHealth + CultivationHealth,
+			AttackSpeedMultiplier + ArtifactAttackSpeedBonus + TechniqueAttackSpeedBonus + CharacterPathAttackSpeedBonus,
+			CriticalChance + ArtifactCriticalChanceBonus + TechniqueCriticalChanceBonus + CharacterPathCriticalChanceBonus,
+			CriticalDamageMultiplier);
 	};
 	const float ExistingLoadoutPower = CalculateCompatibleLoadoutPower(EquippedItems);
 	TArray<FImmortalEquipmentItem> CandidateLoadout = EquippedItems;
@@ -4899,6 +10389,15 @@ bool AImmortalPlayerCharacter::ProcessEquipmentItem(
 		{
 			CombatFeedbackWidget->ShowEquipmentPickup(FText::FromName(Item.DisplayName), UImmortalEquipmentLibrary::GetQualityColor(Item.Quality), true);
 		}
+		if (bShowFeedback)
+		{
+			QueueManagementNotification(
+				FText::FromString(FString::Printf(
+					TEXT("%s\uFF08\u5DF2\u81EA\u52A8\u62FE\u53D6\u5E76\u6362\u88C5\uFF09"),
+					*Item.DisplayName.ToString())),
+				UImmortalEquipmentLibrary::GetQualityColor(Item.Quality),
+				5.0f);
+		}
 		return true;
 	}
 
@@ -4913,10 +10412,25 @@ bool AImmortalPlayerCharacter::ProcessEquipmentItem(
 	{
 		CombatFeedbackWidget->ShowEquipmentPickup(FText::FromName(Item.DisplayName), UImmortalEquipmentLibrary::GetQualityColor(Item.Quality), false);
 	}
+	if (bStored && bShowFeedback)
+	{
+		QueueManagementNotification(
+			FText::FromString(FString::Printf(
+				TEXT("%s\uFF08\u5DF2\u81EA\u52A8\u62FE\u53D6\u81F3\u50A8\u7269\u6212\uFF09"),
+				*Item.DisplayName.ToString())),
+			UImmortalEquipmentLibrary::GetQualityColor(Item.Quality),
+			5.0f);
+	}
 	return bStored;
 }
 
 bool AImmortalPlayerCharacter::SaveProgress()
+{
+	return SaveProgressWithMapOverride(nullptr);
+}
+
+bool AImmortalPlayerCharacter::SaveProgressWithMapOverride(
+	const FImmortalMapSystemState* MapStateOverride)
 {
 	const FImmortalCaveState CaveBeforeSettlement = CaveState;
 	const FImmortalFarmingState FarmingBeforeSettlement = FarmingState;
@@ -4928,6 +10442,29 @@ bool AImmortalPlayerCharacter::SaveProgress()
 		CaveState = CaveBeforeSettlement;
 		FarmingState = FarmingBeforeSettlement;
 		return false;
+	}
+
+	FImmortalMapSystemState MapStateToSave;
+	if (MapStateOverride)
+	{
+		MapStateToSave = *MapStateOverride;
+		UImmortalMapLibrary::NormalizeState(
+			MapStateToSave);
+		SaveGame->MapSystemState = MapStateToSave;
+		FImmortalMapProgress QingyunProgress;
+		if (UImmortalMapLibrary::GetMapProgress(
+			MapStateToSave,
+			UImmortalMapLibrary::GetQingyunMountainId(),
+			QingyunProgress))
+		{
+			SaveGame->bHasStageData = true;
+			SaveGame->QingyunStage =
+				QingyunProgress.Stage;
+			SaveGame->QingyunStageKills =
+				QingyunProgress.StageKills;
+			SaveGame->bQingyunMountainCompleted =
+				QingyunProgress.bCompleted;
+		}
 	}
 
 	SaveGame->bHasPlayerData = true;
@@ -4952,15 +10489,27 @@ bool AImmortalPlayerCharacter::SaveProgress()
 	SaveGame->QuestItemInventory = QuestItemInventory;
 	SaveGame->bInventoryManagementInitialized = true;
 	SaveGame->bEquipmentExpansionInitialized = true;
-#if !UE_BUILD_SHIPPING
-	int32 TestLegacySaveVersion = 0;
-	if (FParse::Value(FCommandLine::Get(), TEXT("ImmortalTestLegacySaveVersion="), TestLegacySaveVersion)
-		&& TestLegacySaveVersion > 0)
-	{
-		if (TestLegacySaveVersion < 16) SaveGame->bInventoryManagementInitialized = false;
-		if (TestLegacySaveVersion < 17) SaveGame->bEquipmentExpansionInitialized = false;
-	}
-#endif
+	UImmortalWorldBossLibrary::NormalizeState(WorldBossState);
+	SaveGame->bWorldBossInitialized = true;
+	SaveGame->WorldBossState = WorldBossState;
+	UImmortalEndlessDungeonLibrary::NormalizeState(
+		EndlessDungeonState);
+	SaveGame->bEndlessDungeonInitialized = true;
+	SaveGame->EndlessDungeonState = EndlessDungeonState;
+	UImmortalPetLibrary::NormalizeState(PetState);
+	SaveGame->bPetSystemInitialized = true;
+	SaveGame->PetState = PetState;
+	UImmortalAscensionLibrary::NormalizeState(AscensionState);
+	SaveGame->bAscensionSystemInitialized = true;
+	SaveGame->AscensionState = AscensionState;
+	UImmortalQuestLibrary::NormalizeState(
+		QuestState,
+		FDateTime::UtcNow().GetTicks(),
+		SectUtcOffsetMinutes);
+	SaveGame->bQuestSystemInitialized = true;
+	SaveGame->QuestState = QuestState;
+	SaveGame->bDeathCultivationRecoveryRequired =
+		bDeathCultivationRecoveryRequired;
 	SaveGame->TechniqueLibrary = TechniqueLibrary;
 	SaveGame->EquippedTechniqueIds = EquippedTechniqueIds;
 	SaveGame->TechniqueInsightPoints = TechniqueInsightPoints;
@@ -5000,6 +10549,61 @@ bool AImmortalPlayerCharacter::SaveProgress()
 			SaveGame->SaveVersion, SaveGame->bEquipmentExpansionInitialized ? TEXT("true") : TEXT("false"),
 			static_cast<int32>(EImmortalEquipmentSlot::MAX), EquippedItems.Num(),
 			EquippedArtifactInstanceId.IsValid() ? TEXT("equipped") : TEXT("empty"), *SetSummary);
+		UE_LOG(LogTemp, Display,
+			TEXT("World Boss state saved: initialized=%s bosses=%d pendingRewards=%d revision=%d"),
+			WorldBossState.bInitialized ? TEXT("true") : TEXT("false"),
+			WorldBossState.BossProgress.Num(),
+			WorldBossState.PendingRewards.Num(),
+			WorldBossState.Revision);
+		UE_LOG(LogTemp, Display,
+			TEXT("Endless Dungeon state saved: initialized=%s highest=%d totalFloors=%lld runs=%d pendingRewards=%d revision=%d"),
+			EndlessDungeonState.bInitialized
+				? TEXT("true") : TEXT("false"),
+			EndlessDungeonState.HighestClearedFloor,
+			EndlessDungeonState.TotalFloorsCleared,
+			EndlessDungeonState.TotalRuns,
+			EndlessDungeonState.PendingRewards.Num(),
+			EndlessDungeonState.Revision);
+		UE_LOG(LogTemp, Display,
+			TEXT("Pet state saved: initialized=%s active=%s pets=%d totalKills=%lld revision=%d"),
+			PetState.bInitialized ? TEXT("true") : TEXT("false"),
+			*PetState.ActivePetId.ToString(),
+			PetState.Pets.Num(),
+			PetState.TotalCombatKills,
+			PetState.Revision);
+		UE_LOG(LogTemp, Display,
+			TEXT("Ascension state saved: initialized=%s count=%d seals=%d earned=%lld paths=%d/%d/%d lifetimeMaps=%d revision=%d"),
+			AscensionState.bInitialized ? TEXT("true") : TEXT("false"),
+			AscensionState.AscensionCount,
+			AscensionState.ImmortalSeals,
+			AscensionState.TotalImmortalSealsEarned,
+			AscensionState.BattlePathRank,
+			AscensionState.EnlightenmentPathRank,
+			AscensionState.FortunePathRank,
+			AscensionState.LifetimeMapRecords.Num(),
+			AscensionState.Revision);
+		UE_LOG(LogTemp, Display,
+			TEXT("Quest state saved: initialized=%s day=%d claims=%lld kills=%lld stages=%lld bosses=%lld revision=%d"),
+			QuestState.bInitialized ? TEXT("true") : TEXT("false"),
+			QuestState.DailyDayKey,
+			QuestState.TotalClaims,
+			QuestState.LifetimeCounters.MonsterKills,
+			QuestState.LifetimeCounters.StageClears,
+			QuestState.LifetimeCounters.BossKills,
+			QuestState.Revision);
+		UE_LOG(
+			LogTemp,
+			Display,
+			TEXT("Death cultivation recovery saved: required=%s adventureSuspended=%s"),
+			bDeathCultivationRecoveryRequired ? TEXT("true") : TEXT("false"),
+			bAdventureSuspendedForDeathRecovery ? TEXT("true") : TEXT("false"));
+		if (MapStateOverride)
+		{
+			UE_LOG(LogTemp, Display,
+				TEXT("Player map override saved atomically: active=%s maps=%d"),
+				*MapStateToSave.ActiveMapId.ToString(),
+				MapStateToSave.MapProgress.Num());
+		}
 	}
 	else
 	{
@@ -5038,6 +10642,88 @@ bool AImmortalPlayerCharacter::LoadProgress()
 	EquippedArtifactInstanceId = SaveGame->EquippedArtifactInstanceId;
 	UImmortalArtifactLibrary::NormalizeInventory(ArtifactInventory, EquippedArtifactInstanceId);
 	++ArtifactInventoryRevision;
+	const bool bNeedsWorldBossInitialization =
+		LoadedSaveVersion < 18
+		|| !SaveGame->bWorldBossInitialized
+		|| !SaveGame->WorldBossState.bInitialized;
+	WorldBossState = bNeedsWorldBossInitialization
+		? UImmortalWorldBossLibrary::CreateDefaultState()
+		: SaveGame->WorldBossState;
+	const bool bWorldBossStateNormalized =
+		UImmortalWorldBossLibrary::NormalizeState(WorldBossState);
+	const bool bNeedsWorldBossMigration =
+		bNeedsWorldBossInitialization || bWorldBossStateNormalized;
+	const bool bLegacyEndlessDungeonSave = LoadedSaveVersion < 19;
+	const bool bNeedsEndlessDungeonMarkerRepair =
+		!SaveGame->bEndlessDungeonInitialized
+		|| !SaveGame->EndlessDungeonState.bInitialized;
+	EndlessDungeonState = bLegacyEndlessDungeonSave
+		? UImmortalEndlessDungeonLibrary::CreateDefaultState()
+		: SaveGame->EndlessDungeonState;
+	const bool bEndlessDungeonStateNormalized =
+		UImmortalEndlessDungeonLibrary::NormalizeState(
+			EndlessDungeonState);
+	const bool bNeedsEndlessDungeonMigration =
+		bLegacyEndlessDungeonSave
+		|| bNeedsEndlessDungeonMarkerRepair
+		|| bEndlessDungeonStateNormalized;
+	const bool bLegacyPetSave = LoadedSaveVersion < 20;
+	const bool bNeedsPetMarkerRepair =
+		!SaveGame->bPetSystemInitialized
+		|| !SaveGame->PetState.bInitialized;
+	PetState = bLegacyPetSave
+		? UImmortalPetLibrary::CreateDefaultState()
+		: SaveGame->PetState;
+	const bool bPetStateNormalized =
+		UImmortalPetLibrary::NormalizeState(PetState);
+	const bool bNeedsPetMigration =
+		bLegacyPetSave
+		|| bNeedsPetMarkerRepair
+		|| bPetStateNormalized;
+	const bool bLegacyAscensionSave =
+		LoadedSaveVersion < 21;
+	const bool bNeedsAscensionMarkerRepair =
+		!SaveGame->bAscensionSystemInitialized
+		|| !SaveGame->AscensionState.bInitialized;
+	AscensionState = bLegacyAscensionSave
+		? UImmortalAscensionLibrary::CreateDefaultState()
+		: SaveGame->AscensionState;
+	const bool bAscensionStateNormalized =
+		UImmortalAscensionLibrary::NormalizeState(
+			AscensionState);
+	const bool bNeedsAscensionMigration =
+		bLegacyAscensionSave
+		|| bNeedsAscensionMarkerRepair
+		|| bAscensionStateNormalized;
+	RecalculateAscensionBonuses();
+	const bool bLegacyQuestSave = LoadedSaveVersion < 22;
+	const bool bNeedsQuestMarkerRepair =
+		!SaveGame->bQuestSystemInitialized
+		|| !SaveGame->QuestState.bInitialized;
+	QuestState = bLegacyQuestSave
+		? UImmortalQuestLibrary::CreateDefaultState(
+			CurrentUtcTicks, SectUtcOffsetMinutes)
+		: SaveGame->QuestState;
+	const bool bQuestStateNormalized =
+		UImmortalQuestLibrary::NormalizeState(
+			QuestState, CurrentUtcTicks, SectUtcOffsetMinutes);
+	const int32 PreviousQuestDayKey = QuestState.DailyDayKey;
+	const FImmortalQuestDailyRefreshResult QuestRefresh =
+		UImmortalQuestLibrary::EnsureDailyState(
+			QuestState, CurrentUtcTicks, SectUtcOffsetMinutes);
+	const bool bNeedsQuestMigration =
+		bLegacyQuestSave
+		|| bNeedsQuestMarkerRepair
+		|| bQuestStateNormalized
+		|| (QuestRefresh.bStateChanged
+			&& QuestState.DailyDayKey != PreviousQuestDayKey);
+	const bool bNeedsDeathRecoveryMigration = LoadedSaveVersion < 23;
+	bDeathCultivationRecoveryRequired =
+		bNeedsDeathRecoveryMigration
+			? false
+			: SaveGame->bDeathCultivationRecoveryRequired;
+	bAdventureSuspendedForDeathRecovery =
+		bDeathCultivationRecoveryRequired;
 	QuestItemInventory = SaveGame->QuestItemInventory;
 	UImmortalInventoryLibrary::NormalizeQuestItemInventory(QuestItemInventory);
 	++QuestItemInventoryRevision;
@@ -5205,7 +10891,12 @@ bool AImmortalPlayerCharacter::LoadProgress()
 		RecalculateCaveBonuses();
 	}
 	if (bNeedsInventoryMigration || bNeedsEquipmentExpansionMigration || bNeedsCharacterBuildMigration || bNeedsShopMigration || bNeedsCaveMigration || bNeedsFarmingMigration
-		|| bNeedsSectStateSave)
+		|| bNeedsSectStateSave || bNeedsWorldBossMigration
+		|| bNeedsEndlessDungeonMigration
+		|| bNeedsPetMigration
+		|| bNeedsAscensionMigration
+		|| bNeedsQuestMigration
+		|| bNeedsDeathRecoveryMigration)
 	{
 		// Persist one-time version migrations and the current day's stock together.
 		const bool bMigrationSaved = SaveProgress();
@@ -5215,7 +10906,7 @@ bool AImmortalPlayerCharacter::LoadProgress()
 		if (bMigrationSaved)
 		{
 			UE_LOG(LogTemp, Display,
-				TEXT("Save migration/state refresh %s | loaded version %d -> current version %d | inventory %s | equipment expansion %s | character build %s | shop %s | cave %s | farming %s | sect %s"),
+				TEXT("Save migration/state refresh %s | loaded version %d -> current version %d | inventory %s | equipment expansion %s | character build %s | shop %s | cave %s | farming %s | sect %s | worldBoss %s | endlessDungeon %s | pet %s | ascension %s | quest %s | deathRecovery %s"),
 				MigrationMessage, LoadedSaveVersion, UImmortalPathSaveGame::CurrentSaveVersion,
 				bNeedsInventoryMigration ? TEXT("true") : TEXT("false"),
 				bNeedsEquipmentExpansionMigration ? TEXT("true") : TEXT("false"),
@@ -5223,12 +10914,18 @@ bool AImmortalPlayerCharacter::LoadProgress()
 				bNeedsShopMigration ? TEXT("true") : TEXT("false"),
 				bNeedsCaveMigration ? TEXT("true") : TEXT("false"),
 				bNeedsFarmingMigration ? TEXT("true") : TEXT("false"),
-				bNeedsSectStateSave ? TEXT("true") : TEXT("false"));
+				bNeedsSectStateSave ? TEXT("true") : TEXT("false"),
+				bNeedsWorldBossMigration ? TEXT("true") : TEXT("false"),
+				bNeedsEndlessDungeonMigration ? TEXT("true") : TEXT("false"),
+				bNeedsPetMigration ? TEXT("true") : TEXT("false"),
+				bNeedsAscensionMigration ? TEXT("true") : TEXT("false"),
+				bNeedsQuestMigration ? TEXT("true") : TEXT("false"),
+				bNeedsDeathRecoveryMigration ? TEXT("true") : TEXT("false"));
 		}
 		else
 		{
 			UE_LOG(LogTemp, Error,
-				TEXT("Save migration/state refresh %s | loaded version %d -> current version %d | inventory %s | equipment expansion %s | character build %s | shop %s | cave %s | farming %s | sect %s"),
+				TEXT("Save migration/state refresh %s | loaded version %d -> current version %d | inventory %s | equipment expansion %s | character build %s | shop %s | cave %s | farming %s | sect %s | worldBoss %s | endlessDungeon %s | pet %s | ascension %s | quest %s | deathRecovery %s"),
 				MigrationMessage, LoadedSaveVersion, UImmortalPathSaveGame::CurrentSaveVersion,
 				bNeedsInventoryMigration ? TEXT("true") : TEXT("false"),
 				bNeedsEquipmentExpansionMigration ? TEXT("true") : TEXT("false"),
@@ -5236,7 +10933,13 @@ bool AImmortalPlayerCharacter::LoadProgress()
 				bNeedsShopMigration ? TEXT("true") : TEXT("false"),
 				bNeedsCaveMigration ? TEXT("true") : TEXT("false"),
 				bNeedsFarmingMigration ? TEXT("true") : TEXT("false"),
-				bNeedsSectStateSave ? TEXT("true") : TEXT("false"));
+				bNeedsSectStateSave ? TEXT("true") : TEXT("false"),
+				bNeedsWorldBossMigration ? TEXT("true") : TEXT("false"),
+				bNeedsEndlessDungeonMigration ? TEXT("true") : TEXT("false"),
+				bNeedsPetMigration ? TEXT("true") : TEXT("false"),
+				bNeedsAscensionMigration ? TEXT("true") : TEXT("false"),
+				bNeedsQuestMigration ? TEXT("true") : TEXT("false"),
+				bNeedsDeathRecoveryMigration ? TEXT("true") : TEXT("false"));
 		}
 	}
 	int32 SoldOutListings = 0;
@@ -5262,6 +10965,72 @@ bool AImmortalPlayerCharacter::LoadProgress()
 		SaveGame->bEquipmentExpansionInitialized ? TEXT("true") : TEXT("false"),
 		static_cast<int32>(EImmortalEquipmentSlot::MAX), EquippedItems.Num(),
 		EquippedArtifactInstanceId.IsValid() ? TEXT("equipped") : TEXT("empty"), *LoadedSetSummary);
+	UE_LOG(LogTemp, Display,
+		TEXT("World Boss state loaded: initialized=%s bosses=%d pendingRewards=%d revision=%d migration=%s"),
+		WorldBossState.bInitialized ? TEXT("true") : TEXT("false"),
+		WorldBossState.BossProgress.Num(),
+		WorldBossState.PendingRewards.Num(),
+		WorldBossState.Revision,
+		bNeedsWorldBossMigration ? TEXT("true") : TEXT("false"));
+	UE_LOG(LogTemp, Display,
+		TEXT("Endless Dungeon state loaded: initialized=%s highest=%d totalFloors=%lld runs=%d pendingRewards=%d revision=%d migration=%s"),
+		EndlessDungeonState.bInitialized
+			? TEXT("true") : TEXT("false"),
+		EndlessDungeonState.HighestClearedFloor,
+		EndlessDungeonState.TotalFloorsCleared,
+		EndlessDungeonState.TotalRuns,
+		EndlessDungeonState.PendingRewards.Num(),
+		EndlessDungeonState.Revision,
+		bNeedsEndlessDungeonMigration
+			? TEXT("true") : TEXT("false"));
+	UE_LOG(LogTemp, Display,
+		TEXT("Pet state loaded: initialized=%s active=%s pets=%d totalKills=%lld revision=%d migration=%s"),
+		PetState.bInitialized ? TEXT("true") : TEXT("false"),
+		*PetState.ActivePetId.ToString(),
+		PetState.Pets.Num(),
+		PetState.TotalCombatKills,
+		PetState.Revision,
+		bNeedsPetMigration ? TEXT("true") : TEXT("false"));
+	FImmortalAscensionMapLegacy LoadedFinalMapLegacy;
+	UImmortalAscensionLibrary::GetLifetimeMapRecord(
+		AscensionState,
+		UImmortalMapLibrary::GetImmortalPalaceRuinsId(),
+		LoadedFinalMapLegacy);
+	UE_LOG(LogTemp, Display,
+		TEXT("Ascension state loaded: initialized=%s count=%d seals=%d earned=%lld paths=%d/%d/%d multipliers=%.2f/%.2f/%.2f lifetimeCompleted=%d/%d finalLegacy=%d/%d revision=%d migration=%s"),
+		AscensionState.bInitialized ? TEXT("true") : TEXT("false"),
+		AscensionState.AscensionCount,
+		AscensionState.ImmortalSeals,
+		AscensionState.TotalImmortalSealsEarned,
+		AscensionState.BattlePathRank,
+		AscensionState.EnlightenmentPathRank,
+		AscensionState.FortunePathRank,
+		GetAscensionBattleMultiplier(),
+		GetAscensionCultivationMultiplier(),
+		GetAscensionEquipmentDropMultiplier(),
+		UImmortalAscensionLibrary
+			::GetLifetimeCompletedMapCount(AscensionState),
+		UImmortalMapLibrary::GetKnownMapIds().Num(),
+		LoadedFinalMapLegacy.HighestStage,
+		LoadedFinalMapLegacy.TimesCompleted,
+		AscensionState.Revision,
+		bNeedsAscensionMigration ? TEXT("true") : TEXT("false"));
+	UE_LOG(LogTemp, Display,
+		TEXT("Quest state loaded: initialized=%s day=%d claims=%lld kills=%lld stages=%lld bosses=%lld revision=%d migration=%s"),
+		QuestState.bInitialized ? TEXT("true") : TEXT("false"),
+		QuestState.DailyDayKey,
+		QuestState.TotalClaims,
+		QuestState.LifetimeCounters.MonsterKills,
+		QuestState.LifetimeCounters.StageClears,
+		QuestState.LifetimeCounters.BossKills,
+		QuestState.Revision,
+		bNeedsQuestMigration ? TEXT("true") : TEXT("false"));
+	UE_LOG(
+		LogTemp,
+		Display,
+		TEXT("Death cultivation recovery loaded: required=%s migration=%s"),
+		bDeathCultivationRecoveryRequired ? TEXT("true") : TEXT("false"),
+		bNeedsDeathRecoveryMigration ? TEXT("true") : TEXT("false"));
 	return true;
 }
 
@@ -5602,6 +11371,7 @@ FImmortalCraftingResult AImmortalPlayerCharacter::CraftEquipment(const FName Rec
 	const int32 PreviousDropCount = EquipmentDropCount;
 	const int32 PreviousMaterialRevision = MaterialInventoryRevision;
 	const int32 PreviousEquipmentRevision = EquipmentInventoryRevision;
+	const FImmortalQuestState PreviousQuestState = QuestState;
 	const float PreviousHealth = CurrentHealth;
 	const float PreviousMana = CurrentMana;
 	if (!UImmortalCraftingLibrary::ConsumeCost(MaterialInventory, CurrentGold, EffectiveCost))
@@ -5642,6 +11412,8 @@ FImmortalCraftingResult AImmortalPlayerCharacter::CraftEquipment(const FName Rec
 	{
 		return Item.ItemId == CraftedItem.ItemId;
 	});
+	const bool bQuestChanged = RecordQuestProgressWithoutSave(
+		EImmortalQuestMetric::CraftingActions, 1);
 	if (ShouldForceInventoryPersistenceFailure(TEXT("Craft")) || !SaveProgress())
 	{
 		MaterialInventory = PreviousMaterials;
@@ -5651,6 +11423,7 @@ FImmortalCraftingResult AImmortalPlayerCharacter::CraftEquipment(const FName Rec
 		EquipmentDropCount = PreviousDropCount;
 		MaterialInventoryRevision = PreviousMaterialRevision;
 		EquipmentInventoryRevision = PreviousEquipmentRevision;
+		QuestState = PreviousQuestState;
 		RecalculateEquipmentBonuses();
 		CurrentHealth = FMath::Clamp(PreviousHealth, 0.0f, GetMaxHealth());
 		CurrentMana = FMath::Clamp(PreviousMana, 0.0f, GetMaxMana());
@@ -5663,6 +11436,7 @@ FImmortalCraftingResult AImmortalPlayerCharacter::CraftEquipment(const FName Rec
 	Result.Message = FText::FromString(FString::Printf(TEXT("打造成功：%s（%d 条词条）"),
 		*CraftedItem.DisplayName.ToString(), CraftedItem.Affixes.Num()));
 	BP_OnEquipmentPickedUp(EquipmentDropCount, 1);
+	if (bQuestChanged) BP_OnQuestStateChanged(QuestState);
 	BP_OnInventoryChanged(InventoryItems.Num(), GetInventoryCapacity());
 	BP_OnRewardsChanged(CurrentCultivation, CurrentGold, 0, 0);
 	if (bAutoEquipped)
@@ -5675,6 +11449,12 @@ FImmortalCraftingResult AImmortalPlayerCharacter::CraftEquipment(const FName Rec
 		CombatFeedbackWidget->ShowEquipmentPickup(
 			FText::FromName(CraftedItem.DisplayName), UImmortalEquipmentLibrary::GetQualityColor(CraftedItem.Quality), bAutoEquipped);
 	}
+	QueueManagementNotification(
+		FText::FromString(FString::Printf(
+			TEXT("%s\uFF08\u70BC\u5668\u5B8C\u6210\uFF09"),
+			*CraftedItem.DisplayName.ToString())),
+		UImmortalEquipmentLibrary::GetQualityColor(CraftedItem.Quality),
+		5.0f);
 	BP_OnCraftingCompleted(Result);
 	UE_LOG(LogTemp, Display, TEXT("Equipment crafted: recipe %s | item %s | affixes %d | stones %d | materials %d"),
 		*RecipeId.ToString(), *CraftedItem.DisplayName.ToString(), CraftedItem.Affixes.Num(), CurrentGold, MaterialInventory.Num());
@@ -5730,7 +11510,12 @@ FImmortalCraftingResult AImmortalPlayerCharacter::EnhanceEquipment(const FGuid I
 	Result.ItemId = ItemId;
 	Result.Message = FText::FromString(FString::Printf(TEXT("强化成功：+%d，装备战力 %.1f → %.1f"),
 		Item->EnhancementLevel, PreviousPower, UImmortalEquipmentLibrary::CalculateEquipmentPower(*Item)));
-	SaveProgress();
+	const bool bQuestChanged = RecordQuestProgressWithoutSave(
+		EImmortalQuestMetric::CraftingActions, 1);
+	if (SaveProgress() && bQuestChanged)
+	{
+		BP_OnQuestStateChanged(QuestState);
+	}
 	BP_OnCraftingCompleted(Result);
 	UE_LOG(LogTemp, Display, TEXT("Equipment enhanced: %s | +%d | power %.2f -> %.2f | stones %d"),
 		*Item->DisplayName.ToString(), Item->EnhancementLevel, PreviousPower,
@@ -5786,7 +11571,12 @@ FImmortalCraftingResult AImmortalPlayerCharacter::RefineEquipment(const FGuid It
 	Result.ItemId = ItemId;
 	Result.Message = FText::FromString(FString::Printf(TEXT("洗炼成功：第 %d 次，获得 %d 条新词条"),
 		Item->RefinementCount, Item->Affixes.Num()));
-	SaveProgress();
+	const bool bQuestChanged = RecordQuestProgressWithoutSave(
+		EImmortalQuestMetric::CraftingActions, 1);
+	if (SaveProgress() && bQuestChanged)
+	{
+		BP_OnQuestStateChanged(QuestState);
+	}
 	BP_OnCraftingCompleted(Result);
 	UE_LOG(LogTemp, Display, TEXT("Equipment refined: %s | count %d | affixes %d | base attack preserved %.2f -> %.2f | stones %d"),
 		*Item->DisplayName.ToString(), Item->RefinementCount, Item->Affixes.Num(), BaseAttack, Item->BaseAttackBonus, CurrentGold);
@@ -6700,9 +12490,22 @@ void AImmortalPlayerCharacter::RecalculateCharacterPathBonuses()
 	}
 }
 
+void AImmortalPlayerCharacter::RecalculateAscensionBonuses()
+{
+	if (CultivationComponent)
+	{
+		CultivationComponent->SetAscensionRateMultiplier(
+			GetAscensionCultivationMultiplier());
+	}
+}
+
 void AImmortalPlayerCharacter::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
-	SaveProgress();
+	if (!bSaveAndQuitRequested)
+	{
+		SaveProgress();
+	}
+	DespawnActivePetActor();
 	StopAutoAttack();
 	if (CultivationComponent)
 	{
@@ -6710,6 +12513,11 @@ void AImmortalPlayerCharacter::EndPlay(const EEndPlayReason::Type EndPlayReason)
 	}
 	GetWorldTimerManager().ClearTimer(TaskbarWindowTimerHandle);
 	GetWorldTimerManager().ClearTimer(AutoReviveTimerHandle);
+	GetWorldTimerManager().ClearTimer(MortalRealmAttackAnimationTimerHandle);
+	GetWorldTimerManager().ClearTimer(MortalRealmHurtAnimationTimerHandle);
+	GetWorldTimerManager().ClearTimer(DeathCultivationRedirectTimerHandle);
+	GetWorldTimerManager().ClearTimer(DeathCultivationStartupTimerHandle);
+	GetWorldTimerManager().ClearTimer(AscensionRealmDeathRecoveryTimerHandle);
 	GetWorldTimerManager().ClearTimer(CultivationAutosaveTimerHandle);
 	GetWorldTimerManager().ClearTimer(CultivationBreakthroughSaveTimerHandle);
 	GetWorldTimerManager().ClearTimer(AlchemyBoostTimerHandle);
@@ -6723,9 +12531,22 @@ void AImmortalPlayerCharacter::EndPlay(const EEndPlayReason::Type EndPlayReason)
 	bCharacterBuildOpen = false;
 	bShopOpen = false;
 	bMapSelectionOpen = false;
+	bQuestOpen = false;
 	bCaveOpen = false;
 	bFarmingOpen = false;
 	bSectOpen = false;
+	bWorldBossOpen = false;
+	bEndlessDungeonOpen = false;
+	bPetOpen = false;
+	bAscensionOpen = false;
+	bSettingsOpen = false;
+	bManagementInterfaceOpen = false;
+	ActiveManagementFeature = EImmortalManagementFeature::Home;
+	if (PlayerCultivationWidget)
+	{
+		PlayerCultivationWidget->RemoveFromParent();
+		PlayerCultivationWidget = nullptr;
+	}
 	if (PlayerInventoryWidget)
 	{
 		PlayerInventoryWidget->RemoveFromParent();
@@ -6766,6 +12587,11 @@ void AImmortalPlayerCharacter::EndPlay(const EEndPlayReason::Type EndPlayReason)
 		PlayerMapWidget->RemoveFromParent();
 		PlayerMapWidget = nullptr;
 	}
+	if (PlayerQuestWidget)
+	{
+		PlayerQuestWidget->RemoveFromParent();
+		PlayerQuestWidget = nullptr;
+	}
 	if (PlayerCaveWidget)
 	{
 		PlayerCaveWidget->RemoveFromParent();
@@ -6781,6 +12607,36 @@ void AImmortalPlayerCharacter::EndPlay(const EEndPlayReason::Type EndPlayReason)
 		PlayerSectWidget->RemoveFromParent();
 		PlayerSectWidget = nullptr;
 	}
+	if (PlayerWorldBossWidget)
+	{
+		PlayerWorldBossWidget->RemoveFromParent();
+		PlayerWorldBossWidget = nullptr;
+	}
+	if (PlayerEndlessDungeonWidget)
+	{
+		PlayerEndlessDungeonWidget->RemoveFromParent();
+		PlayerEndlessDungeonWidget = nullptr;
+	}
+	if (PlayerPetWidget)
+	{
+		PlayerPetWidget->RemoveFromParent();
+		PlayerPetWidget = nullptr;
+	}
+	if (PlayerAscensionWidget)
+	{
+		PlayerAscensionWidget->RemoveFromParent();
+		PlayerAscensionWidget = nullptr;
+	}
+	if (PlayerSettingsWidget)
+	{
+		PlayerSettingsWidget->RemoveFromParent();
+		PlayerSettingsWidget = nullptr;
+	}
+	if (PlayerManagementWidget)
+	{
+		PlayerManagementWidget->RemoveFromParent();
+		PlayerManagementWidget = nullptr;
+	}
 	if (CombatFeedbackWidget)
 	{
 		CombatFeedbackWidget->RemoveFromParent();
@@ -6792,6 +12648,394 @@ void AImmortalPlayerCharacter::EndPlay(const EEndPlayReason::Type EndPlayReason)
 		PlayerStatusWidget = nullptr;
 	}
 	Super::EndPlay(EndPlayReason);
+}
+
+void AImmortalPlayerCharacter::LoadMortalRealmAnimationSet()
+{
+	if (!bUseMortalRealmAnimationSet)
+	{
+		return;
+	}
+
+	MortalRealmIdleFlipbook = MortalRealmIdleFlipbookAsset.LoadSynchronous();
+	MortalRealmMoveFlipbook = MortalRealmMoveFlipbookAsset.LoadSynchronous();
+	MortalRealmAttackFlipbook = MortalRealmAttackFlipbookAsset.LoadSynchronous();
+	MortalRealmHurtFlipbook = MortalRealmHurtFlipbookAsset.LoadSynchronous();
+	MortalRealmDeathFlipbook = MortalRealmDeathFlipbookAsset.LoadSynchronous();
+	bMortalRealmOneShotAnimation = false;
+	ApplyMortalRealmSpritePresentation();
+	UpdateMortalRealmLocomotionAnimation();
+
+	const TCHAR* IdleState = MortalRealmIdleFlipbook ? TEXT("loaded") : TEXT("missing");
+	const TCHAR* MoveState = MortalRealmMoveFlipbook ? TEXT("loaded") : TEXT("missing");
+	const TCHAR* AttackState = MortalRealmAttackFlipbook ? TEXT("loaded") : TEXT("missing");
+	const TCHAR* HurtState = MortalRealmHurtFlipbook ? TEXT("loaded") : TEXT("missing");
+	const TCHAR* DeathState = MortalRealmDeathFlipbook ? TEXT("loaded") : TEXT("missing");
+	if (MortalRealmIdleFlipbook && MortalRealmMoveFlipbook
+		&& MortalRealmAttackFlipbook && MortalRealmHurtFlipbook
+		&& MortalRealmDeathFlipbook)
+	{
+		UE_LOG(
+			LogTemp,
+			Display,
+			TEXT("Mortal Realm player animation set: idle=%s move=%s attack=%s hurt=%s death=%s"),
+			IdleState,
+			MoveState,
+			AttackState,
+			HurtState,
+			DeathState);
+	}
+	else
+	{
+		UE_LOG(
+			LogTemp,
+			Warning,
+			TEXT("Mortal Realm player animation set: idle=%s move=%s attack=%s hurt=%s death=%s"),
+			IdleState,
+			MoveState,
+			AttackState,
+			HurtState,
+			DeathState);
+	}
+}
+
+void AImmortalPlayerCharacter::ApplyMortalRealmSpritePresentation()
+{
+	UPaperFlipbookComponent* SpriteComponent = GetSprite();
+	if (!SpriteComponent)
+	{
+		return;
+	}
+
+	const FVector PreviousScale = SpriteComponent->GetRelativeScale3D();
+	const FVector PreviousLocation = SpriteComponent->GetRelativeLocation();
+	float VisualScaleMultiplier = MortalRealmVisualScaleMultiplier;
+	float GroundOffset = MortalRealmGroundOffset;
+#if !UE_BUILD_SHIPPING
+	FParse::Value(
+		FCommandLine::Get(),
+		TEXT("ImmortalTestMortalPlayerVisualScale="),
+		VisualScaleMultiplier);
+	FParse::Value(
+		FCommandLine::Get(),
+		TEXT("ImmortalTestMortalPlayerGroundOffset="),
+		GroundOffset);
+#endif
+	VisualScaleMultiplier = FMath::Max(VisualScaleMultiplier, 0.1f);
+	SpriteComponent->SetRelativeScale3D(PreviousScale * VisualScaleMultiplier);
+
+	FVector GroundedLocation = PreviousLocation;
+	float CapsuleHalfHeight = 0.0f;
+	if (bGroundMortalRealmSpriteAtCapsuleBottom && GetCapsuleComponent())
+	{
+		CapsuleHalfHeight = GetCapsuleComponent()->GetUnscaledCapsuleHalfHeight();
+		GroundedLocation.Z = -CapsuleHalfHeight + GroundOffset;
+		SpriteComponent->SetRelativeLocation(GroundedLocation);
+	}
+
+	UE_LOG(
+		LogTemp,
+		Display,
+		TEXT("Mortal player sprite presentation: scale %s -> %s location %s -> %s capsuleHalfHeight=%.1f multiplier=%.2f groundOffset=%.1f"),
+		*PreviousScale.ToCompactString(),
+		*SpriteComponent->GetRelativeScale3D().ToCompactString(),
+		*PreviousLocation.ToCompactString(),
+		*SpriteComponent->GetRelativeLocation().ToCompactString(),
+		CapsuleHalfHeight,
+		VisualScaleMultiplier,
+		GroundOffset);
+}
+
+void AImmortalPlayerCharacter::UpdateMortalRealmLocomotionAnimation()
+{
+	if (!bUseMortalRealmAnimationSet || bDead || bMortalRealmOneShotAnimation)
+	{
+		return;
+	}
+
+	UPaperFlipbookComponent* SpriteComponent = GetSprite();
+	UPaperFlipbook* DesiredFlipbook =
+		GetVelocity().SizeSquared2D() > FMath::Square(5.0f)
+			? MortalRealmMoveFlipbook.Get()
+			: MortalRealmIdleFlipbook.Get();
+	if (!SpriteComponent || !DesiredFlipbook)
+	{
+		return;
+	}
+
+	if (SpriteComponent->GetFlipbook() != DesiredFlipbook
+		|| !SpriteComponent->IsLooping())
+	{
+		PlayMortalRealmFlipbook(DesiredFlipbook, true);
+	}
+	else if (!SpriteComponent->IsPlaying())
+	{
+		SpriteComponent->Play();
+	}
+}
+
+void AImmortalPlayerCharacter::PlayMortalRealmAttackAnimation()
+{
+	if (!bUseMortalRealmAnimationSet || !MortalRealmAttackFlipbook || !GetWorld())
+	{
+		return;
+	}
+
+	GetWorldTimerManager().ClearTimer(MortalRealmAttackAnimationTimerHandle);
+	GetWorldTimerManager().ClearTimer(MortalRealmHurtAnimationTimerHandle);
+	bMortalRealmOneShotAnimation = true;
+	PlayMortalRealmFlipbook(MortalRealmAttackFlipbook, false);
+	GetWorldTimerManager().SetTimer(
+		MortalRealmAttackAnimationTimerHandle,
+		this,
+		&AImmortalPlayerCharacter::FinishMortalRealmOneShotAnimation,
+		GetMortalRealmFlipbookDuration(MortalRealmAttackFlipbook, 0.67f),
+		false);
+}
+
+void AImmortalPlayerCharacter::PlayMortalRealmHurtAnimation()
+{
+	if (!bUseMortalRealmAnimationSet || !MortalRealmHurtFlipbook || !GetWorld())
+	{
+		return;
+	}
+
+	GetWorldTimerManager().ClearTimer(MortalRealmAttackAnimationTimerHandle);
+	GetWorldTimerManager().ClearTimer(MortalRealmHurtAnimationTimerHandle);
+	bMortalRealmOneShotAnimation = true;
+	PlayMortalRealmFlipbook(MortalRealmHurtFlipbook, false);
+	GetWorldTimerManager().SetTimer(
+		MortalRealmHurtAnimationTimerHandle,
+		this,
+		&AImmortalPlayerCharacter::FinishMortalRealmOneShotAnimation,
+		GetMortalRealmFlipbookDuration(MortalRealmHurtFlipbook, 0.5f),
+		false);
+}
+
+void AImmortalPlayerCharacter::PlayMortalRealmDeathAnimation()
+{
+	if (!bUseMortalRealmAnimationSet || !MortalRealmDeathFlipbook)
+	{
+		return;
+	}
+
+	GetWorldTimerManager().ClearTimer(MortalRealmAttackAnimationTimerHandle);
+	GetWorldTimerManager().ClearTimer(MortalRealmHurtAnimationTimerHandle);
+	bMortalRealmOneShotAnimation = true;
+	PlayMortalRealmFlipbook(MortalRealmDeathFlipbook, false);
+}
+
+void AImmortalPlayerCharacter::FinishMortalRealmOneShotAnimation()
+{
+	GetWorldTimerManager().ClearTimer(MortalRealmAttackAnimationTimerHandle);
+	GetWorldTimerManager().ClearTimer(MortalRealmHurtAnimationTimerHandle);
+	if (bDead)
+	{
+		return;
+	}
+
+	bMortalRealmOneShotAnimation = false;
+	UpdateMortalRealmLocomotionAnimation();
+}
+
+void AImmortalPlayerCharacter::PlayMortalRealmFlipbook(
+	UPaperFlipbook* Flipbook,
+	const bool bLooping)
+{
+	UPaperFlipbookComponent* SpriteComponent = GetSprite();
+	if (!SpriteComponent || !Flipbook)
+	{
+		return;
+	}
+
+	SpriteComponent->SetFlipbook(Flipbook);
+	SpriteComponent->SetLooping(bLooping);
+	SpriteComponent->PlayFromStart();
+}
+
+float AImmortalPlayerCharacter::GetMortalRealmFlipbookDuration(
+	UPaperFlipbook* Flipbook,
+	const float FallbackDuration) const
+{
+	return Flipbook
+		? FMath::Max(Flipbook->GetTotalDuration(), 0.01f)
+		: FMath::Max(FallbackDuration, 0.01f);
+}
+
+void AImmortalPlayerCharacter::BeginDeathCultivationRecovery()
+{
+	const bool bWasAlreadyRequired =
+		bDeathCultivationRecoveryRequired;
+	bDeathCultivationRecoveryRequired = true;
+	bAdventureSuspendedForDeathRecovery = true;
+	StopAutoAttack();
+
+	if (!bWasAlreadyRequired && !SaveProgress())
+	{
+		UE_LOG(
+			LogTemp,
+			Error,
+			TEXT("Death cultivation recovery could not be persisted; current session remains locked"));
+	}
+
+	if (GetWorld())
+	{
+		GetWorldTimerManager().SetTimerForNextTick(
+			FTimerDelegate::CreateWeakLambda(
+				this,
+				[this] { SuspendAdventureForDeathRecovery(); }));
+		GetWorldTimerManager().ClearTimer(
+			DeathCultivationRedirectTimerHandle);
+		GetWorldTimerManager().SetTimer(
+			DeathCultivationRedirectTimerHandle,
+			this,
+			&AImmortalPlayerCharacter::RedirectToCultivationAfterDeath,
+			GetMortalRealmFlipbookDuration(
+				MortalRealmDeathFlipbook, 0.8f) + 0.10f,
+			false);
+	}
+
+	UE_LOG(
+		LogTemp,
+		Display,
+		TEXT("Player death closed adventure; cultivation breakthrough is now required"));
+}
+
+void AImmortalPlayerCharacter::SuspendAdventureForDeathRecovery()
+{
+	bAdventureSuspendedForDeathRecovery = true;
+	StopAutoAttack();
+	if (AImmortalMonsterSpawner* Spawner = FindMapSpawner())
+	{
+		Spawner->SuspendAdventureForCultivation();
+	}
+}
+
+void AImmortalPlayerCharacter::RedirectToCultivationAfterDeath()
+{
+	if (!bDeathCultivationRecoveryRequired
+		&& !bAdventureSuspendedForDeathRecovery)
+	{
+		return;
+	}
+	OpenManagementFeature(
+		EImmortalManagementFeature::Cultivation);
+	QueueManagementNotification(
+		FText::FromString(
+			bDeathCultivationRecoveryRequired
+				? TEXT("历练失败，历练通道已关闭。完成下一次修炼突破后可重返历练。")
+				: TEXT("离线修炼已完成恢复。点击“重返历练”继续自动战斗。")),
+		bDeathCultivationRecoveryRequired
+			? FLinearColor(1.0f, 0.58f, 0.32f, 1.0f)
+			: FLinearColor(0.48f, 1.0f, 0.62f, 1.0f),
+		5.0f);
+	if (PlayerCultivationWidget)
+	{
+		PlayerCultivationWidget->RefreshFromPlayer();
+	}
+	UE_LOG(
+		LogTemp,
+		Display,
+		TEXT("Death recovery redirected player to cultivation: managementOpen=%s activeFeature=%d"),
+		bManagementInterfaceOpen ? TEXT("true") : TEXT("false"),
+		static_cast<int32>(ActiveManagementFeature));
+}
+
+void AImmortalPlayerCharacter::UnlockDeathCultivationRecovery(
+	const TCHAR* Reason)
+{
+	if (!bDeathCultivationRecoveryRequired)
+	{
+		return;
+	}
+
+	bDeathCultivationRecoveryRequired = false;
+	if (!SaveProgress())
+	{
+		bDeathCultivationRecoveryRequired = true;
+		QueueManagementNotification(
+			FText::FromString(TEXT(
+				"修炼恢复已完成，但存档写入失败；历练通道仍保持关闭。")),
+			FLinearColor(1.0f, 0.40f, 0.30f, 1.0f),
+			5.0f);
+		UE_LOG(
+			LogTemp,
+			Error,
+			TEXT("Death cultivation recovery unlock rolled back because persistence failed: reason=%s"),
+			Reason ? Reason : TEXT("unknown"));
+		return;
+	}
+
+	QueueManagementNotification(
+		FText::FromString(TEXT(
+			"修炼恢复完成，历练通道已解锁。点击“重返历练”继续自动战斗。")),
+		FLinearColor(0.48f, 1.0f, 0.62f, 1.0f),
+		5.0f);
+	if (PlayerCultivationWidget)
+	{
+		PlayerCultivationWidget->RefreshFromPlayer();
+	}
+	UE_LOG(
+		LogTemp,
+		Display,
+		TEXT("Death cultivation recovery unlocked: reason=%s awaitingManualReturn=%s"),
+		Reason ? Reason : TEXT("unknown"),
+		bAdventureSuspendedForDeathRecovery
+			? TEXT("true") : TEXT("false"));
+}
+
+void AImmortalPlayerCharacter::ResumeAdventureAfterDeathRecovery()
+{
+	if (bDeathCultivationRecoveryRequired
+		|| !bAdventureSuspendedForDeathRecovery)
+	{
+		return;
+	}
+
+	bool bSpawnerResumed = false;
+	if (AImmortalMonsterSpawner* Spawner = FindMapSpawner())
+	{
+		bSpawnerResumed =
+			Spawner->ResumeAdventureAfterCultivation();
+	}
+	bAdventureSuspendedForDeathRecovery = false;
+	if (!bDead && bAutoAttackOnBeginPlay)
+	{
+		StartAutoAttack();
+	}
+	UE_LOG(
+		LogTemp,
+		Display,
+		TEXT("Player returned to adventure after cultivation recovery: spawnerResumed=%s autoAttackActive=%s"),
+		bSpawnerResumed ? TEXT("true") : TEXT("false"),
+		GetWorldTimerManager().IsTimerActive(AutoAttackTimerHandle)
+			? TEXT("true") : TEXT("false"));
+}
+
+void AImmortalPlayerCharacter::ApplyPersistedDeathCultivationRecovery()
+{
+	if (!bAdventureSuspendedForDeathRecovery)
+	{
+		return;
+	}
+	SuspendAdventureForDeathRecovery();
+	RedirectToCultivationAfterDeath();
+	if (CultivationComponent
+		&& CultivationComponent->HasReachedAscension()
+		&& GetWorld())
+	{
+		GetWorldTimerManager().SetTimer(
+			AscensionRealmDeathRecoveryTimerHandle,
+			FTimerDelegate::CreateWeakLambda(
+				this,
+				[this]
+				{
+					UnlockDeathCultivationRecovery(
+						TEXT("ascension-realm meditation"));
+				}),
+			FMath::Max(AutoReviveDelay, 1.0f),
+			false);
+	}
 }
 
 void AImmortalPlayerCharacter::AutoRevive()
@@ -6808,15 +13052,29 @@ void AImmortalPlayerCharacter::AutoRevive()
 	InvulnerableUntilTime = GetWorld()->GetTimeSeconds() + FMath::Max(ReviveInvulnerabilityDuration, 0.0f);
 	GetCapsuleComponent()->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
 	GetCharacterMovement()->SetMovementMode(MOVE_Walking);
-	StartAutoAttack();
+	if (bDeathCultivationRecoveryRequired
+		&& CultivationComponent
+		&& CultivationComponent->HasReachedAscension())
+	{
+		UnlockDeathCultivationRecovery(
+			TEXT("ascension-realm meditation"));
+	}
+	if (!bDeathCultivationRecoveryRequired
+		&& !bAdventureSuspendedForDeathRecovery)
+	{
+		StartAutoAttack();
+	}
 	BP_OnPlayerAutoRevived();
+	FinishMortalRealmOneShotAnimation();
 	UE_LOG(LogTemp, Display, TEXT("Player auto-revived with %.1f seconds of protection"), FMath::Max(ReviveInvulnerabilityDuration, 0.0f));
 	SaveProgress();
 }
 
 void AImmortalPlayerCharacter::StartAutoAttack()
 {
-	if (!GetWorld())
+	if (!GetWorld() || bDead
+		|| bDeathCultivationRecoveryRequired
+		|| bAdventureSuspendedForDeathRecovery)
 	{
 		return;
 	}
@@ -6840,7 +13098,9 @@ void AImmortalPlayerCharacter::StopAutoAttack()
 
 void AImmortalPlayerCharacter::TryAutoAttack()
 {
-	if (bDead || bAttackPending || !GetWorld())
+	if (bDead || bDeathCultivationRecoveryRequired
+		|| bAdventureSuspendedForDeathRecovery
+		|| bAttackPending || !GetWorld())
 	{
 		return;
 	}
@@ -6854,6 +13114,7 @@ void AImmortalPlayerCharacter::TryAutoAttack()
 
 	bAttackPending = true;
 	BP_OnAutoAttackStarted(Target);
+	PlayMortalRealmAttackAnimation();
 
 	if (AttackWindup <= 0.0f)
 	{

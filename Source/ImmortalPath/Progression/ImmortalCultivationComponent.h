@@ -127,6 +127,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Immortal Path|Cultivation")
 	void SetEquipmentRateMultiplier(float Multiplier);
 
+	/** Permanent repeatable-ascension bonus. It applies to online and offline cultivation only. */
+	UFUNCTION(BlueprintCallable, Category = "Immortal Path|Cultivation")
+	void SetAscensionRateMultiplier(float Multiplier);
+
 	UFUNCTION(BlueprintPure, Category = "Immortal Path|Cultivation")
 	float GetAlchemyRateMultiplier() const { return AlchemyRateMultiplier; }
 
@@ -141,6 +145,9 @@ public:
 
 	UFUNCTION(BlueprintPure, Category = "Immortal Path|Cultivation")
 	float GetEquipmentRateMultiplier() const { return EquipmentRateMultiplier; }
+
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|Cultivation")
+	float GetAscensionRateMultiplier() const { return AscensionRateMultiplier; }
 
 	UPROPERTY(BlueprintAssignable, Category = "Immortal Path|Cultivation")
 	FCultivationProgressChangedSignature OnCultivationProgressChanged;
@@ -189,6 +196,7 @@ private:
 	float TechniqueRateMultiplier = 1.0f;
 	float CharacterPathRateMultiplier = 1.0f;
 	float EquipmentRateMultiplier = 1.0f;
+	float AscensionRateMultiplier = 1.0f;
 	double FractionalCultivation = 0.0;
 	FTimerHandle CultivationTimerHandle;
 };

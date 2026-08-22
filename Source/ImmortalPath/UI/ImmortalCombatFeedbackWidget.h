@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "../Items/ImmortalMaterialTypes.h"
 #include "Blueprint/UserWidget.h"
 #include "ImmortalCombatFeedbackWidget.generated.h"
 
@@ -47,6 +48,31 @@ public:
 	/** Compatibility overload for the legacy Qingyun-only caller. */
 	void SetStageProgress(int32 Stage, int32 Kills, int32 RequiredKills, bool bBossStage = false, bool bMapCompleted = false);
 	void ShowBossAnnouncement(const FText& Message, const FLinearColor& Color, float Duration = 3.0f);
+	void SetWorldBossProgress(
+		const FText& BossName,
+		int32 Phase,
+		float CurrentHealth,
+		float MaximumHealth,
+		float RemainingSeconds);
+	void ShowWorldBossRewardSummary(
+		int32 EquipmentCount,
+		int32 SpiritStones,
+		const TArray<FImmortalMaterialStack>& Materials,
+		FName ArtifactId);
+	void SetEndlessDungeonProgress(
+		int32 Floor,
+		int32 Kills,
+		int32 RequiredKills,
+		bool bElite,
+		bool bBoss,
+		int32 BossPhase,
+		float CurrentHealth,
+		float MaximumHealth);
+	void ShowEndlessDungeonRewardSummary(
+		int32 ClearedFloor,
+		int32 EquipmentCount,
+		int32 SpiritStones,
+		const TArray<FImmortalMaterialStack>& Materials);
 	void SetCultivationProgress(
 		const FText& RealmName,
 		int32 Current,

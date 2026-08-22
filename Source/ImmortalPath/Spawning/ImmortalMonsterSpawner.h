@@ -3,13 +3,17 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "../Endless/ImmortalEndlessDungeonTypes.h"
 #include "../Maps/ImmortalMapTypes.h"
+#include "../WorldBoss/ImmortalWorldBossTypes.h"
 #include "GameFramework/Actor.h"
 #include "ImmortalMonsterSpawner.generated.h"
 
 class AImmortalMonsterCharacter;
 class UImmortalPathSaveGame;
 class UBoxComponent;
+class UPaperSprite;
+class UPaperSpriteComponent;
 class USceneComponent;
 
 /** Maintains a configurable number of monsters inside a 2D spawn volume. */
@@ -36,6 +40,17 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "Immortal Path|Spawning")
 	void StopSpawning();
+
+	/** Closes normal and optional combat scenes while death recovery is active. */
+	UFUNCTION(BlueprintCallable, Category = "Immortal Path|Spawning")
+	void SuspendAdventureForCultivation();
+
+	/** Reopens the active map after cultivation has cleared the death gate. */
+	UFUNCTION(BlueprintCallable, Category = "Immortal Path|Spawning")
+	bool ResumeAdventureAfterCultivation();
+
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|Spawning")
+	bool IsAdventureSpawningRequested() const { return bSpawningRequested; }
 
 	UFUNCTION(BlueprintPure, Category = "Immortal Path|Stage")
 	int32 GetCurrentStage() const { return CurrentStage; }
@@ -78,6 +93,59 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Immortal Path|Maps")
 	FImmortalMapTravelResult TravelToMap(FName DestinationMapId);
 
+	/** Non-shipping runtime fixture: completes one map without changing the active map. */
+	bool CompleteMapForDevelopment(FName MapId);
+
+	/** True only while the normal map scene can safely enter a new ascension cycle. */
+	bool CanApplyAscensionCycleReset() const;
+
+	/** Pure validation used before the combined player/map save is committed. */
+	bool IsCanonicalAscensionCycleState(
+		const FImmortalMapSystemState& State) const;
+
+	/**
+	 * Applies an already-persisted stage-one cycle without writing the save
+	 * again. This is intentionally non-failing after the caller's preflight.
+	 */
+	void ApplyPersistedAscensionCycleState(
+		const FImmortalMapSystemState& PersistedCycleState);
+
+	/** Starts an optional encounter without mutating the active map or its 1-999 progress. */
+	UFUNCTION(BlueprintCallable, Category = "Immortal Path|World Boss")
+	FImmortalWorldBossChallengeResult StartWorldBossChallenge(FName BossId);
+
+	UFUNCTION(BlueprintCallable, Category = "Immortal Path|World Boss")
+	FImmortalWorldBossChallengeResult CancelWorldBossChallenge();
+
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|World Boss")
+	bool IsWorldBossChallengeActive() const { return bWorldBossChallengeActive; }
+
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|World Boss")
+	FImmortalWorldBossRuntimeSnapshot GetWorldBossRuntimeSnapshot() const;
+
+	/** Non-shipping runtime fixture hook used by Step 30 restart validation. */
+	bool DefeatActiveWorldBossForDevelopment();
+	bool DamageActiveWorldBossForDevelopment(float MaximumHealthFraction);
+	bool TimeoutActiveWorldBossForDevelopment();
+
+	/** Starts an independent endless run without mutating map, sect or cultivation progress. */
+	UFUNCTION(BlueprintCallable, Category = "Immortal Path|Endless Dungeon")
+	FImmortalEndlessDungeonStartResult StartEndlessDungeon(int32 StartFloor);
+
+	UFUNCTION(BlueprintCallable, Category = "Immortal Path|Endless Dungeon")
+	FImmortalEndlessDungeonStartResult CancelEndlessDungeon();
+
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|Endless Dungeon")
+	bool IsEndlessDungeonActive() const { return bEndlessDungeonActive; }
+
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|Endless Dungeon")
+	FImmortalEndlessDungeonRuntimeSnapshot GetEndlessDungeonRuntimeSnapshot() const;
+
+	/** Non-shipping runtime fixture hooks used by Step 31 validation. */
+	bool DamageActiveEndlessBossForDevelopment(float MaximumHealthFraction);
+	bool ClearActiveEndlessFloorForDevelopment();
+	bool FailActiveEndlessDungeonForDevelopment();
+
 	UFUNCTION(BlueprintCallable, Category = "Immortal Path|Save")
 	bool SaveStageProgress();
 
@@ -91,6 +159,10 @@ protected:
 	/** X/Z define the random spawn area. Y can be locked for a 2D lane. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Immortal Path|Spawning")
 	TObjectPtr<UBoxComponent> SpawnArea;
+
+	/** Runtime Qingyun backdrop; hidden for every other map and when its cooked sprite is unavailable. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Immortal Path|Maps")
+	TObjectPtr<UPaperSpriteComponent> QingyunMountainBackground;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Immortal Path|Spawning")
 	TSubclassOf<AImmortalMonsterCharacter> MonsterClass;
@@ -126,6 +198,14 @@ protected:
 	/** Prevents monsters from appearing directly on top of the player. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Immortal Path|Spawning", meta = (ClampMin = "0.0", Units = "cm"))
 	float MinDistanceFromPlayer = 300.0f;
+
+	/** Keeps Endless Dungeon waves inside the forward TBH camera band. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Immortal Path|Endless Dungeon", meta = (ClampMin = "300.0", Units = "cm"))
+	float EndlessForwardSpawnDistance = 520.0f;
+
+	/** Horizontal separation between simultaneous Endless Dungeon enemies. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Immortal Path|Endless Dungeon", meta = (ClampMin = "80.0", Units = "cm"))
+	float EndlessForwardSpawnSpacing = 180.0f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Immortal Path|Spawning", meta = (Units = "cm"))
 	float SpawnHeightOffset = 0.0f;
@@ -169,11 +249,13 @@ private:
 	bool FindSpawnLocation(FVector& OutLocation) const;
 	void RemoveInvalidMonsters();
 	void UpdateStageHud() const;
-	void ApplyActiveMapPresentation() const;
+	void ApplyActiveMapPresentation();
+	void RefreshQingyunBackgroundGeometry();
 	bool ApplyProgressForMap(FName MapId);
 	bool SyncCurrentProgressToState();
 	void MirrorLegacyQingyunProgress(UImmortalPathSaveGame* SaveGame) const;
 	void ClearAllMonstersAndDrops();
+	void ClearAllMonstersForWorldBoss();
 	int32 GetPlayerRealmIndex() const;
 	int32 GetCurrentMaximumStage() const;
 	int32 GetCurrentBossStageInterval() const;
@@ -183,6 +265,32 @@ private:
 	void ClearOtherMonsters(AImmortalMonsterCharacter* Exception);
 	int32 GetRequiredKillsForCurrentStage() const;
 	void ShowBossMessage(const FText& Message, const FLinearColor& Color) const;
+	AImmortalMonsterCharacter* SpawnWorldBoss(
+		const FImmortalWorldBossDefinition& Definition);
+	void FinishWorldBossChallenge(
+		bool bDefeated,
+		const FText& Message,
+		const FLinearColor& Color,
+		AImmortalMonsterCharacter* DefeatedBoss = nullptr);
+	void HandleWorldBossTimeout();
+	void UpdateWorldBossHud();
+	void ResumeMapSpawningAfterWorldBoss();
+	bool SpawnEndlessFloor();
+	AImmortalMonsterCharacter* SpawnEndlessEnemy(
+		bool bBoss,
+		bool bElite,
+		AActor* SpawnOwner = nullptr);
+	void FinishEndlessDungeon(
+		bool bCompletedFloor,
+		const FText& Message,
+		const FLinearColor& Color,
+		AImmortalMonsterCharacter* DefeatedMonster = nullptr);
+	void AdvanceEndlessDungeonFloor();
+	void UpdateEndlessDungeonHud();
+	void ResumeMapSpawningAfterEndlessDungeon();
+	void HandleEndlessDungeonMonsterDeath(
+		AImmortalMonsterCharacter* Monster,
+		AActor* DamageCauser);
 
 	UFUNCTION()
 	void HandleMonsterDeath(AImmortalMonsterCharacter* Monster, AActor* DamageCauser);
@@ -203,11 +311,57 @@ private:
 	UPROPERTY(Transient)
 	TSubclassOf<AImmortalMonsterCharacter> DefaultBossMonsterClass;
 
+	/** Cook-visible soft reference; missing source art safely falls back to the legacy TileMap. */
+	UPROPERTY(EditDefaultsOnly, Category = "Immortal Path|Maps")
+	TSoftObjectPtr<UPaperSprite> QingyunMountainBackgroundAsset;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UPaperSprite> QingyunMountainBackgroundSprite;
+
 	FTimerHandle SpawnTimerHandle;
+	FTimerHandle QingyunBackgroundRefreshTimerHandle;
+	bool bQingyunBackgroundRequested = false;
+	bool bHasLoggedQingyunBackgroundFit = false;
+	FIntPoint LastQingyunBackgroundViewportSize = FIntPoint::ZeroValue;
+	FVector LastQingyunBackgroundLocation = FVector::ZeroVector;
+	float LastQingyunBackgroundScale = 0.0f;
 	bool bSpawningRequested = false;
 	bool bMapTransitionInProgress = false;
 	bool bHandlingMonsterDeath = false;
 	bool bMapMigrationPending = false;
+	bool bWorldBossChallengeActive = false;
+	bool bResolvingWorldBossChallenge = false;
+	bool bResumeSpawningAfterWorldBoss = false;
+
+	UPROPERTY(Transient)
+	TWeakObjectPtr<AImmortalMonsterCharacter> ActiveWorldBoss;
+
+	UPROPERTY(VisibleInstanceOnly, Category = "Immortal Path|World Boss")
+	FImmortalWorldBossDefinition ActiveWorldBossDefinition;
+
+	float WorldBossChallengeStartTime = 0.0f;
+	float WorldBossChallengeEndTime = 0.0f;
+	FTimerHandle WorldBossTimeoutTimerHandle;
+	FTimerHandle WorldBossHudTimerHandle;
+	FTimerHandle WorldBossResumeTimerHandle;
+
+	bool bEndlessDungeonActive = false;
+	bool bResolvingEndlessDungeon = false;
+	bool bResumeSpawningAfterEndlessDungeon = false;
+	FGuid ActiveEndlessRunId;
+	int32 ActiveEndlessFloor = 0;
+	int32 ActiveEndlessRunStartFloor = 0;
+	int32 ActiveEndlessKills = 0;
+	int32 ActiveEndlessRequiredKills = 0;
+	float EndlessDungeonStartTime = 0.0f;
+	float EndlessFloorStartTime = 0.0f;
+
+	UPROPERTY(Transient)
+	TWeakObjectPtr<AImmortalMonsterCharacter> ActiveEndlessBoss;
+
+	FTimerHandle EndlessDungeonHudTimerHandle;
+	FTimerHandle EndlessDungeonNextFloorTimerHandle;
+	FTimerHandle EndlessDungeonResumeTimerHandle;
 
 	UPROPERTY(VisibleInstanceOnly, Category = "Immortal Path|Stage")
 	int32 CurrentStageKills = 0;

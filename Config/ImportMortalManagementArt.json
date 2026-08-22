@@ -1,0 +1,22 @@
+{
+  "ImportGroups": [
+    {
+      "GroupName": "MortalManagementSceneBackgrounds",
+      "bEnabled": true,
+      "Filenames": [
+        "Content/GAME/Asset/ui/management/backgrounds/mortal/T_BG_Mortal_SectSanctuary.png",
+        "Content/GAME/Asset/ui/management/backgrounds/mortal/T_BG_Mortal_MarketTown.png",
+        "Content/GAME/Asset/ui/management/backgrounds/mortal/T_BG_Mortal_CaveEstate.png",
+        "Content/GAME/Asset/ui/management/backgrounds/mortal/T_BG_Mortal_AdventureHall.png"
+      ],
+      "DestinationPath": "/Game/GAME/Asset/ui/management/backgrounds/mortal",
+      "FactoryName": "TextureFactory",
+      "bReplaceExisting": true,
+      "TextureUsage": "Background",
+      "ExpectedFrameCount": 4,
+      "ExpectedWidth": 1707,
+      "ExpectedHeight": 320,
+      "bCreateSprites": false
+    }
+  ]
+}

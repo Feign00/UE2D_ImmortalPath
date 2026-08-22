@@ -179,6 +179,35 @@ bool FImmortalEquipmentSetTest::RunTest(const FString& Parameters)
 		UImmortalEquipmentLibrary::CalculateLoadoutPowerWithBaseStats(QingyunSixPiece, 1000.0f, 0.0f, 0.0f)
 			> UImmortalEquipmentLibrary::CalculateLoadoutPowerWithBaseStats(TinyRawUpgrade, 1000.0f, 0.0f, 0.0f));
 
+	const int32 SetThresholds[] = {2, 4, 6};
+	for (const FName SetId : SetIds)
+	{
+		for (const int32 Threshold : SetThresholds)
+		{
+			TArray<FImmortalEquipmentItem> FullSetThreshold;
+			for (int32 Piece = 0; Piece < Threshold; ++Piece)
+			{
+				FImmortalEquipmentItem Item;
+				Item.ItemId = FGuid::NewGuid();
+				Item.DisplayName = TEXT("SetThresholdRegressionPiece");
+				Item.Slot = Slots[Piece];
+				Item.Quality = EImmortalEquipmentQuality::Rare;
+				Item.SetId = SetId;
+				FullSetThreshold.Add(Item);
+			}
+			TArray<FImmortalEquipmentItem> BrokenThreshold = FullSetThreshold;
+			BrokenThreshold.Last().ItemId = FGuid::NewGuid();
+			BrokenThreshold.Last().SetId = NAME_None;
+			BrokenThreshold.Last().AttackBonus = 4.0f;
+			TestTrue(*FString::Printf(TEXT("%s %d-piece threshold beats a tiny off-set upgrade"),
+				*SetId.ToString(), Threshold),
+				UImmortalEquipmentLibrary::CalculateLoadoutPowerWithBaseStats(
+					FullSetThreshold, 1000.0f, 100.0f, 1000.0f)
+				> UImmortalEquipmentLibrary::CalculateLoadoutPowerWithBaseStats(
+					BrokenThreshold, 1000.0f, 100.0f, 1000.0f));
+		}
+	}
+
 	UImmortalCultivationComponent* Cultivation = NewObject<UImmortalCultivationComponent>();
 	TestNotNull(TEXT("Cultivation component can be created for multiplier validation"), Cultivation);
 	if (Cultivation)

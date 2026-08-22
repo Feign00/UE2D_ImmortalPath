@@ -202,8 +202,16 @@ public:
 		EImmortalEquipmentDiscipline Discipline = EImmortalEquipmentDiscipline::Universal,
 		FName SetId = NAME_None);
 
-	/** Migrates legacy totals into base stats, validates affixes, then rebuilds cached totals. */
-	static void NormalizeForgingState(FImmortalEquipmentItem& Item);
+	/**
+	 * Migrates legacy totals into base stats, validates affixes, then rebuilds
+	 * cached totals. Durable pre-rolled reward journals can disable catalog
+	 * validation and name rewriting so later content-table changes cannot alter
+	 * an already committed item.
+	 */
+	static void NormalizeForgingState(
+		FImmortalEquipmentItem& Item,
+		bool bValidateSetDefinition = true,
+		bool bUpdateDisplayName = true);
 
 	static void RebuildEquipmentStats(FImmortalEquipmentItem& Item);
 
@@ -228,7 +236,10 @@ public:
 		const TArray<FImmortalEquipmentItem>& EquippedItems,
 		float BaseAttack,
 		float BaseDefense,
-		float BaseHealth);
+		float BaseHealth,
+		float BaseAttackSpeedMultiplier = 1.0f,
+		float BaseCriticalChance = 0.1f,
+		float BaseCriticalDamageMultiplier = 1.5f);
 
 	UFUNCTION(BlueprintPure, Category = "Immortal Path|Equipment")
 	static FLinearColor GetQualityColor(EImmortalEquipmentQuality Quality);

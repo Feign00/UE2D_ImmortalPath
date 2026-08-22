@@ -7,6 +7,11 @@ public class ImmortalPath : ModuleRules
 	public ImmortalPath(ReadOnlyTargetRules Target) : base(Target)
 	{
 		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
+		// Several independent gameplay systems intentionally keep file-local
+		// helpers in anonymous namespaces. Compiling this module without unity
+		// keeps those translation units isolated and makes clean/CI builds
+		// deterministic regardless of the adaptive working set.
+		bUseUnity = false;
 	
 		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "EnhancedInput", "Paper2D", "UMG" });
 

@@ -5,16 +5,21 @@
 #include "CoreMinimal.h"
 #include "../Alchemy/ImmortalAlchemyTypes.h"
 #include "../Artifacts/ImmortalArtifactTypes.h"
+#include "../Ascension/ImmortalAscensionTypes.h"
 #include "../Cave/ImmortalCaveTypes.h"
+#include "../Endless/ImmortalEndlessDungeonTypes.h"
 #include "../Farming/ImmortalFarmingTypes.h"
 #include "../Items/ImmortalEquipmentTypes.h"
 #include "../Items/ImmortalMaterialTypes.h"
 #include "../Inventory/ImmortalInventoryTypes.h"
 #include "../Maps/ImmortalMapTypes.h"
+#include "../Pets/ImmortalPetTypes.h"
 #include "../Techniques/ImmortalTechniqueTypes.h"
 #include "../Progression/ImmortalCharacterPathTypes.h"
+#include "../Quests/ImmortalQuestTypes.h"
 #include "../Sects/ImmortalSectTypes.h"
 #include "../Shop/ImmortalShopTypes.h"
+#include "../WorldBoss/ImmortalWorldBossTypes.h"
 #include "GameFramework/SaveGame.h"
 #include "ImmortalPathSaveGame.generated.h"
 
@@ -25,13 +30,23 @@ class IMMORTALPATH_API UImmortalPathSaveGame : public USaveGame
 	GENERATED_BODY()
 
 public:
-	static constexpr int32 CurrentSaveVersion = 17;
+	static constexpr int32 CurrentSaveVersion = 23;
 
 	UImmortalPathSaveGame();
 
 	static FString GetSlotName();
 	static UImmortalPathSaveGame* LoadOrCreate(const UObject* WorldContextObject);
 	bool SaveToDisk();
+
+#if !UE_BUILD_SHIPPING
+	/**
+	 * Deterministic development-only failure injection at the final write
+	 * boundary. Transactions still build the complete SaveGame snapshot and
+	 * call SaveToDisk(), but the slot itself is left untouched.
+	 */
+	static void SetDevelopmentWriteFailure(bool bShouldFail);
+	static bool IsDevelopmentWriteFailureEnabled();
+#endif
 
 	UPROPERTY(SaveGame)
 	int32 SaveVersion = CurrentSaveVersion;
@@ -105,6 +120,50 @@ public:
 	/** Distinguishes a native v17 nine-slot, seven-quality and equipment-set snapshot. */
 	UPROPERTY(SaveGame)
 	bool bEquipmentExpansionInitialized = false;
+
+	/** Distinguishes a native v18 independent World Boss snapshot. */
+	UPROPERTY(SaveGame)
+	bool bWorldBossInitialized = false;
+
+	/** World Boss records and any pre-rolled reward waiting for safe delivery. */
+	UPROPERTY(SaveGame)
+	FImmortalWorldBossState WorldBossState;
+
+	/** Distinguishes a native v19 independent Endless Dungeon snapshot. */
+	UPROPERTY(SaveGame)
+	bool bEndlessDungeonInitialized = false;
+
+	/** Endless records and any pre-rolled floor reward waiting for safe delivery. */
+	UPROPERTY(SaveGame)
+	FImmortalEndlessDungeonState EndlessDungeonState;
+
+	/** Distinguishes a native v20 pet snapshot from a migrated older save. */
+	UPROPERTY(SaveGame)
+	bool bPetSystemInitialized = false;
+
+	/** Owned pets, active selection and persistent combat growth. */
+	UPROPERTY(SaveGame)
+	FImmortalPetState PetState;
+
+	/** Distinguishes a native v21 repeatable-ascension snapshot. */
+	UPROPERTY(SaveGame)
+	bool bAscensionSystemInitialized = false;
+
+	/** Permanent ascension cycles, seals, three path ranks and lifetime map records. */
+	UPROPERTY(SaveGame)
+	FImmortalAscensionState AscensionState;
+
+	/** Distinguishes a native v22 main/daily/achievement quest snapshot. */
+	UPROPERTY(SaveGame)
+	bool bQuestSystemInitialized = false;
+
+	/** Lifetime and current-day counters plus durable reward claims. */
+	UPROPERTY(SaveGame)
+	FImmortalQuestState QuestState;
+
+	/** Death closes adventure until the next cultivation breakthrough. */
+	UPROPERTY(SaveGame)
+	bool bDeathCultivationRecoveryRequired = false;
 
 	UPROPERTY(SaveGame)
 	FGuid EquippedArtifactInstanceId;

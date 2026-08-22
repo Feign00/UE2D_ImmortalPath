@@ -139,7 +139,8 @@ float UImmortalCultivationComponent::GetCultivationPerSecondWithoutAlchemyBoost(
 		* NormalizeRateMultiplier(CaveRateMultiplier)
 		* NormalizeRateMultiplier(TechniqueRateMultiplier)
 		* NormalizeRateMultiplier(CharacterPathRateMultiplier)
-		* NormalizeRateMultiplier(EquipmentRateMultiplier);
+		* NormalizeRateMultiplier(EquipmentRateMultiplier)
+		* NormalizeRateMultiplier(AscensionRateMultiplier);
 }
 
 bool UImmortalCultivationComponent::HasReachedAscension() const
@@ -257,6 +258,21 @@ void UImmortalCultivationComponent::SetEquipmentRateMultiplier(const float Multi
 		StopCultivating();
 	}
 	else StartCultivating();
+	BroadcastProgress();
+}
+
+void UImmortalCultivationComponent::SetAscensionRateMultiplier(
+	const float Multiplier)
+{
+	AscensionRateMultiplier = NormalizeRateMultiplier(Multiplier);
+	if (GetCultivationPerSecond() <= 0.0f)
+	{
+		StopCultivating();
+	}
+	else
+	{
+		StartCultivating();
+	}
 	BroadcastProgress();
 }
 

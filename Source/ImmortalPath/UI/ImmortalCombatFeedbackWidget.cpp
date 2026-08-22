@@ -2,6 +2,7 @@
 
 #include "ImmortalCombatFeedbackWidget.h"
 
+#include "../Artifacts/ImmortalArtifactTypes.h"
 #include "../Characters/ImmortalPlayerCharacter.h"
 #include "Blueprint/WidgetLayoutLibrary.h"
 #include "Blueprint/WidgetTree.h"
@@ -241,6 +242,172 @@ void UImmortalCombatFeedbackWidget::ShowBossAnnouncement(
 	UE_LOG(LogTemp, Display, TEXT("Boss announcement: %s"), *Message.ToString());
 }
 
+void UImmortalCombatFeedbackWidget::SetWorldBossProgress(
+	const FText& BossName,
+	const int32 Phase,
+	const float CurrentHealth,
+	const float MaximumHealth,
+	const float RemainingSeconds)
+{
+	if (!StageText)
+	{
+		return;
+	}
+	const int32 Minutes = FMath::FloorToInt(FMath::Max(RemainingSeconds, 0.0f) / 60.0f);
+	const int32 Seconds = FMath::FloorToInt(FMath::Max(RemainingSeconds, 0.0f)) % 60;
+	const float HealthPercent = MaximumHealth > 0.0f
+		? FMath::Clamp(CurrentHealth / MaximumHealth, 0.0f, 1.0f) * 100.0f
+		: 0.0f;
+	StageText->SetText(FText::FromString(FString::Printf(
+		TEXT("世界妖王 · %s    阶段 %d/3    生命 %.0f%%    剩余 %02d:%02d"),
+		*BossName.ToString(), FMath::Clamp(Phase, 1, 3),
+		HealthPercent, Minutes, Seconds)));
+	StageText->SetColorAndOpacity(FSlateColor(
+		Phase >= 3
+			? FLinearColor(1.0f, 0.18f, 0.10f, 1.0f)
+			: FLinearColor(1.0f, 0.62f, 0.18f, 1.0f)));
+}
+
+void UImmortalCombatFeedbackWidget::ShowWorldBossRewardSummary(
+	const int32 EquipmentCount,
+	const int32 SpiritStones,
+	const TArray<FImmortalMaterialStack>& Materials,
+	const FName ArtifactId)
+{
+	if (!OfflineRewardPanel || !OfflineRewardText)
+	{
+		return;
+	}
+	TArray<FString> MaterialParts;
+	for (const FImmortalMaterialStack& Stack : Materials)
+	{
+		FImmortalMaterialDefinition Definition;
+		const FString Name = UImmortalMaterialLibrary::GetMaterialDefinition(
+			Stack.MaterialId, Definition)
+			? Definition.DisplayName.ToString()
+			: Stack.MaterialId.ToString();
+		MaterialParts.Add(FString::Printf(TEXT("%s×%d"), *Name, Stack.Quantity));
+	}
+	FString ArtifactPart;
+	if (!ArtifactId.IsNone())
+	{
+		FImmortalArtifactDefinition Definition;
+		ArtifactPart = UImmortalArtifactLibrary::GetArtifactDefinition(
+			ArtifactId, Definition)
+			? FString::Printf(TEXT("\n首通法宝：%s"), *Definition.DisplayName.ToString())
+			: FString::Printf(TEXT("\n首通法宝：%s"), *ArtifactId.ToString());
+	}
+	OfflineRewardText->SetText(FText::FromString(FString::Printf(
+		TEXT("世界妖王独立掉落已自动领取并保存\n高阶装备 ×%d    灵石 +%d    %s%s\n本次奖励不包含修为"),
+		FMath::Max(EquipmentCount, 0),
+		FMath::Max(SpiritStones, 0),
+		*FString::Join(MaterialParts, TEXT("、")),
+		*ArtifactPart)));
+	OfflineRewardText->SetColorAndOpacity(
+		FSlateColor(FLinearColor(1.0f, 0.78f, 0.26f, 1.0f)));
+	OfflineRewardPanel->SetBrushColor(FLinearColor(0.08f, 0.035f, 0.012f, 0.96f));
+	OfflineRewardPanel->SetRenderOpacity(1.0f);
+	OfflineRewardPanel->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+	OfflineRewardRemainingTime = 5.0f;
+}
+
+void UImmortalCombatFeedbackWidget::SetEndlessDungeonProgress(
+	const int32 Floor,
+	const int32 Kills,
+	const int32 RequiredKills,
+	const bool bElite,
+	const bool bBoss,
+	const int32 BossPhase,
+	const float CurrentHealth,
+	const float MaximumHealth)
+{
+	if (!StageText)
+	{
+		return;
+	}
+	if (bBoss)
+	{
+		const float HealthPercent = MaximumHealth > 0.0f
+			? FMath::Clamp(
+				CurrentHealth / MaximumHealth,
+				0.0f,
+				1.0f) * 100.0f
+			: 0.0f;
+		StageText->SetText(FText::FromString(FString::Printf(
+			TEXT("\u65E0\u5C3D\u79D8\u5883 \u00B7 \u7B2C %d \u5C42\u9996\u9886    \u9636\u6BB5 %d/3    \u751F\u547D %.0f%%"),
+			FMath::Max(Floor, 1),
+			FMath::Clamp(BossPhase, 1, 3),
+			HealthPercent)));
+		StageText->SetColorAndOpacity(FSlateColor(
+			BossPhase >= 3
+				? FLinearColor(1.0f, 0.16f, 0.10f, 1.0f)
+				: FLinearColor(1.0f, 0.42f, 0.18f, 1.0f)));
+		return;
+	}
+
+	const int32 SafeFloor = FMath::Max(Floor, 1);
+	const int32 SafeRequiredKills = FMath::Max(RequiredKills, 1);
+	const int32 SafeKills = FMath::Clamp(
+		Kills, 0, SafeRequiredKills);
+	const FString ProgressText = bElite
+		? FString::Printf(
+			TEXT("\u65E0\u5C3D\u79D8\u5883 \u00B7 \u7B2C %d \u5C42\u7CBE\u82F1    %d / %d"),
+			SafeFloor,
+			SafeKills,
+			SafeRequiredKills)
+		: FString::Printf(
+			TEXT("\u65E0\u5C3D\u79D8\u5883 \u00B7 \u7B2C %d \u5C42    %d / %d"),
+			SafeFloor,
+			SafeKills,
+			SafeRequiredKills);
+	StageText->SetText(FText::FromString(ProgressText));
+	StageText->SetColorAndOpacity(FSlateColor(
+		bElite
+			? FLinearColor(0.82f, 0.52f, 1.0f, 1.0f)
+			: FLinearColor(0.42f, 0.86f, 1.0f, 1.0f)));
+}
+
+void UImmortalCombatFeedbackWidget::ShowEndlessDungeonRewardSummary(
+	const int32 ClearedFloor,
+	const int32 EquipmentCount,
+	const int32 SpiritStones,
+	const TArray<FImmortalMaterialStack>& Materials)
+{
+	if (!OfflineRewardPanel || !OfflineRewardText)
+	{
+		return;
+	}
+	TArray<FString> MaterialParts;
+	for (const FImmortalMaterialStack& Stack : Materials)
+	{
+		FImmortalMaterialDefinition Definition;
+		const FString Name =
+			UImmortalMaterialLibrary::GetMaterialDefinition(
+				Stack.MaterialId,
+				Definition)
+				? Definition.DisplayName.ToString()
+				: Stack.MaterialId.ToString();
+		MaterialParts.Add(FString::Printf(
+			TEXT("%s\u00D7%d"),
+			*Name,
+			Stack.Quantity));
+	}
+	OfflineRewardText->SetText(FText::FromString(FString::Printf(
+		TEXT("\u65E0\u5C3D\u79D8\u5883\u7B2C %d \u5C42\u5956\u52B1\u5DF2\u81EA\u52A8\u9886\u53D6\u5E76\u4FDD\u5B58\n\u88C5\u5907 \u00D7%d    \u7075\u77F3 +%d    %s\n\u672C\u6B21\u5956\u52B1\u4E0D\u5305\u542B\u4FEE\u4E3A"),
+		FMath::Max(ClearedFloor, 1),
+		FMath::Max(EquipmentCount, 0),
+		FMath::Max(SpiritStones, 0),
+		*FString::Join(MaterialParts, TEXT("  ")))));
+	OfflineRewardText->SetColorAndOpacity(
+		FSlateColor(FLinearColor(0.48f, 0.92f, 1.0f, 1.0f)));
+	OfflineRewardPanel->SetBrushColor(
+		FLinearColor(0.025f, 0.045f, 0.085f, 0.97f));
+	OfflineRewardPanel->SetRenderOpacity(1.0f);
+	OfflineRewardPanel->SetVisibility(
+		ESlateVisibility::SelfHitTestInvisible);
+	OfflineRewardRemainingTime = 5.0f;
+}
+
 void UImmortalCombatFeedbackWidget::SetCultivationProgress(
 	const FText& RealmName,
 	const int32 Current,
@@ -384,7 +551,7 @@ void UImmortalCombatFeedbackWidget::NativeTick(const FGeometry& MyGeometry, cons
 		if (OfflineRewardRemainingTime <= 0.0f)
 		{
 			OfflineRewardPanel->SetVisibility(ESlateVisibility::Collapsed);
-			UE_LOG(LogTemp, Display, TEXT("Offline reward summary hidden after 8 seconds"));
+			UE_LOG(LogTemp, Display, TEXT("Reward summary hidden after its configured display duration"));
 		}
 	}
 }

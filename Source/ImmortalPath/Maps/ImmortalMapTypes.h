@@ -85,6 +85,7 @@ class IMMORTALPATH_API UImmortalMapLibrary : public UBlueprintFunctionLibrary
 
 public:
 	static FName GetQingyunMountainId();
+	static FName GetImmortalPalaceRuinsId();
 
 	UFUNCTION(BlueprintPure, Category = "Immortal Path|Maps")
 	static TArray<FName> GetKnownMapIds();
@@ -114,4 +115,3 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Immortal Path|Maps")
 	static int32 GetEffectiveAdventureStage(FName MapId, int32 LocalStage);
 };
-
