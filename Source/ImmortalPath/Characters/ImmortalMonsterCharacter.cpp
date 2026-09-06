@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "ImmortalMonsterCharacter.h"
+#include "ImmortalAnimationPlayback.h"
 
 #include "../Drops/ImmortalEquipmentDrop.h"
 #include "../Drops/ImmortalMaterialDrop.h"
@@ -75,7 +76,7 @@ void AImmortalMonsterCharacter::BeginPlay()
 		AcquireCombatTarget();
 	}
 
-	PlayMoveAnimation();
+	UpdateLocomotionAnimation();
 }
 
 void AImmortalMonsterCharacter::EndPlay(const EEndPlayReason::Type EndPlayReason)
@@ -93,6 +94,7 @@ void AImmortalMonsterCharacter::Tick(const float DeltaSeconds)
 	{
 		UpdateAutoCombat(DeltaSeconds);
 	}
+	UpdateLocomotionAnimation();
 }
 
 float AImmortalMonsterCharacter::TakeDamage(
@@ -127,9 +129,10 @@ float AImmortalMonsterCharacter::TakeDamage(
 		GetWorldTimerManager().ClearTimer(AttackWindupTimerHandle);
 		GetWorldTimerManager().ClearTimer(AttackFinishTimerHandle);
 		bAttackInProgress = false;
+		const bool bWasHurtReacting = bHurtReacting;
 		bHurtReacting = true;
 		GetCharacterMovement()->StopMovementImmediately();
-		PlayOneShotAnimation(HurtFlipbook);
+		ImmortalAnimationPlayback::PlayHurtWithoutRestart(GetSprite(), HurtFlipbook, bWasHurtReacting);
 
 		GetWorldTimerManager().SetTimer(
 			HurtFinishTimerHandle,
@@ -589,7 +592,7 @@ void AImmortalMonsterCharacter::UpdateAutoCombat(const float DeltaSeconds)
 		}
 		GetCharacterMovement()->MaxWalkSpeed = FMath::Max(MovementSpeed, 0.0f);
 		AddMovementInput(FVector::ForwardVector, FMath::Sign(HorizontalDelta));
-		PlayMoveAnimation();
+		UpdateLocomotionAnimation();
 		return;
 	}
 
@@ -708,7 +711,7 @@ void AImmortalMonsterCharacter::FinishAttack()
 	bBossSkillAttack = false;
 	if (!bDead)
 	{
-		PlayMoveAnimation();
+		UpdateLocomotionAnimation();
 	}
 }
 
@@ -717,7 +720,7 @@ void AImmortalMonsterCharacter::FinishHurtReaction()
 	bHurtReacting = false;
 	if (!bDead)
 	{
-		PlayMoveAnimation();
+		UpdateLocomotionAnimation();
 	}
 }
 
@@ -785,19 +788,15 @@ void AImmortalMonsterCharacter::UpdateFacing(const float HorizontalDirection)
 	GetSprite()->SetRelativeScale3D(FlipbookScale);
 }
 
-void AImmortalMonsterCharacter::PlayMoveAnimation()
+void AImmortalMonsterCharacter::UpdateLocomotionAnimation()
 {
-	if (!MoveFlipbook || !GetSprite() || bDead || bAttackInProgress || bHurtReacting)
+	if (bDead || bAttackInProgress || bHurtReacting)
 	{
 		return;
 	}
 
-	if (GetSprite()->GetFlipbook() != MoveFlipbook)
-	{
-		GetSprite()->SetFlipbook(MoveFlipbook);
-	}
-	GetSprite()->SetLooping(true);
-	GetSprite()->Play();
+	ImmortalAnimationPlayback::UpdateLocomotion(GetSprite(), IdleFlipbook, MoveFlipbook,
+		ImmortalAnimationPlayback::IsMoving(GetVelocity().X));
 }
 
 void AImmortalMonsterCharacter::PlayOneShotAnimation(UPaperFlipbook* Flipbook)

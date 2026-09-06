@@ -81,7 +81,7 @@ private:
 	void FinishDevelopmentDeathPreview();
 
 	void UpdateFacing(float HorizontalDirection);
-	void PlayMoveAnimation();
+	void UpdateLocomotionAnimation();
 	void PlayOneShotAnimation(UPaperFlipbook* Flipbook);
 	float GetAnimationDuration(
 		UPaperFlipbook* Flipbook,
@@ -99,6 +99,9 @@ private:
 
 	UPROPERTY(Transient)
 	TObjectPtr<UPaperFlipbook> MoveFlipbook;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UPaperFlipbook> IdleFlipbook;
 
 	UPROPERTY(Transient)
 	TObjectPtr<UPaperFlipbook> AttackFlipbook;

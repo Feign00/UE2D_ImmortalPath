@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "ImmortalPetCharacter.h"
+#include "ImmortalAnimationPlayback.h"
 
 #include "../Combat/AutoAttackTarget.h"
 #include "ImmortalPlayerCharacter.h"
@@ -97,6 +98,7 @@ void AImmortalPetCharacter::Tick(const float DeltaSeconds)
 	}
 
 	UpdateFollowAndCombat(DeltaSeconds);
+	UpdateLocomotionAnimation();
 }
 
 bool AImmortalPetCharacter::InitializeForPlayer(
@@ -138,7 +140,7 @@ bool AImmortalPetCharacter::InitializeForPlayer(
 	}
 	else
 	{
-		PlayMoveAnimation();
+		UpdateLocomotionAnimation();
 	}
 	return true;
 }
@@ -160,6 +162,8 @@ void AImmortalPetCharacter::RefreshFromPersistentState()
 	}
 
 	ActiveDefinition = Definition;
+	IdleFlipbook = ActiveDefinition.IdleFlipbook.IsNull()
+		? nullptr : ActiveDefinition.IdleFlipbook.LoadSynchronous();
 	MoveFlipbook =
 		ActiveDefinition.MoveFlipbook.LoadSynchronous();
 	AttackFlipbook =
@@ -204,7 +208,7 @@ void AImmortalPetCharacter::RefreshFromPersistentState()
 	else if (!bDevelopmentDeathPreviewActive
 		&& !bHurtPreviewActive)
 	{
-		PlayMoveAnimation();
+		UpdateLocomotionAnimation();
 	}
 
 	UE_LOG(
@@ -347,9 +351,8 @@ void AImmortalPetCharacter::UpdateFollowAndCombat(
 		}
 		else
 		{
-			// There is no separate Fox/Dog idle flipbook. Keeping the move
-			// loop active preserves the authored breathing motion.
-			PlayMoveAnimation();
+			// Waiting for cooldown must not display running in place.
+			UpdateLocomotionAnimation();
 		}
 		return;
 	}
@@ -383,7 +386,7 @@ void AImmortalPetCharacter::ReturnToFollowPoint(
 			nullptr,
 			ETeleportType::TeleportPhysics);
 		GetCharacterMovement()->StopMovementImmediately();
-		PlayMoveAnimation();
+		UpdateLocomotionAnimation();
 		return;
 	}
 
@@ -397,7 +400,7 @@ void AImmortalPetCharacter::ReturnToFollowPoint(
 	else
 	{
 		GetCharacterMovement()->StopMovementImmediately();
-		PlayMoveAnimation();
+		UpdateLocomotionAnimation();
 	}
 }
 
@@ -414,7 +417,7 @@ void AImmortalPetCharacter::MoveHorizontally(
 	AddMovementInput(
 		FVector::ForwardVector,
 		FMath::Sign(Direction));
-	PlayMoveAnimation();
+	UpdateLocomotionAnimation();
 }
 
 FVector AImmortalPetCharacter::GetFollowLocation() const
@@ -614,7 +617,7 @@ void AImmortalPetCharacter::FinishAttack()
 		&& !bOwnerDeathState && !bHurtPreviewActive
 		&& !bDevelopmentDeathPreviewActive)
 	{
-		PlayMoveAnimation();
+		UpdateLocomotionAnimation();
 	}
 }
 
@@ -669,7 +672,7 @@ void AImmortalPetCharacter::ExitOwnerDeathState()
 	}
 	else
 	{
-		PlayMoveAnimation();
+		UpdateLocomotionAnimation();
 	}
 	UE_LOG(LogTemp, Display,
 		TEXT("Pet resumed after owner revive: pet=%s"),
@@ -684,7 +687,7 @@ void AImmortalPetCharacter::FinishHurtPreview()
 		EnterOwnerDeathState();
 		return;
 	}
-	PlayMoveAnimation();
+	UpdateLocomotionAnimation();
 }
 
 void AImmortalPetCharacter::FinishDevelopmentDeathPreview()
@@ -695,7 +698,7 @@ void AImmortalPetCharacter::FinishDevelopmentDeathPreview()
 		EnterOwnerDeathState();
 		return;
 	}
-	PlayMoveAnimation();
+	UpdateLocomotionAnimation();
 }
 
 void AImmortalPetCharacter::UpdateFacing(
@@ -715,20 +718,16 @@ void AImmortalPetCharacter::UpdateFacing(
 	GetSprite()->SetRelativeScale3D(Scale);
 }
 
-void AImmortalPetCharacter::PlayMoveAnimation()
+void AImmortalPetCharacter::UpdateLocomotionAnimation()
 {
-	if (!MoveFlipbook || !GetSprite() || bOwnerDeathState
+	if (bOwnerDeathState
 		|| bAttackPending || bHurtPreviewActive
 		|| bDevelopmentDeathPreviewActive)
 	{
 		return;
 	}
-	if (GetSprite()->GetFlipbook() != MoveFlipbook)
-	{
-		GetSprite()->SetFlipbook(MoveFlipbook);
-	}
-	GetSprite()->SetLooping(true);
-	GetSprite()->Play();
+	ImmortalAnimationPlayback::UpdateLocomotion(GetSprite(), IdleFlipbook, MoveFlipbook,
+		ImmortalAnimationPlayback::IsMoving(GetVelocity().X));
 }
 
 void AImmortalPetCharacter::PlayOneShotAnimation(

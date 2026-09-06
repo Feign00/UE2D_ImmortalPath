@@ -91,6 +91,10 @@ struct IMMORTALPATH_API FImmortalPetDefinition : public FTableRowBase
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Pet|Presentation")
 	TSoftObjectPtr<UPaperFlipbook> MoveFlipbook;
 
+	/** Optional idle art; legacy catalogs keep a stationary move-frame fallback. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Pet|Presentation")
+	TSoftObjectPtr<UPaperFlipbook> IdleFlipbook;
+
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Pet|Presentation")
 	TSoftObjectPtr<UPaperFlipbook> AttackFlipbook;
 

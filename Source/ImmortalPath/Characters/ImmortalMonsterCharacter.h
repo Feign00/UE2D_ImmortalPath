@@ -215,6 +215,10 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Immortal Path|Monster|Animation")
 	TObjectPtr<UPaperFlipbook> MoveFlipbook;
 
+	/** Optional authored idle. Missing assets hold the first move pose. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Immortal Path|Monster|Animation")
+	TObjectPtr<UPaperFlipbook> IdleFlipbook;
+
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Immortal Path|Monster|Animation")
 	TObjectPtr<UPaperFlipbook> AttackFlipbook;
 
@@ -338,7 +342,7 @@ private:
 	void UpdateBossPhase();
 	void EnterBossPhase(int32 NewPhase);
 	void UpdateFacing(float HorizontalDirection);
-	void PlayMoveAnimation();
+	void UpdateLocomotionAnimation();
 	void PlayOneShotAnimation(UPaperFlipbook* Flipbook);
 	float GetAnimationDuration(UPaperFlipbook* Flipbook, float FallbackDuration) const;
 	void Die(AActor* DamageCauser);

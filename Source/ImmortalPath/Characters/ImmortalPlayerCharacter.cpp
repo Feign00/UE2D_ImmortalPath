@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "ImmortalPlayerCharacter.h"
+#include "ImmortalAnimationPlayback.h"
 
 #include "../Combat/AutoAttackTarget.h"
 #include "../Save/ImmortalPathSaveGame.h"
@@ -12510,10 +12511,11 @@ void AImmortalPlayerCharacter::PlayMortalRealmHurtAnimation()
 		return;
 	}
 
+	const bool bAlreadyReacting = GetWorldTimerManager().IsTimerActive(MortalRealmHurtAnimationTimerHandle);
 	GetWorldTimerManager().ClearTimer(MortalRealmAttackAnimationTimerHandle);
 	GetWorldTimerManager().ClearTimer(MortalRealmHurtAnimationTimerHandle);
 	bMortalRealmOneShotAnimation = true;
-	PlayMortalRealmFlipbook(MortalRealmHurtFlipbook, false);
+	ImmortalAnimationPlayback::PlayHurtWithoutRestart(GetSprite(), MortalRealmHurtFlipbook, bAlreadyReacting);
 	GetWorldTimerManager().SetTimer(
 		MortalRealmHurtAnimationTimerHandle,
 		this,
