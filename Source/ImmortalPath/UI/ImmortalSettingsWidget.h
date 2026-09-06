@@ -28,6 +28,9 @@ private:
 	void HandleAlwaysOnTopClicked();
 
 	UFUNCTION()
+	void HandleTransparencyClicked();
+
+	UFUNCTION()
 	void HandleMuteClicked();
 
 	UFUNCTION()
@@ -52,6 +55,9 @@ private:
 
 	UPROPERTY(Transient)
 	TObjectPtr<UTextBlock> AlwaysOnTopText;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UTextBlock> TransparencyText;
 
 	UPROPERTY(Transient)
 	TObjectPtr<UTextBlock> MuteText;

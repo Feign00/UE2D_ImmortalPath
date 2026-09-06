@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "ImmortalMapWidget.h"
+#include "ImmortalFeaturePageLayout.h"
 
 #include "ImmortalMapEntryWidget.h"
 #include "../Characters/ImmortalPlayerCharacter.h"
@@ -78,8 +79,8 @@ void UImmortalMapWidget::NativeOnInitialized()
 	Super::NativeOnInitialized();
 
 	USizeBox* RootSize = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass(), TEXT("MapScreenSize"));
-	RootSize->SetWidthOverride(900.0f);
-	RootSize->SetHeightOverride(600.0f);
+	RootSize->SetWidthOverride(1600.0f);
+	RootSize->SetHeightOverride(270.0f);
 	WidgetTree->RootWidget = RootSize;
 
 	UBorder* Background = WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass(), TEXT("MapScreenBackground"));
@@ -93,25 +94,25 @@ void UImmortalMapWidget::NativeOnInitialized()
 	UTextBlock* Title = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("MapScreenTitle"));
 	Title->SetText(FText::FromString(TEXT("历练地图  [M]")));
 	StyleMapText(Title, 28, FLinearColor(1.0f, 0.79f, 0.30f, 1.0f));
-	SetMapLayout(Canvas->AddChildToCanvas(Title), FVector2D(24.0f, 13.0f), FVector2D(350.0f, 44.0f));
+	SetMapLayout(Canvas->AddChildToCanvas(Title), FVector2D(16.0f, 4.0f), FVector2D(450.0f, 36.0f));
 
 	CurrentMapText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("CurrentMapText"));
 	StyleMapText(CurrentMapText, 17, FLinearColor(0.63f, 0.94f, 1.0f, 1.0f), true);
-	SetMapLayout(Canvas->AddChildToCanvas(CurrentMapText), FVector2D(384.0f, 20.0f), FVector2D(404.0f, 32.0f));
+	SetMapLayout(Canvas->AddChildToCanvas(CurrentMapText), FVector2D(900.0f, 7.0f), FVector2D(600.0f, 28.0f));
 
 	UButton* CloseButton = WidgetTree->ConstructWidget<UButton>(UButton::StaticClass(), TEXT("MapScreenClose"));
 	CloseButton->OnClicked.AddDynamic(this, &UImmortalMapWidget::HandleCloseClicked);
 	CloseButton->SetStyle(MakeMapButtonStyle(FVector2D(64.0f), FLinearColor(0.44f, 0.18f, 0.12f, 1.0f)));
-	SetMapLayout(Canvas->AddChildToCanvas(CloseButton), FVector2D(816.0f, 8.0f), FVector2D(64.0f));
+	SetMapLayout(Canvas->AddChildToCanvas(CloseButton), FVector2D(1540.0f, 3.0f), FVector2D(44.0f, 32.0f));
 	AddButtonLabel(WidgetTree, CloseButton, TEXT("×"), 24);
 
 	UBorder* LeftPanel = WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass(), TEXT("MapListPanel"));
 	LeftPanel->SetBrushColor(FLinearColor(0.04f, 0.065f, 0.085f, 0.94f));
 	LeftPanel->SetPadding(FMargin(10.0f, 8.0f));
-	SetMapLayout(Canvas->AddChildToCanvas(LeftPanel), FVector2D(14.0f, 66.0f), FVector2D(356.0f, 520.0f));
+	SetMapLayout(Canvas->AddChildToCanvas(LeftPanel), FVector2D(12.0f, 46.0f), FVector2D(345.0f, 214.0f));
 
 	UScrollBox* MapScroll = WidgetTree->ConstructWidget<UScrollBox>(UScrollBox::StaticClass(), TEXT("MapListScroll"));
-	MapScroll->SetScrollBarVisibility(ESlateVisibility::Collapsed);
+	MapScroll->SetScrollBarVisibility(ESlateVisibility::Visible);
 	LeftPanel->AddChild(MapScroll);
 	MapList = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass(), TEXT("MapList"));
 	MapScroll->AddChild(MapList);
@@ -119,49 +120,52 @@ void UImmortalMapWidget::NativeOnInitialized()
 	UBorder* DetailPanel = WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass(), TEXT("MapDetailPanel"));
 	DetailPanel->SetBrushColor(FLinearColor(0.035f, 0.05f, 0.07f, 0.96f));
 	DetailPanel->SetPadding(FMargin(0.0f));
-	SetMapLayout(Canvas->AddChildToCanvas(DetailPanel), FVector2D(384.0f, 66.0f), FVector2D(502.0f, 520.0f));
+	SetMapLayout(Canvas->AddChildToCanvas(DetailPanel), FVector2D(369.0f, 46.0f), FVector2D(1219.0f, 214.0f));
 
 	UCanvasPanel* DetailCanvas = WidgetTree->ConstructWidget<UCanvasPanel>(UCanvasPanel::StaticClass(), TEXT("MapDetailCanvas"));
 	DetailPanel->AddChild(DetailCanvas);
 
 	DetailNameText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("MapDetailName"));
 	StyleMapText(DetailNameText, 27, FLinearColor::White);
-	SetMapLayout(DetailCanvas->AddChildToCanvas(DetailNameText), FVector2D(18.0f, 10.0f), FVector2D(302.0f, 42.0f));
+	SetMapLayout(DetailCanvas->AddChildToCanvas(DetailNameText), FVector2D(16.0f, 5.0f), FVector2D(370.0f, 36.0f));
 
 	DetailRequirementText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("MapDetailRequirement"));
 	StyleMapText(DetailRequirementText, 17, FLinearColor(0.62f, 0.90f, 1.0f, 1.0f));
-	SetMapLayout(DetailCanvas->AddChildToCanvas(DetailRequirementText), FVector2D(18.0f, 52.0f), FVector2D(462.0f, 30.0f));
+	SetMapLayout(DetailCanvas->AddChildToCanvas(DetailRequirementText), FVector2D(16.0f, 43.0f), FVector2D(370.0f, 28.0f));
 
 	DetailDescriptionText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("MapDetailDescription"));
 	DetailDescriptionText->SetAutoWrapText(true);
 	StyleMapText(DetailDescriptionText, 17, FLinearColor(0.88f, 0.90f, 0.92f, 1.0f));
-	SetMapLayout(DetailCanvas->AddChildToCanvas(DetailDescriptionText), FVector2D(18.0f, 86.0f), FVector2D(462.0f, 70.0f));
+	SetMapLayout(DetailCanvas->AddChildToCanvas(DetailDescriptionText), FVector2D(16.0f, 74.0f), FVector2D(370.0f, 70.0f));
 
 	DetailProgressText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("MapDetailProgress"));
 	DetailProgressText->SetAutoWrapText(true);
 	StyleMapText(DetailProgressText, 18, FLinearColor(1.0f, 0.82f, 0.38f, 1.0f));
-	SetMapLayout(DetailCanvas->AddChildToCanvas(DetailProgressText), FVector2D(18.0f, 163.0f), FVector2D(462.0f, 52.0f));
+	SetMapLayout(DetailCanvas->AddChildToCanvas(DetailProgressText), FVector2D(16.0f, 149.0f), FVector2D(370.0f, 58.0f));
 
 	DetailEnemyText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("MapDetailEnemies"));
 	DetailEnemyText->SetAutoWrapText(true);
 	StyleMapText(DetailEnemyText, 17, FLinearColor(1.0f, 0.60f, 0.40f, 1.0f));
-	SetMapLayout(DetailCanvas->AddChildToCanvas(DetailEnemyText), FVector2D(18.0f, 220.0f), FVector2D(462.0f, 60.0f));
+	SetMapLayout(DetailCanvas->AddChildToCanvas(DetailEnemyText), FVector2D(405.0f, 8.0f), FVector2D(385.0f, 70.0f));
 
 	DetailDropText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("MapDetailDrops"));
 	DetailDropText->SetAutoWrapText(true);
 	StyleMapText(DetailDropText, 17, FLinearColor(0.66f, 1.0f, 0.76f, 1.0f));
-	SetMapLayout(DetailCanvas->AddChildToCanvas(DetailDropText), FVector2D(18.0f, 286.0f), FVector2D(462.0f, 124.0f));
+	SetMapLayout(DetailCanvas->AddChildToCanvas(DetailDropText), FVector2D(405.0f, 84.0f), FVector2D(385.0f, 120.0f));
 
 	ResultText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("MapTravelResult"));
 	ResultText->SetAutoWrapText(true);
 	StyleMapText(ResultText, 17, FLinearColor(0.70f, 0.84f, 0.92f, 1.0f), true);
-	SetMapLayout(DetailCanvas->AddChildToCanvas(ResultText), FVector2D(18.0f, 416.0f), FVector2D(462.0f, 44.0f));
+	SetMapLayout(DetailCanvas->AddChildToCanvas(ResultText), FVector2D(815.0f, 8.0f), FVector2D(380.0f, 120.0f));
 
 	TravelButton = WidgetTree->ConstructWidget<UButton>(UButton::StaticClass(), TEXT("MapTravelButton"));
 	TravelButton->OnClicked.AddDynamic(this, &UImmortalMapWidget::HandleTravelClicked);
 	TravelButton->SetStyle(MakeMapButtonStyle(FVector2D(210.0f, 46.0f), FLinearColor(0.20f, 0.48f, 0.34f, 1.0f)));
-	SetMapLayout(DetailCanvas->AddChildToCanvas(TravelButton), FVector2D(146.0f, 466.0f), FVector2D(210.0f, 46.0f));
+	SetMapLayout(DetailCanvas->AddChildToCanvas(TravelButton), FVector2D(880.0f, 145.0f), FVector2D(260.0f, 46.0f));
 	TravelButtonText = AddButtonLabel(WidgetTree, TravelButton, TEXT("前往历练"), 18);
+	ImmortalFeaturePageLayout::MakeScrollable(WidgetTree, DetailDropText);
+	ImmortalFeaturePageLayout::MakeScrollable(WidgetTree, DetailEnemyText);
+	ImmortalFeaturePageLayout::MakeScrollable(WidgetTree, ResultText);
 }
 
 void UImmortalMapWidget::NativeTick(const FGeometry& MyGeometry, const float InDeltaTime)

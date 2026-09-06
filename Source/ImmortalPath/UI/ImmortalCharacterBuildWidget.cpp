@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "ImmortalCharacterBuildWidget.h"
+#include "ImmortalFeaturePageLayout.h"
 
 #include "ImmortalCharacterPathEntryWidget.h"
 #include "../Characters/ImmortalPlayerCharacter.h"
@@ -79,100 +80,106 @@ void UImmortalCharacterBuildWidget::NativeOnInitialized()
 {
 	Super::NativeOnInitialized();
 	USizeBox* Root = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass(), TEXT("CharacterBuildPanelSize"));
-	Root->SetWidthOverride(900.0f);
-	Root->SetHeightOverride(600.0f);
+	Root->SetWidthOverride(1600.0f);
+	Root->SetHeightOverride(270.0f);
 	WidgetTree->RootWidget = Root;
 	UCanvasPanel* Canvas = WidgetTree->ConstructWidget<UCanvasPanel>(UCanvasPanel::StaticClass(), TEXT("CharacterBuildCanvas"));
 	Root->AddChild(Canvas);
+	ImmortalFeaturePageLayout::AddReadabilityBackground(WidgetTree, Canvas);
 
 	UImage* Background = WidgetTree->ConstructWidget<UImage>(UImage::StaticClass(), TEXT("CharacterBuildBackground"));
 	Background->SetBrush(BuildMakeBrush(
-		TEXT("/Game/GAME/Asset/ui/inventory/panel_background.panel_background"), FVector2D(900.0f, 600.0f),
+		TEXT("/Game/GAME/Asset/ui/inventory/panel_background.panel_background"), FVector2D(1600.0f, 270.0f),
 		FLinearColor(0.72f, 0.86f, 0.78f, 0.99f)));
-	BuildSetLayout(Canvas->AddChildToCanvas(Background), FVector2D::ZeroVector, FVector2D(900.0f, 600.0f));
+	BuildSetLayout(Canvas->AddChildToCanvas(Background), FVector2D::ZeroVector, FVector2D(1600.0f, 270.0f));
 
 	UTextBlock* Title = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("CharacterBuildTitle"));
 	Title->SetText(FText::FromString(TEXT("问道台 · 灵根与流派")));
 	BuildStyleText(Title, 28, FLinearColor(0.56f, 1.0f, 0.72f));
-	BuildSetLayout(Canvas->AddChildToCanvas(Title), FVector2D(26.0f, 14.0f), FVector2D(350.0f, 42.0f));
+	BuildSetLayout(Canvas->AddChildToCanvas(Title), FVector2D(16.0f, 4.0f), FVector2D(550.0f, 36.0f));
 	ResourceText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("CharacterBuildResources"));
 	ResourceText->SetJustification(ETextJustify::Right);
 	BuildStyleText(ResourceText, 15, FLinearColor(0.78f, 0.94f, 1.0f));
-	BuildSetLayout(Canvas->AddChildToCanvas(ResourceText), FVector2D(390.0f, 20.0f), FVector2D(405.0f, 30.0f));
+	BuildSetLayout(Canvas->AddChildToCanvas(ResourceText), FVector2D(1010.0f, 7.0f), FVector2D(500.0f, 28.0f));
 
 	UButton* CloseButton = WidgetTree->ConstructWidget<UButton>(UButton::StaticClass(), TEXT("CharacterBuildClose"));
 	CloseButton->SetStyle(BuildButtonStyle(FVector2D(64.0f), FLinearColor(0.18f, 0.42f, 0.30f)));
 	CloseButton->OnClicked.AddDynamic(this, &UImmortalCharacterBuildWidget::HandleCloseClicked);
-	BuildSetLayout(Canvas->AddChildToCanvas(CloseButton), FVector2D(816.0f, 10.0f), FVector2D(64.0f));
+	BuildSetLayout(Canvas->AddChildToCanvas(CloseButton), FVector2D(1540.0f, 3.0f), FVector2D(44.0f, 32.0f));
 	BuildAddButtonLabel(WidgetTree, CloseButton, TEXT("×"), 18);
 
 	UTextBlock* RootTitle = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("SpiritRootTitle"));
 	RootTitle->SetText(FText::FromString(TEXT("先天灵根")));
 	BuildStyleText(RootTitle, 20, FLinearColor::White);
-	BuildSetLayout(Canvas->AddChildToCanvas(RootTitle), FVector2D(24.0f, 72.0f), FVector2D(250.0f, 30.0f));
+	BuildSetLayout(Canvas->AddChildToCanvas(RootTitle), FVector2D(16.0f, 42.0f), FVector2D(220.0f, 26.0f));
 	RootNameText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("SpiritRootName"));
 	BuildStyleText(RootNameText, 27, FLinearColor::White);
-	BuildSetLayout(Canvas->AddChildToCanvas(RootNameText), FVector2D(24.0f, 110.0f), FVector2D(250.0f, 42.0f));
+	BuildSetLayout(Canvas->AddChildToCanvas(RootNameText), FVector2D(16.0f, 72.0f), FVector2D(270.0f, 35.0f));
 	RootMetaText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("SpiritRootMeta"));
 	BuildStyleText(RootMetaText, 15, FLinearColor(0.75f, 0.88f, 0.96f));
-	BuildSetLayout(Canvas->AddChildToCanvas(RootMetaText), FVector2D(24.0f, 154.0f), FVector2D(250.0f, 30.0f));
+	BuildSetLayout(Canvas->AddChildToCanvas(RootMetaText), FVector2D(16.0f, 110.0f), FVector2D(270.0f, 30.0f));
 	RootDescriptionText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("SpiritRootDescription"));
 	RootDescriptionText->SetAutoWrapText(true);
 	BuildStyleText(RootDescriptionText, 15, FLinearColor(0.9f, 0.92f, 0.94f));
-	BuildSetLayout(Canvas->AddChildToCanvas(RootDescriptionText), FVector2D(24.0f, 190.0f), FVector2D(250.0f, 90.0f));
+	BuildSetLayout(Canvas->AddChildToCanvas(RootDescriptionText), FVector2D(16.0f, 144.0f), FVector2D(270.0f, 110.0f));
 	RootEffectText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("SpiritRootEffects"));
 	RootEffectText->SetAutoWrapText(true);
 	BuildStyleText(RootEffectText, 15, FLinearColor(0.54f, 1.0f, 0.72f));
-	BuildSetLayout(Canvas->AddChildToCanvas(RootEffectText), FVector2D(24.0f, 290.0f), FVector2D(250.0f, 170.0f));
+	BuildSetLayout(Canvas->AddChildToCanvas(RootEffectText), FVector2D(305.0f, 44.0f), FVector2D(300.0f, 130.0f));
 	UTextBlock* RootNote = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("SpiritRootNote"));
 	RootNote->SetAutoWrapText(true);
 	RootNote->SetText(FText::FromString(TEXT("灵根首次进入游戏时随机觉醒并永久保存。变异灵根可共鸣全部元素。")));
 	BuildStyleText(RootNote, 13, FLinearColor(0.68f, 0.72f, 0.78f));
-	BuildSetLayout(Canvas->AddChildToCanvas(RootNote), FVector2D(24.0f, 474.0f), FVector2D(250.0f, 92.0f));
+	BuildSetLayout(Canvas->AddChildToCanvas(RootNote), FVector2D(305.0f, 182.0f), FVector2D(300.0f, 76.0f));
 
 	UTextBlock* PathTitle = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("CultivationPathTitle"));
 	PathTitle->SetText(FText::FromString(TEXT("修炼流派")));
 	BuildStyleText(PathTitle, 20, FLinearColor::White);
-	BuildSetLayout(Canvas->AddChildToCanvas(PathTitle), FVector2D(292.0f, 72.0f), FVector2D(230.0f, 30.0f));
+	BuildSetLayout(Canvas->AddChildToCanvas(PathTitle), FVector2D(625.0f, 42.0f), FVector2D(250.0f, 26.0f));
 	UScrollBox* PathScroll = WidgetTree->ConstructWidget<UScrollBox>(UScrollBox::StaticClass(), TEXT("CultivationPathScroll"));
-	BuildSetLayout(Canvas->AddChildToCanvas(PathScroll), FVector2D(288.0f, 106.0f), FVector2D(240.0f, 460.0f));
+	BuildSetLayout(Canvas->AddChildToCanvas(PathScroll), FVector2D(620.0f, 72.0f), FVector2D(250.0f, 185.0f));
 	PathList = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass(), TEXT("CultivationPathList"));
 	PathScroll->AddChild(PathList);
 
 	PathNameText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("PathDetailName"));
 	BuildStyleText(PathNameText, 25, FLinearColor::White);
-	BuildSetLayout(Canvas->AddChildToCanvas(PathNameText), FVector2D(550.0f, 76.0f), FVector2D(320.0f, 38.0f));
+	BuildSetLayout(Canvas->AddChildToCanvas(PathNameText), FVector2D(890.0f, 42.0f), FVector2D(370.0f, 32.0f));
 	PathDescriptionText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("PathDetailDescription"));
 	PathDescriptionText->SetAutoWrapText(true);
 	BuildStyleText(PathDescriptionText, 14, FLinearColor(0.88f, 0.9f, 0.94f));
-	BuildSetLayout(Canvas->AddChildToCanvas(PathDescriptionText), FVector2D(550.0f, 118.0f), FVector2D(320.0f, 65.0f));
+	BuildSetLayout(Canvas->AddChildToCanvas(PathDescriptionText), FVector2D(890.0f, 78.0f), FVector2D(370.0f, 55.0f));
 	PathSkillText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("PathSkill"));
 	PathSkillText->SetAutoWrapText(true);
 	BuildStyleText(PathSkillText, 15, FLinearColor(1.0f, 0.70f, 0.28f));
-	BuildSetLayout(Canvas->AddChildToCanvas(PathSkillText), FVector2D(550.0f, 190.0f), FVector2D(320.0f, 82.0f));
+	BuildSetLayout(Canvas->AddChildToCanvas(PathSkillText), FVector2D(890.0f, 140.0f), FVector2D(370.0f, 112.0f));
 	PathBonusText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("PathBonuses"));
 	PathBonusText->SetAutoWrapText(true);
 	BuildStyleText(PathBonusText, 14, FLinearColor(0.54f, 1.0f, 0.72f));
-	BuildSetLayout(Canvas->AddChildToCanvas(PathBonusText), FVector2D(550.0f, 278.0f), FVector2D(320.0f, 85.0f));
+	BuildSetLayout(Canvas->AddChildToCanvas(PathBonusText), FVector2D(1280.0f, 42.0f), FVector2D(300.0f, 70.0f));
 	EquipmentText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("PathEquipment"));
 	EquipmentText->SetAutoWrapText(true);
 	BuildStyleText(EquipmentText, 14, FLinearColor(0.58f, 0.86f, 1.0f));
-	BuildSetLayout(Canvas->AddChildToCanvas(EquipmentText), FVector2D(550.0f, 367.0f), FVector2D(320.0f, 55.0f));
+	BuildSetLayout(Canvas->AddChildToCanvas(EquipmentText), FVector2D(1280.0f, 115.0f), FVector2D(300.0f, 40.0f));
 	CostText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("PathCost"));
 	CostText->SetAutoWrapText(true);
 	BuildStyleText(CostText, 13, FLinearColor(0.96f, 0.86f, 0.56f));
-	BuildSetLayout(Canvas->AddChildToCanvas(CostText), FVector2D(550.0f, 426.0f), FVector2D(320.0f, 58.0f));
+	BuildSetLayout(Canvas->AddChildToCanvas(CostText), FVector2D(1280.0f, 158.0f), FVector2D(300.0f, 38.0f));
 
 	ChoosePathButton = WidgetTree->ConstructWidget<UButton>(UButton::StaticClass(), TEXT("ChooseCultivationPath"));
 	ChoosePathButton->SetStyle(BuildButtonStyle(FVector2D(160.0f, 48.0f), FLinearColor(0.18f, 0.56f, 0.38f)));
 	ChoosePathButton->OnClicked.AddDynamic(this, &UImmortalCharacterBuildWidget::HandleChoosePathClicked);
-	BuildSetLayout(Canvas->AddChildToCanvas(ChoosePathButton), FVector2D(630.0f, 494.0f), FVector2D(160.0f, 48.0f));
+	BuildSetLayout(Canvas->AddChildToCanvas(ChoosePathButton), FVector2D(1340.0f, 201.0f), FVector2D(180.0f, 32.0f));
 	BuildAddButtonLabel(WidgetTree, ChoosePathButton, TEXT("选择 / 转修"));
 	ResultText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("CharacterBuildResult"));
 	ResultText->SetAutoWrapText(true);
 	ResultText->SetJustification(ETextJustify::Center);
 	BuildStyleText(ResultText, 14, FLinearColor(1.0f, 0.72f, 0.28f));
-	BuildSetLayout(Canvas->AddChildToCanvas(ResultText), FVector2D(545.0f, 548.0f), FVector2D(330.0f, 42.0f));
+	BuildSetLayout(Canvas->AddChildToCanvas(ResultText), FVector2D(1280.0f, 237.0f), FVector2D(300.0f, 30.0f));
+	ImmortalFeaturePageLayout::MakeScrollable(WidgetTree, RootEffectText);
+	ImmortalFeaturePageLayout::MakeScrollable(WidgetTree, RootNote);
+	ImmortalFeaturePageLayout::MakeScrollable(WidgetTree, PathSkillText);
+	ImmortalFeaturePageLayout::MakeScrollable(WidgetTree, PathBonusText);
+	ImmortalFeaturePageLayout::MakeScrollable(WidgetTree, ResultText);
 	RefreshFromPlayer();
 }
 

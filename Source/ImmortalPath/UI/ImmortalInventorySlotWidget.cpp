@@ -3,6 +3,7 @@
 #include "ImmortalInventorySlotWidget.h"
 
 #include "ImmortalInventoryWidget.h"
+#include "ImmortalUITheme.h"
 #include "Blueprint/WidgetTree.h"
 #include "Components/Button.h"
 #include "Components/Image.h"
@@ -102,6 +103,10 @@ void UImmortalInventorySlotWidget::NativeOnInitialized()
 	}
 
 	QualityFrame = WidgetTree->ConstructWidget<UImage>(UImage::StaticClass(), TEXT("InventoryQualityFrame"));
+	MaterialGlyphText->RemoveFromParent();
+	SymbolIcon = CreateWidget<UImmortalIconWidget>(this);
+	UOverlaySlot* SymbolSlot = Layers->AddChildToOverlay(SymbolIcon);
+	SymbolSlot->SetPadding(FMargin(8.0f, 4.0f, 8.0f, 16.0f));
 	Layers->AddChildToOverlay(QualityFrame);
 
 	LevelText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("InventoryItemLevel"));
@@ -247,7 +252,11 @@ void UImmortalInventorySlotWidget::RefreshAppearance()
 	ButtonStyle.SetHovered(StateBrush);
 	ButtonStyle.SetPressed(StateBrush);
 	ButtonStyle.SetDisabled(StateBrush);
-	SlotButton->SetStyle(ButtonStyle);
+	SlotButton->SetStyle(ImmortalUITheme::ButtonStyle(bSelected));
+	SymbolIcon->SetVisibility((bQuestItem || bArtifactItem || bPillItem || bMaterialItem)
+		? ESlateVisibility::HitTestInvisible : ESlateVisibility::Collapsed);
+	SymbolIcon->SetIcon(bQuestItem ? 9 : bArtifactItem ? 4 : bPillItem ? 2
+		: MaterialStack.MaterialId.ToString().Contains(TEXT("Herb")) ? 11 : 19);
 	LockGlyphText->SetVisibility(ESlateVisibility::Collapsed);
 
 	if (bQuestItem)
@@ -258,6 +267,7 @@ void UImmortalInventorySlotWidget::RefreshAppearance()
 		if (bHasItem && UImmortalInventoryLibrary::GetQuestItemDefinition(QuestItemStack.QuestItemId, Definition))
 		{
 			MaterialGlyphText->SetText(Definition.IconGlyph.IsEmpty() ? FText::FromString(TEXT("任")) : Definition.IconGlyph);
+			SlotButton->SetToolTipText(Definition.DisplayName);
 			MaterialGlyphText->SetColorAndOpacity(FSlateColor(Definition.DisplayColor));
 			MaterialGlyphText->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
 			LevelText->SetText(FText::FromString(FString::Printf(TEXT("×%d"), QuestItemStack.Quantity)));
@@ -280,6 +290,7 @@ void UImmortalInventorySlotWidget::RefreshAppearance()
 		if (bHasItem && UImmortalArtifactLibrary::GetArtifactDefinition(ArtifactItem.ArtifactId, Definition))
 		{
 			const FLinearColor Color = UImmortalArtifactLibrary::GetQualityColor(Definition.Quality);
+			SlotButton->SetToolTipText(Definition.DisplayName);
 			MaterialGlyphText->SetText(Definition.IconGlyph.IsEmpty() ? FText::FromString(TEXT("宝")) : Definition.IconGlyph);
 			MaterialGlyphText->SetColorAndOpacity(FSlateColor(Color));
 			MaterialGlyphText->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
@@ -307,6 +318,7 @@ void UImmortalInventorySlotWidget::RefreshAppearance()
 		if (bHasItem && UImmortalAlchemyLibrary::GetPillDefinition(PillStack.PillId, Definition))
 		{
 			const FLinearColor QualityColor = UImmortalAlchemyLibrary::GetQualityColor(PillStack.Quality);
+			SlotButton->SetToolTipText(Definition.DisplayName);
 			MaterialGlyphText->SetText(Definition.IconGlyph);
 			MaterialGlyphText->SetColorAndOpacity(FSlateColor(QualityColor));
 			MaterialGlyphText->SetShadowColorAndOpacity(QualityColor.CopyWithNewOpacity(0.65f));
@@ -331,6 +343,7 @@ void UImmortalInventorySlotWidget::RefreshAppearance()
 		if (bHasItem && UImmortalMaterialLibrary::GetMaterialDefinition(MaterialStack.MaterialId, Definition))
 		{
 			MaterialGlyphText->SetText(Definition.IconGlyph.IsEmpty() ? FText::FromString(TEXT("◆")) : Definition.IconGlyph);
+			SlotButton->SetToolTipText(Definition.DisplayName);
 			MaterialGlyphText->SetColorAndOpacity(FSlateColor(Definition.DisplayColor));
 			MaterialGlyphText->SetShadowColorAndOpacity(Definition.DisplayColor.CopyWithNewOpacity(0.65f));
 			MaterialGlyphText->SetVisibility(ESlateVisibility::SelfHitTestInvisible);

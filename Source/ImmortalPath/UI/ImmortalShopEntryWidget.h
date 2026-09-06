@@ -60,6 +60,10 @@ private:
 	UPROPERTY(Transient)
 	TObjectPtr<UTextBlock> EntryText;
 
+	UPROPERTY(Transient)
+	TObjectPtr<class UImmortalIconWidget> ProductIcon;
+	int32 ProductIconIndex = 7;
+
 	EEntryMode EntryMode = EEntryMode::Offer;
 	FGuid EntryId;
 	FName MaterialId = NAME_None;
@@ -68,4 +72,3 @@ private:
 	bool bSelected = false;
 	bool bSoldOut = false;
 };
-

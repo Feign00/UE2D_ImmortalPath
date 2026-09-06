@@ -32,6 +32,9 @@ public:
 	UPROPERTY(Config, EditAnywhere, Category = "Desktop")
 	bool bAlwaysOnTop = true;
 
+	UPROPERTY(Config, EditAnywhere, Category = "Desktop")
+	bool bTransparentBackground = true;
+
 	UPROPERTY(Config, EditAnywhere, Category = "Audio")
 	bool bMuted = false;
 

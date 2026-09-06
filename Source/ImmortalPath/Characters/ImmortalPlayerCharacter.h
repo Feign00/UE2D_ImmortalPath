@@ -40,6 +40,7 @@ class UImmortalAscensionWidget;
 class UImmortalCraftingWidget;
 class UImmortalInventoryWidget;
 class UImmortalPlayerStatusWidget;
+class UImmortalDesktopGroundWidget;
 class UImmortalTechniqueWidget;
 class UImmortalCharacterBuildWidget;
 class UImmortalCaveWidget;
@@ -933,6 +934,12 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Immortal Path|Settings")
 	void ToggleDesktopAlwaysOnTop();
 
+	UFUNCTION(BlueprintPure, Category = "Immortal Path|Settings")
+	bool IsDesktopTransparent() const;
+
+	UFUNCTION(BlueprintCallable, Category = "Immortal Path|Settings")
+	bool ToggleDesktopTransparency();
+
 	UFUNCTION(BlueprintCallable, Category = "Immortal Path|Settings")
 	void ToggleDesktopMute();
 
@@ -1546,6 +1553,9 @@ private:
 
 	UPROPERTY(Transient)
 	TObjectPtr<UImmortalPlayerStatusWidget> PlayerStatusWidget;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UImmortalDesktopGroundWidget> DesktopGroundWidget;
 
 	UPROPERTY(Transient)
 	TObjectPtr<UImmortalManagementWidget> PlayerManagementWidget;

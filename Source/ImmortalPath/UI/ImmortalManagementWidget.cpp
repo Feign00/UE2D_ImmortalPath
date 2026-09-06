@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "ImmortalManagementWidget.h"
+#include "ImmortalUITheme.h"
 
 #include "../Characters/ImmortalPlayerCharacter.h"
 #include "../Progression/ImmortalCultivationComponent.h"
@@ -18,6 +19,7 @@
 #include "HAL/PlatformTime.h"
 #include "Styling/SlateTypes.h"
 #include "UObject/SoftObjectPath.h"
+#include "Misc/PackageName.h"
 
 namespace
 {
@@ -60,12 +62,9 @@ namespace
 		const FVector2D Size,
 		const FLinearColor& Color)
 	{
-		FSlateBrush Brush;
-		Brush.DrawAs = ESlateBrushDrawType::RoundedBox;
+		FSlateBrush Brush = ImmortalUITheme::PanelBrush(Color);
 		Brush.ImageSize = Size;
 		Brush.TintColor = FSlateColor(Color);
-		Brush.OutlineSettings.CornerRadii =
-			FVector4(5.0f, 5.0f, 5.0f, 5.0f);
 		return Brush;
 	}
 
@@ -396,176 +395,29 @@ void UImmortalManagementWidget::NativeOnInitialized()
 		FVector2D::ZeroVector,
 		FVector2D(1707.0f, 320.0f));
 
-	UBorder* HeaderPanel = WidgetTree->ConstructWidget<UBorder>(
-		UBorder::StaticClass(), TEXT("ManagementHeaderPanel"));
-	HeaderPanel->SetBrushColor(
-		FLinearColor(0.018f, 0.024f, 0.028f, 0.94f));
-	HeaderPanel->SetPadding(FMargin(0.0f));
-	SetManagementLayout(
-		RootCanvas->AddChildToCanvas(HeaderPanel),
-		FVector2D(294.0f, 4.0f),
-		FVector2D(1302.0f, 34.0f));
-
-	UCanvasPanel* HeaderCanvas = WidgetTree->ConstructWidget<UCanvasPanel>(
-		UCanvasPanel::StaticClass(), TEXT("ManagementHeaderCanvas"));
-	HeaderPanel->AddChild(HeaderCanvas);
-
 	PageTitleText = WidgetTree->ConstructWidget<UTextBlock>(
 		UTextBlock::StaticClass(), TEXT("ManagementPageTitle"));
-	StyleManagementText(
-		PageTitleText,
-		18,
-		FLinearColor(1.0f, 0.88f, 0.56f, 1.0f));
-	SetManagementLayout(
-		HeaderCanvas->AddChildToCanvas(PageTitleText),
-		FVector2D(12.0f, 3.0f),
-		FVector2D(260.0f, 28.0f));
-
 	ThemeStatusText = WidgetTree->ConstructWidget<UTextBlock>(
 		UTextBlock::StaticClass(), TEXT("ManagementThemeStatus"));
-	ThemeStatusText->SetAutoWrapText(true);
-	StyleManagementText(
-		ThemeStatusText,
-		9,
-		FLinearColor(0.78f, 0.88f, 0.91f, 1.0f),
-		true);
-	SetManagementLayout(
-		HeaderCanvas->AddChildToCanvas(ThemeStatusText),
-		FVector2D(274.0f, 2.0f),
-		FVector2D(1016.0f, 29.0f));
-
-	UBorder* NavigationPanel = WidgetTree->ConstructWidget<UBorder>(
-		UBorder::StaticClass(), TEXT("ManagementFixedNavigation"));
-	NavigationPanel->SetBrushColor(
-		FLinearColor(0.015f, 0.022f, 0.025f, 0.965f));
-	NavigationPanel->SetPadding(FMargin(8.0f));
-	SetManagementLayout(
-		RootCanvas->AddChildToCanvas(NavigationPanel),
-		FVector2D(4.0f, 4.0f),
-		FVector2D(282.0f, 292.0f));
-
-	UCanvasPanel* NavigationCanvas =
-		WidgetTree->ConstructWidget<UCanvasPanel>(
-			UCanvasPanel::StaticClass(),
-			TEXT("ManagementNavigationCanvas"));
-	NavigationPanel->AddChild(NavigationCanvas);
-
-	UTextBlock* NavigationTitle = WidgetTree->ConstructWidget<UTextBlock>(
-		UTextBlock::StaticClass(), TEXT("ManagementNavigationTitle"));
-	NavigationTitle->SetText(FText::FromString(TEXT("仙途养成")));
-	StyleManagementText(
-		NavigationTitle,
-		16,
-		FLinearColor(0.92f, 0.80f, 0.48f, 1.0f),
-		true);
-	SetManagementLayout(
-		NavigationCanvas->AddChildToCanvas(NavigationTitle),
-		FVector2D(0.0f, 0.0f),
-		FVector2D(266.0f, 23.0f));
-
-	UTextBlock* NavigationHint = WidgetTree->ConstructWidget<UTextBlock>(
-		UTextBlock::StaticClass(), TEXT("ManagementNavigationHint"));
-	NavigationHint->SetText(FText::FromString(TEXT("历练与修炼持续自动进行")));
-	StyleManagementText(
-		NavigationHint,
-		9,
-		FLinearColor(0.56f, 0.85f, 0.64f, 1.0f),
-		true);
-	SetManagementLayout(
-		NavigationCanvas->AddChildToCanvas(NavigationHint),
-		FVector2D(0.0f, 21.0f),
-		FVector2D(266.0f, 18.0f));
-
-	int32 NavigationIndex = 0;
-	auto AddFeatureButton = [this, NavigationCanvas, &NavigationIndex](
-		const EImmortalManagementFeature Feature,
-		const TCHAR* Label)
-	{
-		UButton* Button = AddNavigationButton(
-			Feature,
-			FText::FromString(Label));
-		const int32 Column = NavigationIndex / 9;
-		const int32 Row = NavigationIndex % 9;
-		SetManagementLayout(
-			NavigationCanvas->AddChildToCanvas(Button),
-			FVector2D(
-				static_cast<float>(Column * 136),
-				42.0f + static_cast<float>(Row * 24)),
-			FVector2D(130.0f, 21.0f));
-		++NavigationIndex;
-	};
-
-	AddFeatureButton(EImmortalManagementFeature::Home, TEXT("仙府主页"));
-	AddFeatureButton(EImmortalManagementFeature::Cultivation, TEXT("修炼"));
-	AddFeatureButton(EImmortalManagementFeature::Inventory, TEXT("装备"));
-	AddFeatureButton(EImmortalManagementFeature::Alchemy, TEXT("炼丹"));
-	AddFeatureButton(EImmortalManagementFeature::Crafting, TEXT("炼器"));
-	AddFeatureButton(EImmortalManagementFeature::Artifact, TEXT("法宝"));
-	AddFeatureButton(EImmortalManagementFeature::Technique, TEXT("功法"));
-	AddFeatureButton(EImmortalManagementFeature::CharacterBuild, TEXT("灵根 / 流派"));
-	AddFeatureButton(EImmortalManagementFeature::Shop, TEXT("百宝阁"));
-	AddFeatureButton(EImmortalManagementFeature::Map, TEXT("地图"));
-	AddFeatureButton(EImmortalManagementFeature::Quest, TEXT("任务"));
-	AddFeatureButton(EImmortalManagementFeature::Cave, TEXT("洞府"));
-	AddFeatureButton(EImmortalManagementFeature::Farming, TEXT("灵田"));
-	AddFeatureButton(EImmortalManagementFeature::Sect, TEXT("宗门"));
-	AddFeatureButton(EImmortalManagementFeature::WorldBoss, TEXT("世界妖王"));
-	AddFeatureButton(EImmortalManagementFeature::EndlessDungeon, TEXT("无尽秘境"));
-	AddFeatureButton(EImmortalManagementFeature::Pet, TEXT("灵宠"));
-	AddFeatureButton(EImmortalManagementFeature::Settings, TEXT("设置"));
-
-	UButton* ReturnButton = WidgetTree->ConstructWidget<UButton>(
-		UButton::StaticClass(), TEXT("ManagementReturnToAdventure"));
-	ReturnButton->SetStyle(MakeManagementButtonStyle(
-		FVector2D(266.0f, 25.0f),
-		FLinearColor(0.34f, 0.12f, 0.10f, 1.0f)));
-	ReturnButton->OnClicked.AddDynamic(
-		this,
-		&UImmortalManagementWidget::HandleReturnToAdventureClicked);
-	AddManagementLabel(
-		WidgetTree,
-		ReturnButton,
-		FText::FromString(TEXT("返回历练")),
-		11);
-	SetManagementLayout(
-		NavigationCanvas->AddChildToCanvas(ReturnButton),
-		FVector2D(0.0f, 260.0f),
-		FVector2D(266.0f, 24.0f));
-
-	UBorder* ContentFrame = WidgetTree->ConstructWidget<UBorder>(
-		UBorder::StaticClass(), TEXT("ManagementContentFrame"));
-	ContentFrame->SetBrushColor(
-		FLinearColor(0.012f, 0.018f, 0.021f, 0.82f));
-	ContentFrame->SetPadding(FMargin(8.0f));
-	SetManagementLayout(
-		RootCanvas->AddChildToCanvas(ContentFrame),
-		FVector2D(294.0f, 42.0f),
-		FVector2D(1302.0f, 254.0f));
 
 	PageSwitcher = WidgetTree->ConstructWidget<UWidgetSwitcher>(
 		UWidgetSwitcher::StaticClass(), TEXT("ManagementFeatureSwitcher"));
-	ContentFrame->AddChild(PageSwitcher);
-
-	UWidget* HomePage = BuildHomePage();
-	PageSwitcher->AddChild(HomePage);
-	RegisteredPages.Add(EImmortalManagementFeature::Home, HomePage);
-
-	UWidget* MissingPage = BuildMissingPage();
-	PageSwitcher->AddChild(MissingPage);
-
-	PageSwitcher->SetActiveWidget(HomePage);
-
-	// Replace the former framed sidebar/content layout with one complete scene.
-	// The old widgets remain constructed only to keep registration compatibility;
-	// they are hidden and the page switcher is re-parented to the full strip.
-	HeaderPanel->SetVisibility(ESlateVisibility::Collapsed);
-	NavigationPanel->SetVisibility(ESlateVisibility::Collapsed);
-	ContentFrame->SetVisibility(ESlateVisibility::Collapsed);
-	PageSwitcher->RemoveFromParent();
 	SetManagementLayout(
 		RootCanvas->AddChildToCanvas(PageSwitcher),
 		FVector2D::ZeroVector,
 		FVector2D(1707.0f, 320.0f));
+	UWidget* HomePage = BuildHomePage();
+	PageSwitcher->AddChild(HomePage);
+	RegisteredPages.Add(EImmortalManagementFeature::Home, HomePage);
+	PageSwitcher->AddChild(BuildMissingPage());
+	PageSwitcher->SetActiveWidget(HomePage);
+
+	UButton* ReturnButton = WidgetTree->ConstructWidget<UButton>(
+		UButton::StaticClass(), TEXT("ManagementReturnToAdventure"));
+	ReturnButton->OnClicked.AddDynamic(
+		this, &ThisClass::HandleReturnToAdventureClicked);
+	AddManagementLabel(
+		WidgetTree, ReturnButton, FText::FromString(TEXT("返回历练")), 11);
 
 	UBorder* SceneNavigation = WidgetTree->ConstructWidget<UBorder>(
 		UBorder::StaticClass(), TEXT("ManagementSceneNavigation"));
@@ -710,6 +562,14 @@ void UImmortalManagementWidget::RegisterFeaturePage(
 	UUserWidget* Page)
 {
 	if (!Page || !PageSwitcher) return;
+	if (Feature == EImmortalManagementFeature::Crafting
+		|| Feature == EImmortalManagementFeature::Artifact
+		|| Feature == EImmortalManagementFeature::Technique
+		|| Feature == EImmortalManagementFeature::CharacterBuild
+		|| Feature == EImmortalManagementFeature::Shop
+		|| Feature == EImmortalManagementFeature::Map
+		|| Feature == EImmortalManagementFeature::Cave)
+		ImmortalUITheme::RestyleFeature(Page);
 
 	if (const TObjectPtr<UUserWidget>* ExistingSource =
 		RegisteredPageSources.Find(Feature))
@@ -727,12 +587,17 @@ void UImmortalManagementWidget::RegisterFeaturePage(
 	PageScale->SetStretch(EStretch::ScaleToFit);
 	PageScale->SetStretchDirection(EStretchDirection::Both);
 	PageScale->AddChild(Page);
-	PageSwitcher->AddChild(PageScale);
-	RegisteredPages.Add(Feature, PageScale);
+	UCanvasPanel* PageContainer = WidgetTree->ConstructWidget<UCanvasPanel>(
+		UCanvasPanel::StaticClass());
+	SetManagementLayout(
+		PageContainer->AddChildToCanvas(PageScale),
+		FVector2D(12.0f, 46.0f), FVector2D(1683.0f, 270.0f));
+	PageSwitcher->AddChild(PageContainer);
+	RegisteredPages.Add(Feature, PageContainer);
 	RegisteredPageSources.Add(Feature, Page);
 	if (ActiveFeature == Feature)
 	{
-		PageSwitcher->SetActiveWidget(PageScale);
+		PageSwitcher->SetActiveWidget(PageContainer);
 	}
 }
 
@@ -868,6 +733,26 @@ bool UImmortalManagementWidget::IsManagementVisible() const
 		&& CurrentVisibility != ESlateVisibility::Hidden;
 }
 
+UTexture2D* UImmortalManagementWidget::LoadOptionalTexture(const FString& AssetPath)
+{
+	if (const TObjectPtr<UTexture2D>* Cached = ThemeTextureCache.Find(AssetPath))
+	{
+		return Cached->Get();
+	}
+	// Optional future-world art must not emit load warnings on every visit.
+	if (!FPackageName::DoesPackageExist(
+		FPackageName::ObjectPathToPackageName(AssetPath)))
+	{
+		return nullptr;
+	}
+	UTexture2D* Texture = Cast<UTexture2D>(FSoftObjectPath(AssetPath).TryLoad());
+	if (Texture)
+	{
+		ThemeTextureCache.Add(AssetPath, Texture);
+	}
+	return Texture;
+}
+
 void UImmortalManagementWidget::RefreshTheme()
 {
 	if (!ThemePlaceholder || !ThemeImage) return;
@@ -882,8 +767,7 @@ void UImmortalManagementWidget::RefreshTheme()
 		GetTierPlaceholderColor(Tier, ActiveFeature));
 
 	const FString AssetPath = BuildThemeAssetPath(Tier, ActiveScene);
-	UTexture2D* ThemeTexture = Cast<UTexture2D>(
-		FSoftObjectPath(AssetPath).TryLoad());
+	UTexture2D* ThemeTexture = LoadOptionalTexture(AssetPath);
 	if (ThemeTexture)
 	{
 		ThemeImage->SetBrushFromTexture(ThemeTexture, false);
@@ -1123,7 +1007,8 @@ UButton* UImmortalManagementWidget::AddNavigationButton(
 	Button->SetStyle(MakeManagementButtonStyle(
 		FVector2D(130.0f, 21.0f),
 		FLinearColor(0.075f, 0.13f, 0.15f, 0.96f)));
-	AddManagementLabel(WidgetTree, Button, Label, 10);
+	ImmortalUITheme::IconButton(this, Button,
+		FMath::Max(static_cast<int32>(Feature)-1, 0), Label);
 
 	switch (Feature)
 	{
@@ -1199,7 +1084,10 @@ UButton* UImmortalManagementWidget::AddSceneButton(
 	Button->SetStyle(MakeManagementButtonStyle(
 		FVector2D(126.0f, 25.0f),
 		FLinearColor(0.075f, 0.13f, 0.15f, 0.96f)));
-	AddManagementLabel(WidgetTree, Button, Label, 10);
+	const int32 SceneIcon = Scene == EImmortalManagementScene::SectSanctuary ? 12
+		: Scene == EImmortalManagementScene::MarketTown ? 7
+		: Scene == EImmortalManagementScene::CaveEstate ? 10 : 8;
+	ImmortalUITheme::IconButton(this, Button, SceneIcon, Label);
 	switch (Scene)
 	{
 	case EImmortalManagementScene::MarketTown:
@@ -1239,7 +1127,9 @@ UButton* UImmortalManagementWidget::AddSceneHotspot(
 	HoveredColor.A = 0.28f;
 	FLinearColor PressedColor = HotspotColor;
 	PressedColor.A = 0.46f;
-	HotspotStyle.SetNormal(MakeManagementBrush(Size, NormalColor));
+	FSlateBrush NormalBrush = MakeManagementBrush(Size, NormalColor);
+	NormalBrush.OutlineSettings.Width = 0;
+	HotspotStyle.SetNormal(NormalBrush);
 	HotspotStyle.SetHovered(MakeManagementBrush(Size, HoveredColor));
 	HotspotStyle.SetPressed(MakeManagementBrush(Size, PressedColor));
 	HotspotStyle.SetDisabled(MakeManagementBrush(
@@ -1250,23 +1140,13 @@ UButton* UImmortalManagementWidget::AddSceneHotspot(
 		UCanvasPanel::StaticClass());
 	Button->AddChild(Content);
 
-	const float IconSize = FMath::Min(Size.Y - 25.0f, 58.0f);
-	UImage* Icon = WidgetTree->ConstructWidget<UImage>(UImage::StaticClass());
-	const FString IconPath = BuildHotspotAssetPath(
-		EManagementWorldTier::Mortal, Feature);
-	if (UTexture2D* IconTexture = Cast<UTexture2D>(
-		FSoftObjectPath(IconPath).TryLoad()))
-	{
-		Icon->SetBrushFromTexture(IconTexture, false);
-		Icon->SetColorAndOpacity(FLinearColor::White);
-	}
-	else
-	{
-		Icon->SetVisibility(ESlateVisibility::Collapsed);
-	}
+	const float IconSize = 76.0f;
+	UImmortalIconWidget* Icon = CreateWidget<UImmortalIconWidget>(this);
+	Icon->SetIcon(FMath::Max(static_cast<int32>(Feature)-1, 0));
+	Button->SetToolTipText(Label);
 	SetManagementLayout(
 		Content->AddChildToCanvas(Icon),
-		FVector2D((Size.X - IconSize) * 0.5f, 2.0f),
+		FVector2D((Size.X - IconSize) * 0.5f, Size.Y - 113.0f),
 		FVector2D(IconSize, IconSize));
 
 	const float LabelWidth = FMath::Min(Size.X - 18.0f, 180.0f);

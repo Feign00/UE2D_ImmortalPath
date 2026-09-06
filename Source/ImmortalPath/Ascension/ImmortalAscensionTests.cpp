@@ -507,6 +507,8 @@ bool FImmortalAscensionPathTest::RunTest(
 	return true;
 }
 
+// Source UVs and editable pivots are editor-only Paper2D metadata.
+#if WITH_EDITOR
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FImmortalPlayerAscensionAnimationAssetTest,
 	"ImmortalPath.Ascension.PlayerAnimationAsset",
@@ -573,5 +575,6 @@ bool FImmortalPlayerAscensionAnimationAssetTest::RunTest(
 	}
 	return true;
 }
+#endif // WITH_EDITOR
 
-#endif
+#endif // WITH_DEV_AUTOMATION_TESTS

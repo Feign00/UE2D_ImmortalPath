@@ -1,9 +1,13 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "ImmortalPlayerStatusWidget.h"
+#include "ImmortalUITheme.h"
+#include "Components/CanvasPanel.h"
+#include "Components/CanvasPanelSlot.h"
 
 #include "../Characters/ImmortalPlayerCharacter.h"
 #include "Blueprint/WidgetTree.h"
+#include "Blueprint/WidgetLayoutLibrary.h"
 #include "Components/Button.h"
 #include "Components/Image.h"
 #include "Components/Overlay.h"
@@ -12,41 +16,6 @@
 #include "Engine/Texture2D.h"
 #include "Styling/SlateTypes.h"
 
-namespace
-{
-	constexpr float PlayerBarWidth = 512.0f;
-	constexpr float PlayerBarHeight = 64.0f;
-
-	FSlateBrush MakeStatusBrush(
-		const TCHAR* AssetPath,
-		const FVector2D Size,
-		const FLinearColor FallbackColor)
-	{
-		FSlateBrush Brush;
-		Brush.DrawAs = ESlateBrushDrawType::Image;
-		Brush.ImageSize = Size;
-		if (UTexture2D* Texture = LoadObject<UTexture2D>(
-			nullptr, AssetPath))
-		{
-			Brush.SetResourceObject(Texture);
-			Brush.TintColor = FSlateColor(FLinearColor::White);
-		}
-		else
-		{
-			Brush.TintColor = FSlateColor(FallbackColor);
-		}
-		return Brush;
-	}
-
-	FSlateBrush MakeTransparentBrush(const FVector2D Size)
-	{
-		FSlateBrush Brush;
-		Brush.DrawAs = ESlateBrushDrawType::Image;
-		Brush.ImageSize = Size;
-		Brush.TintColor = FSlateColor(FLinearColor::Transparent);
-		return Brush;
-	}
-}
 
 void UImmortalPlayerStatusWidget::InitializeForPlayer(
 	AImmortalPlayerCharacter* InPlayer)
@@ -57,63 +26,42 @@ void UImmortalPlayerStatusWidget::InitializeForPlayer(
 void UImmortalPlayerStatusWidget::NativeOnInitialized()
 {
 	Super::NativeOnInitialized();
-
-	const FVector2D BarSize(PlayerBarWidth, PlayerBarHeight);
-	USizeBox* RootBox = WidgetTree->ConstructWidget<USizeBox>(
-		USizeBox::StaticClass(), TEXT("PlayerHealthBarSize"));
-	RootBox->SetWidthOverride(PlayerBarWidth);
-	RootBox->SetHeightOverride(PlayerBarHeight);
-	WidgetTree->RootWidget = RootBox;
-
-	UOverlay* Layers = WidgetTree->ConstructWidget<UOverlay>(
-		UOverlay::StaticClass(), TEXT("PlayerHealthBarLayers"));
-	RootBox->AddChild(Layers);
-
-	UImage* Background = WidgetTree->ConstructWidget<UImage>(
-		UImage::StaticClass(), TEXT("PlayerHealthBackground"));
-	Background->SetBrush(MakeStatusBrush(
-		TEXT("/Game/GAME/Asset/ui/player_bar/background.background"),
-		BarSize,
-		FLinearColor(0.03f, 0.03f, 0.04f, 0.90f)));
-	Layers->AddChildToOverlay(Background);
-
-	HealthProgress = WidgetTree->ConstructWidget<UProgressBar>(
-		UProgressBar::StaticClass(), TEXT("PlayerHealth"));
+	USizeBox* Root = WidgetTree->ConstructWidget<USizeBox>();
+	Root->SetWidthOverride(512); Root->SetHeightOverride(64);
+	WidgetTree->RootWidget = Root;
+	UCanvasPanel* Canvas = WidgetTree->ConstructWidget<UCanvasPanel>();
+	Root->AddChild(Canvas);
+	auto Place = [Canvas](UWidget* W, float X, float Y, float Width, float Height)
+	{
+		UCanvasPanelSlot* Slot = Canvas->AddChildToCanvas(W);
+		Slot->SetPosition(FVector2D(X,Y)); Slot->SetSize(FVector2D(Width,Height));
+	};
+	HealthProgress = WidgetTree->ConstructWidget<UProgressBar>();
 	FProgressBarStyle HealthStyle;
-	HealthStyle.SetBackgroundImage(MakeTransparentBrush(BarSize));
-	HealthStyle.SetFillImage(MakeStatusBrush(
-		TEXT("/Game/GAME/Asset/ui/player_bar/health_fill.health_fill"),
-		BarSize,
-		FLinearColor(0.75f, 0.03f, 0.03f, 1.0f)));
-	HealthStyle.SetMarqueeImage(MakeTransparentBrush(BarSize));
+	HealthStyle.SetBackgroundImage(ImmortalUITheme::PanelBrush(FLinearColor(0.04f,0.045f,0.07f)));
+	HealthStyle.SetFillImage(ImmortalUITheme::PanelBrush(FLinearColor(0.36f,0.68f,0.29f)));
 	HealthProgress->SetWidgetStyle(HealthStyle);
-	HealthProgress->SetBarFillType(EProgressBarFillType::LeftToRight);
-	Layers->AddChildToOverlay(HealthProgress);
-
-	UImage* Border = WidgetTree->ConstructWidget<UImage>(
-		UImage::StaticClass(), TEXT("PlayerHealthBorder"));
-	Border->SetBrush(MakeStatusBrush(
-		TEXT("/Game/GAME/Asset/ui/player_bar/border.border"),
-		BarSize,
-		FLinearColor(0.85f, 0.75f, 0.45f, 1.0f)));
-	Layers->AddChildToOverlay(Border);
-
-	// The health bar remains the only visible battle HUD element. Its invisible
-	// hit target is the single route into the separate management interface.
-	UButton* ManagementHitTarget = WidgetTree->ConstructWidget<UButton>(
-		UButton::StaticClass(), TEXT("OpenManagementHitTarget"));
-	FButtonStyle TransparentStyle;
-	const FSlateBrush TransparentBrush = MakeTransparentBrush(BarSize);
-	TransparentStyle.SetNormal(TransparentBrush);
-	TransparentStyle.SetHovered(TransparentBrush);
-	TransparentStyle.SetPressed(TransparentBrush);
-	ManagementHitTarget->SetStyle(TransparentStyle);
-	ManagementHitTarget->SetToolTipText(FText::FromString(
-		TEXT("\u70B9\u51FB\u8FDB\u5165\u4FEE\u4ED9\u517B\u6210\u754C\u9762")));
-	ManagementHitTarget->OnClicked.AddDynamic(
-		this,
-		&UImmortalPlayerStatusWidget::HandleOpenManagementClicked);
-	Layers->AddChildToOverlay(ManagementHitTarget);
+	HealthProgress->SetFillColorAndOpacity(FLinearColor::White);
+	Place(HealthProgress, 4, 24, 250, 20);
+	UTextBlock* Label = WidgetTree->ConstructWidget<UTextBlock>();
+	Label->SetText(FText::FromString(TEXT("仙途 · 自动历练")));
+	FSlateFontInfo Font = Label->GetFont(); Font.Size=12; Label->SetFont(Font);
+	Label->SetColorAndOpacity(FLinearColor(1.0f,0.92f,0.73f));
+	Label->SetShadowOffset(FVector2D(1)); Label->SetShadowColorAndOpacity(FLinearColor::Black);
+	Place(Label, 8, 2, 240, 20);
+	auto AddQuickButton = [this, &Place](int32 Icon, const TCHAR* Tooltip, float X)
+	{
+		UButton* Button = WidgetTree->ConstructWidget<UButton>();
+		Button->SetStyle(ImmortalUITheme::ButtonStyle());
+		ImmortalUITheme::IconButton(this, Button, Icon, FText::FromString(Tooltip), true);
+		Place(Button, X, 4, 46, 46);
+		return Button;
+	};
+	AddQuickButton(1, TEXT("储物戒 / 装备"), 270)->OnClicked.AddDynamic(this, &ThisClass::HandleInventoryClicked);
+	AddQuickButton(0, TEXT("修炼 / 突破"), 320)->OnClicked.AddDynamic(this, &ThisClass::HandleCultivationClicked);
+	AddQuickButton(7, TEXT("百宝阁"), 370)->OnClicked.AddDynamic(this, &ThisClass::HandleShopClicked);
+	AddQuickButton(12, TEXT("仙府 · 全部功能"), 420)->OnClicked.AddDynamic(this, &ThisClass::HandleOpenManagementClicked);
+	AddQuickButton(16, TEXT("设置 / 透明背景"), 466)->OnClicked.AddDynamic(this, &ThisClass::HandleSettingsClicked);
 }
 
 void UImmortalPlayerStatusWidget::NativeTick(
@@ -121,6 +69,21 @@ void UImmortalPlayerStatusWidget::NativeTick(
 	const float InDeltaTime)
 {
 	Super::NativeTick(MyGeometry, InDeltaTime);
+	if (APlayerController* PC = GetOwningPlayer())
+	{
+		int32 Width = 0, Height = 0;
+		PC->GetViewportSize(Width, Height);
+		const float Dpi = FMath::Max(UWidgetLayoutLibrary::GetViewportScale(this), 0.01f);
+		if (Width > 0 && (LastViewportSize != FIntPoint(Width, Height)
+			|| !FMath::IsNearlyEqual(Dpi, LastViewportScale)))
+		{
+			LastViewportSize = FIntPoint(Width, Height); LastViewportScale = Dpi;
+			const float Fit = FMath::Clamp((Width - 16.0f) / 512.0f, 0.1f, 1.0f);
+			SetRenderTransformPivot(FVector2D::ZeroVector);
+			SetRenderScale(FVector2D(Fit / Dpi));
+			SetPositionInViewport(FVector2D(24,16), true);
+		}
+	}
 	if (Player.IsValid() && HealthProgress)
 	{
 		HealthProgress->SetPercent(FMath::Clamp(
@@ -134,4 +97,21 @@ void UImmortalPlayerStatusWidget::HandleOpenManagementClicked()
 	{
 		Player->OpenManagementInterface();
 	}
+}
+
+void UImmortalPlayerStatusWidget::HandleInventoryClicked()
+{
+	if (Player.IsValid()) Player->OpenManagementFeature(EImmortalManagementFeature::Inventory);
+}
+void UImmortalPlayerStatusWidget::HandleCultivationClicked()
+{
+	if (Player.IsValid()) Player->OpenManagementFeature(EImmortalManagementFeature::Cultivation);
+}
+void UImmortalPlayerStatusWidget::HandleShopClicked()
+{
+	if (Player.IsValid()) Player->OpenManagementFeature(EImmortalManagementFeature::Shop);
+}
+void UImmortalPlayerStatusWidget::HandleSettingsClicked()
+{
+	if (Player.IsValid()) Player->OpenManagementFeature(EImmortalManagementFeature::Settings);
 }

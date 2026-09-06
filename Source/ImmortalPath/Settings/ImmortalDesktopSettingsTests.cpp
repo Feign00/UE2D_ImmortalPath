@@ -1,10 +1,24 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "ImmortalDesktopSettings.h"
+#include "ImmortalDesktopWindow.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
 #include "Misc/AutomationTest.h"
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FImmortalDesktopWindowGuardTest,
+	"ImmortalPath.Settings.DesktopWindowGuard",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FImmortalDesktopWindowGuardTest::RunTest(const FString& Parameters)
+{
+	TestFalse(TEXT("Missing world cannot modify a native window"), ImmortalDesktopWindow::ApplyTransparency(nullptr,true));
+	TestFalse(TEXT("Missing world is not transparent"), ImmortalDesktopWindow::IsTransparent(nullptr));
+	ImmortalDesktopWindow::PrepareForExit(nullptr);
+	TestFalse(TEXT("Null exit preparation leaves composition disabled"), ImmortalDesktopWindow::IsTransparent(nullptr));
+	return true;
+}
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FImmortalDesktopSettingsNormalizationTest,

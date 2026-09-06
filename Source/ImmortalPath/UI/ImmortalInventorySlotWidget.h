@@ -74,6 +74,9 @@ private:
 	TObjectPtr<UImage> ItemIcon;
 
 	UPROPERTY(Transient)
+	TObjectPtr<class UImmortalIconWidget> SymbolIcon;
+
+	UPROPERTY(Transient)
 	TObjectPtr<UImage> QualityFrame;
 
 	UPROPERTY(Transient)

@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "ImmortalShopWidget.h"
+#include "ImmortalFeaturePageLayout.h"
 
 #include "ImmortalShopEntryWidget.h"
 #include "../Characters/ImmortalPlayerCharacter.h"
@@ -99,117 +100,121 @@ void UImmortalShopWidget::NativeOnInitialized()
 	Super::NativeOnInitialized();
 
 	USizeBox* Root = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass(), TEXT("ShopPanelSize"));
-	Root->SetWidthOverride(900.0f);
-	Root->SetHeightOverride(600.0f);
+	Root->SetWidthOverride(1600.0f);
+	Root->SetHeightOverride(270.0f);
 	WidgetTree->RootWidget = Root;
 
 	UCanvasPanel* Canvas = WidgetTree->ConstructWidget<UCanvasPanel>(UCanvasPanel::StaticClass(), TEXT("ShopCanvas"));
 	Root->AddChild(Canvas);
+	ImmortalFeaturePageLayout::AddReadabilityBackground(WidgetTree, Canvas);
 
 	UImage* Background = WidgetTree->ConstructWidget<UImage>(UImage::StaticClass(), TEXT("ShopBackground"));
 	Background->SetBrush(MakeShopBrush(
 		TEXT("/Game/GAME/Asset/ui/inventory/panel_background.panel_background"),
-		FVector2D(900.0f, 600.0f),
+		FVector2D(1600.0f, 270.0f),
 		FLinearColor(0.92f, 0.84f, 0.64f, 0.98f)));
-	SetShopLayout(Canvas->AddChildToCanvas(Background), FVector2D::ZeroVector, FVector2D(900.0f, 600.0f));
+	SetShopLayout(Canvas->AddChildToCanvas(Background), FVector2D::ZeroVector, FVector2D(1600.0f, 270.0f));
 
 	UTextBlock* Title = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("ShopTitle"));
 	Title->SetText(FText::FromString(TEXT("百宝阁 · 每日珍品")));
 	StyleShopText(Title, 28, FLinearColor(1.0f, 0.78f, 0.28f, 1.0f));
-	SetShopLayout(Canvas->AddChildToCanvas(Title), FVector2D(24.0f, 14.0f), FVector2D(350.0f, 42.0f));
+	SetShopLayout(Canvas->AddChildToCanvas(Title), FVector2D(16.0f, 4.0f), FVector2D(450.0f, 36.0f));
 
 	CurrencyText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("ShopCurrency"));
 	CurrencyText->SetJustification(ETextJustify::Right);
 	StyleShopText(CurrencyText, 15, FLinearColor(0.72f, 0.95f, 1.0f, 1.0f));
-	SetShopLayout(Canvas->AddChildToCanvas(CurrencyText), FVector2D(390.0f, 20.0f), FVector2D(408.0f, 34.0f));
+	SetShopLayout(Canvas->AddChildToCanvas(CurrencyText), FVector2D(930.0f, 7.0f), FVector2D(580.0f, 28.0f));
 
 	UButton* CloseButton = WidgetTree->ConstructWidget<UButton>(UButton::StaticClass(), TEXT("ShopClose"));
 	CloseButton->OnClicked.AddDynamic(this, &UImmortalShopWidget::HandleCloseClicked);
 	CloseButton->SetStyle(MakeShopButtonStyle(FVector2D(64.0f), FLinearColor(0.44f, 0.22f, 0.12f, 1.0f)));
-	SetShopLayout(Canvas->AddChildToCanvas(CloseButton), FVector2D(816.0f, 8.0f), FVector2D(64.0f));
+	SetShopLayout(Canvas->AddChildToCanvas(CloseButton), FVector2D(1540.0f, 3.0f), FVector2D(44.0f, 32.0f));
 	AddShopButtonLabel(WidgetTree, CloseButton, TEXT("×"), 22);
 
 	UTextBlock* OfferTitle = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("ShopOfferTitle"));
 	OfferTitle->SetText(FText::FromString(TEXT("今日商品")));
 	StyleShopText(OfferTitle, 20, FLinearColor(1.0f, 0.88f, 0.55f, 1.0f));
-	SetShopLayout(Canvas->AddChildToCanvas(OfferTitle), FVector2D(20.0f, 68.0f), FVector2D(270.0f, 30.0f));
+	SetShopLayout(Canvas->AddChildToCanvas(OfferTitle), FVector2D(16.0f, 42.0f), FVector2D(270.0f, 26.0f));
 	UScrollBox* OfferScroll = WidgetTree->ConstructWidget<UScrollBox>(UScrollBox::StaticClass(), TEXT("ShopOfferScroll"));
-	SetShopLayout(Canvas->AddChildToCanvas(OfferScroll), FVector2D(16.0f, 102.0f), FVector2D(278.0f, 470.0f));
+	SetShopLayout(Canvas->AddChildToCanvas(OfferScroll), FVector2D(12.0f, 72.0f), FVector2D(280.0f, 185.0f));
 	OfferList = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass(), TEXT("ShopOfferList"));
 	OfferScroll->AddChild(OfferList);
 
 	UTextBlock* DetailTitle = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("ShopDetailTitle"));
 	DetailTitle->SetText(FText::FromString(TEXT("商品详情")));
 	StyleShopText(DetailTitle, 20, FLinearColor(1.0f, 0.88f, 0.55f, 1.0f));
-	SetShopLayout(Canvas->AddChildToCanvas(DetailTitle), FVector2D(314.0f, 68.0f), FVector2D(270.0f, 30.0f));
+	SetShopLayout(Canvas->AddChildToCanvas(DetailTitle), FVector2D(310.0f, 42.0f), FVector2D(300.0f, 26.0f));
 
 	OfferNameText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("ShopOfferName"));
 	OfferNameText->SetAutoWrapText(true);
 	StyleShopText(OfferNameText, 22, FLinearColor::White);
-	SetShopLayout(Canvas->AddChildToCanvas(OfferNameText), FVector2D(310.0f, 106.0f), FVector2D(276.0f, 52.0f));
+	SetShopLayout(Canvas->AddChildToCanvas(OfferNameText), FVector2D(310.0f, 72.0f), FVector2D(410.0f, 32.0f));
 	OfferMetaText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("ShopOfferMeta"));
 	StyleShopText(OfferMetaText, 14, FLinearColor(0.66f, 0.9f, 1.0f, 1.0f));
-	SetShopLayout(Canvas->AddChildToCanvas(OfferMetaText), FVector2D(310.0f, 160.0f), FVector2D(276.0f, 28.0f));
+	SetShopLayout(Canvas->AddChildToCanvas(OfferMetaText), FVector2D(310.0f, 106.0f), FVector2D(410.0f, 28.0f));
 	OfferDetailText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("ShopOfferDetail"));
 	OfferDetailText->SetAutoWrapText(true);
 	StyleShopText(OfferDetailText, 14, FLinearColor(0.9f, 0.9f, 0.86f, 1.0f));
-	SetShopLayout(Canvas->AddChildToCanvas(OfferDetailText), FVector2D(310.0f, 194.0f), FVector2D(276.0f, 164.0f));
+	SetShopLayout(Canvas->AddChildToCanvas(OfferDetailText), FVector2D(310.0f, 136.0f), FVector2D(410.0f, 120.0f));
 	OfferPriceText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("ShopOfferPrice"));
 	OfferPriceText->SetJustification(ETextJustify::Center);
 	StyleShopText(OfferPriceText, 17, FLinearColor(1.0f, 0.8f, 0.32f, 1.0f));
-	SetShopLayout(Canvas->AddChildToCanvas(OfferPriceText), FVector2D(310.0f, 360.0f), FVector2D(276.0f, 32.0f));
+	SetShopLayout(Canvas->AddChildToCanvas(OfferPriceText), FVector2D(740.0f, 42.0f), FVector2D(260.0f, 30.0f));
 
 	BuyButton = WidgetTree->ConstructWidget<UButton>(UButton::StaticClass(), TEXT("ShopBuyButton"));
 	BuyButton->OnClicked.AddDynamic(this, &UImmortalShopWidget::HandleBuyClicked);
 	BuyButton->SetStyle(MakeShopButtonStyle(FVector2D(170.0f, 46.0f), FLinearColor(0.55f, 0.37f, 0.08f, 1.0f)));
-	SetShopLayout(Canvas->AddChildToCanvas(BuyButton), FVector2D(363.0f, 398.0f), FVector2D(170.0f, 46.0f));
+	SetShopLayout(Canvas->AddChildToCanvas(BuyButton), FVector2D(760.0f, 76.0f), FVector2D(220.0f, 36.0f));
 	AddShopButtonLabel(WidgetTree, BuyButton, TEXT("购买"), 17);
 
 	RefreshCostText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("ShopRefreshCost"));
 	RefreshCostText->SetJustification(ETextJustify::Center);
 	StyleShopText(RefreshCostText, 13, FLinearColor(0.76f, 0.82f, 0.88f, 1.0f));
-	SetShopLayout(Canvas->AddChildToCanvas(RefreshCostText), FVector2D(310.0f, 454.0f), FVector2D(276.0f, 28.0f));
+	SetShopLayout(Canvas->AddChildToCanvas(RefreshCostText), FVector2D(740.0f, 122.0f), FVector2D(260.0f, 40.0f));
 	RefreshButton = WidgetTree->ConstructWidget<UButton>(UButton::StaticClass(), TEXT("ShopRefreshButton"));
 	RefreshButton->OnClicked.AddDynamic(this, &UImmortalShopWidget::HandleRefreshClicked);
 	RefreshButton->SetStyle(MakeShopButtonStyle(FVector2D(170.0f, 42.0f), FLinearColor(0.2f, 0.38f, 0.5f, 1.0f)));
-	SetShopLayout(Canvas->AddChildToCanvas(RefreshButton), FVector2D(363.0f, 484.0f), FVector2D(170.0f, 42.0f));
+	SetShopLayout(Canvas->AddChildToCanvas(RefreshButton), FVector2D(760.0f, 166.0f), FVector2D(220.0f, 36.0f));
 	AddShopButtonLabel(WidgetTree, RefreshButton, TEXT("手动刷新"), 15);
 
 	ResultText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("ShopResult"));
 	ResultText->SetAutoWrapText(true);
 	ResultText->SetJustification(ETextJustify::Center);
 	StyleShopText(ResultText, 14, FLinearColor(1.0f, 0.78f, 0.35f, 1.0f));
-	SetShopLayout(Canvas->AddChildToCanvas(ResultText), FVector2D(306.0f, 536.0f), FVector2D(286.0f, 54.0f));
+	SetShopLayout(Canvas->AddChildToCanvas(ResultText), FVector2D(730.0f, 210.0f), FVector2D(280.0f, 46.0f));
 
 	UTextBlock* SaleTitle = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("ShopSaleTitle"));
 	SaleTitle->SetText(FText::FromString(TEXT("出售背包物品")));
 	StyleShopText(SaleTitle, 20, FLinearColor(0.55f, 1.0f, 0.72f, 1.0f));
-	SetShopLayout(Canvas->AddChildToCanvas(SaleTitle), FVector2D(610.0f, 68.0f), FVector2D(270.0f, 30.0f));
+	SetShopLayout(Canvas->AddChildToCanvas(SaleTitle), FVector2D(1030.0f, 42.0f), FVector2D(260.0f, 26.0f));
 	UScrollBox* SaleScroll = WidgetTree->ConstructWidget<UScrollBox>(UScrollBox::StaticClass(), TEXT("ShopSaleScroll"));
-	SetShopLayout(Canvas->AddChildToCanvas(SaleScroll), FVector2D(606.0f, 102.0f), FVector2D(278.0f, 306.0f));
+	SetShopLayout(Canvas->AddChildToCanvas(SaleScroll), FVector2D(1025.0f, 72.0f), FVector2D(265.0f, 185.0f));
 	SaleList = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass(), TEXT("ShopSaleList"));
 	SaleScroll->AddChild(SaleList);
 
 	SaleNameText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("ShopSaleName"));
 	SaleNameText->SetAutoWrapText(true);
 	StyleShopText(SaleNameText, 18, FLinearColor(0.65f, 1.0f, 0.78f, 1.0f));
-	SetShopLayout(Canvas->AddChildToCanvas(SaleNameText), FVector2D(610.0f, 416.0f), FVector2D(270.0f, 38.0f));
+	SetShopLayout(Canvas->AddChildToCanvas(SaleNameText), FVector2D(1310.0f, 44.0f), FVector2D(270.0f, 50.0f));
 	SaleDetailText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("ShopSaleDetail"));
 	SaleDetailText->SetAutoWrapText(true);
 	StyleShopText(SaleDetailText, 14, FLinearColor(0.88f, 0.9f, 0.92f, 1.0f));
-	SetShopLayout(Canvas->AddChildToCanvas(SaleDetailText), FVector2D(610.0f, 456.0f), FVector2D(270.0f, 70.0f));
+	SetShopLayout(Canvas->AddChildToCanvas(SaleDetailText), FVector2D(1310.0f, 98.0f), FVector2D(270.0f, 106.0f));
 
 	SellOneButton = WidgetTree->ConstructWidget<UButton>(UButton::StaticClass(), TEXT("ShopSellOneButton"));
 	SellOneButton->OnClicked.AddDynamic(this, &UImmortalShopWidget::HandleSellOneClicked);
 	SellOneButton->SetStyle(MakeShopButtonStyle(FVector2D(126.0f, 44.0f), FLinearColor(0.18f, 0.5f, 0.3f, 1.0f)));
-	SetShopLayout(Canvas->AddChildToCanvas(SellOneButton), FVector2D(610.0f, 536.0f), FVector2D(126.0f, 44.0f));
+	SetShopLayout(Canvas->AddChildToCanvas(SellOneButton), FVector2D(1310.0f, 216.0f), FVector2D(126.0f, 38.0f));
 	AddShopButtonLabel(WidgetTree, SellOneButton, TEXT("出售 1 个"), 14);
 	SellAllButton = WidgetTree->ConstructWidget<UButton>(UButton::StaticClass(), TEXT("ShopSellAllButton"));
 	SellAllButton->OnClicked.AddDynamic(this, &UImmortalShopWidget::HandleSellAllClicked);
 	SellAllButton->SetStyle(MakeShopButtonStyle(FVector2D(134.0f, 44.0f), FLinearColor(0.15f, 0.42f, 0.27f, 1.0f)));
-	SetShopLayout(Canvas->AddChildToCanvas(SellAllButton), FVector2D(746.0f, 536.0f), FVector2D(134.0f, 44.0f));
+	SetShopLayout(Canvas->AddChildToCanvas(SellAllButton), FVector2D(1446.0f, 216.0f), FVector2D(134.0f, 38.0f));
 	AddShopButtonLabel(WidgetTree, SellAllButton, TEXT("材料全部出售"), 13);
 
+	ImmortalFeaturePageLayout::MakeScrollable(WidgetTree, OfferDetailText);
+	ImmortalFeaturePageLayout::MakeScrollable(WidgetTree, SaleDetailText);
+	ImmortalFeaturePageLayout::MakeScrollable(WidgetTree, ResultText);
 	RefreshFromPlayer();
 }
 

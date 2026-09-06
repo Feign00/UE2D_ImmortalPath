@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "ImmortalArtifactWidget.h"
+#include "ImmortalFeaturePageLayout.h"
 
 #include "ImmortalArtifactEntryWidget.h"
 #include "../Artifacts/ImmortalArtifactTypes.h"
@@ -81,101 +82,106 @@ void UImmortalArtifactWidget::NativeOnInitialized()
 {
 	Super::NativeOnInitialized();
 	USizeBox* Root = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass(), TEXT("ArtifactPanelSize"));
-	Root->SetWidthOverride(900.0f);
-	Root->SetHeightOverride(600.0f);
+	Root->SetWidthOverride(1600.0f);
+	Root->SetHeightOverride(270.0f);
 	WidgetTree->RootWidget = Root;
 	UCanvasPanel* Canvas = WidgetTree->ConstructWidget<UCanvasPanel>(UCanvasPanel::StaticClass(), TEXT("ArtifactCanvas"));
 	Root->AddChild(Canvas);
+	ImmortalFeaturePageLayout::AddReadabilityBackground(WidgetTree, Canvas);
 
 	UImage* Background = WidgetTree->ConstructWidget<UImage>(UImage::StaticClass(), TEXT("ArtifactBackground"));
 	Background->SetBrush(MakeArtifactBrush(
-		TEXT("/Game/GAME/Asset/ui/inventory/panel_background.panel_background"), FVector2D(900.0f, 600.0f),
+		TEXT("/Game/GAME/Asset/ui/inventory/panel_background.panel_background"), FVector2D(1600.0f, 270.0f),
 		FLinearColor(0.82f, 0.78f, 0.92f, 0.98f)));
-	SetArtifactLayout(Canvas->AddChildToCanvas(Background), FVector2D::ZeroVector, FVector2D(900.0f, 600.0f));
+	SetArtifactLayout(Canvas->AddChildToCanvas(Background), FVector2D::ZeroVector, FVector2D(1600.0f, 270.0f));
 
 	UTextBlock* Title = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("ArtifactTitle"));
 	Title->SetText(FText::FromString(TEXT("万宝炉 · 法宝炼制与蕴养")));
 	StyleArtifactText(Title, 28, FLinearColor(0.92f, 0.72f, 1.0f));
-	SetArtifactLayout(Canvas->AddChildToCanvas(Title), FVector2D(28.0f, 16.0f), FVector2D(390.0f, 42.0f));
+	SetArtifactLayout(Canvas->AddChildToCanvas(Title), FVector2D(16.0f, 4.0f), FVector2D(550.0f, 36.0f));
 	CurrencyText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("ArtifactCurrency"));
 	CurrencyText->SetJustification(ETextJustify::Right);
 	StyleArtifactText(CurrencyText, 16, FLinearColor(0.64f, 0.95f, 1.0f));
-	SetArtifactLayout(Canvas->AddChildToCanvas(CurrencyText), FVector2D(500.0f, 25.0f), FVector2D(300.0f, 30.0f));
+	SetArtifactLayout(Canvas->AddChildToCanvas(CurrencyText), FVector2D(1050.0f, 7.0f), FVector2D(450.0f, 28.0f));
 
 	UButton* CloseButton = WidgetTree->ConstructWidget<UButton>(UButton::StaticClass(), TEXT("ArtifactClose"));
 	CloseButton->OnClicked.AddDynamic(this, &UImmortalArtifactWidget::HandleCloseClicked);
 	CloseButton->SetStyle(MakeArtifactButtonStyle(FVector2D(64.0f), FLinearColor(0.42f, 0.22f, 0.5f, 1.0f)));
-	SetArtifactLayout(Canvas->AddChildToCanvas(CloseButton), FVector2D(816.0f, 10.0f), FVector2D(64.0f));
+	SetArtifactLayout(Canvas->AddChildToCanvas(CloseButton), FVector2D(1540.0f, 3.0f), FVector2D(44.0f, 32.0f));
 	AddButtonLabel(WidgetTree, CloseButton, TEXT("×"));
 
 	UTextBlock* CatalogTitle = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("ArtifactCatalogTitle"));
 	CatalogTitle->SetText(FText::FromString(TEXT("炼制图谱")));
 	StyleArtifactText(CatalogTitle, 20, FLinearColor::White);
-	SetArtifactLayout(Canvas->AddChildToCanvas(CatalogTitle), FVector2D(24.0f, 72.0f), FVector2D(245.0f, 30.0f));
+	SetArtifactLayout(Canvas->AddChildToCanvas(CatalogTitle), FVector2D(16.0f, 42.0f), FVector2D(240.0f, 26.0f));
 	UScrollBox* DefinitionScroll = WidgetTree->ConstructWidget<UScrollBox>(UScrollBox::StaticClass(), TEXT("ArtifactDefinitionScroll"));
-	SetArtifactLayout(Canvas->AddChildToCanvas(DefinitionScroll), FVector2D(20.0f, 106.0f), FVector2D(250.0f, 425.0f));
+	SetArtifactLayout(Canvas->AddChildToCanvas(DefinitionScroll), FVector2D(12.0f, 72.0f), FVector2D(250.0f, 185.0f));
 	DefinitionList = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass(), TEXT("ArtifactDefinitionList"));
 	DefinitionScroll->AddChild(DefinitionList);
 
 	UTextBlock* InventoryTitle = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("ArtifactInventoryTitle"));
 	InventoryTitle->SetText(FText::FromString(TEXT("法宝储物戒")));
 	StyleArtifactText(InventoryTitle, 20, FLinearColor::White);
-	SetArtifactLayout(Canvas->AddChildToCanvas(InventoryTitle), FVector2D(284.0f, 72.0f), FVector2D(245.0f, 30.0f));
+	SetArtifactLayout(Canvas->AddChildToCanvas(InventoryTitle), FVector2D(282.0f, 42.0f), FVector2D(250.0f, 26.0f));
 	UScrollBox* ArtifactScroll = WidgetTree->ConstructWidget<UScrollBox>(UScrollBox::StaticClass(), TEXT("ArtifactInventoryScroll"));
-	SetArtifactLayout(Canvas->AddChildToCanvas(ArtifactScroll), FVector2D(280.0f, 106.0f), FVector2D(250.0f, 425.0f));
+	SetArtifactLayout(Canvas->AddChildToCanvas(ArtifactScroll), FVector2D(278.0f, 72.0f), FVector2D(250.0f, 185.0f));
 	ArtifactList = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass(), TEXT("ArtifactInventoryList"));
 	ArtifactScroll->AddChild(ArtifactList);
 
 	DetailNameText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("ArtifactDetailName"));
 	StyleArtifactText(DetailNameText, 23, FLinearColor(0.86f, 0.66f, 1.0f));
-	SetArtifactLayout(Canvas->AddChildToCanvas(DetailNameText), FVector2D(550.0f, 76.0f), FVector2D(320.0f, 34.0f));
+	SetArtifactLayout(Canvas->AddChildToCanvas(DetailNameText), FVector2D(550.0f, 42.0f), FVector2D(620.0f, 30.0f));
 	DetailMetaText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("ArtifactDetailMeta"));
 	StyleArtifactText(DetailMetaText, 15, FLinearColor(0.7f, 0.9f, 1.0f));
-	SetArtifactLayout(Canvas->AddChildToCanvas(DetailMetaText), FVector2D(550.0f, 112.0f), FVector2D(320.0f, 28.0f));
+	SetArtifactLayout(Canvas->AddChildToCanvas(DetailMetaText), FVector2D(550.0f, 74.0f), FVector2D(620.0f, 28.0f));
 	DescriptionText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("ArtifactDescription"));
 	DescriptionText->SetAutoWrapText(true);
 	StyleArtifactText(DescriptionText, 14, FLinearColor(0.86f, 0.87f, 0.92f));
-	SetArtifactLayout(Canvas->AddChildToCanvas(DescriptionText), FVector2D(550.0f, 145.0f), FVector2D(320.0f, 65.0f));
+	SetArtifactLayout(Canvas->AddChildToCanvas(DescriptionText), FVector2D(550.0f, 105.0f), FVector2D(620.0f, 42.0f));
 	ActiveText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("ArtifactActiveEffect"));
 	ActiveText->SetAutoWrapText(true);
 	StyleArtifactText(ActiveText, 14, FLinearColor(1.0f, 0.74f, 0.28f));
-	SetArtifactLayout(Canvas->AddChildToCanvas(ActiveText), FVector2D(550.0f, 215.0f), FVector2D(320.0f, 72.0f));
+	SetArtifactLayout(Canvas->AddChildToCanvas(ActiveText), FVector2D(550.0f, 150.0f), FVector2D(300.0f, 104.0f));
 	PassiveText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("ArtifactPassiveEffect"));
 	PassiveText->SetAutoWrapText(true);
 	StyleArtifactText(PassiveText, 14, FLinearColor(0.54f, 1.0f, 0.7f));
-	SetArtifactLayout(Canvas->AddChildToCanvas(PassiveText), FVector2D(550.0f, 292.0f), FVector2D(320.0f, 70.0f));
+	SetArtifactLayout(Canvas->AddChildToCanvas(PassiveText), FVector2D(865.0f, 150.0f), FVector2D(305.0f, 104.0f));
 	CostText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("ArtifactCost"));
 	CostText->SetAutoWrapText(true);
 	StyleArtifactText(CostText, 13, FLinearColor(0.96f, 0.88f, 0.62f));
-	SetArtifactLayout(Canvas->AddChildToCanvas(CostText), FVector2D(550.0f, 368.0f), FVector2D(320.0f, 90.0f));
+	SetArtifactLayout(Canvas->AddChildToCanvas(CostText), FVector2D(1190.0f, 44.0f), FVector2D(390.0f, 93.0f));
 
 	CraftButton = WidgetTree->ConstructWidget<UButton>(UButton::StaticClass(), TEXT("CraftArtifactButton"));
 	CraftButton->OnClicked.AddDynamic(this, &UImmortalArtifactWidget::HandleCraftClicked);
 	CraftButton->SetStyle(MakeArtifactButtonStyle(FVector2D(150.0f, 46.0f), FLinearColor(0.48f, 0.25f, 0.68f)));
-	SetArtifactLayout(Canvas->AddChildToCanvas(CraftButton), FVector2D(635.0f, 466.0f), FVector2D(150.0f, 46.0f));
+	SetArtifactLayout(Canvas->AddChildToCanvas(CraftButton), FVector2D(1285.0f, 143.0f), FVector2D(190.0f, 38.0f));
 	AddButtonLabel(WidgetTree, CraftButton, TEXT("炼制法宝"));
 	EquipButton = WidgetTree->ConstructWidget<UButton>(UButton::StaticClass(), TEXT("EquipArtifactButton"));
 	EquipButton->OnClicked.AddDynamic(this, &UImmortalArtifactWidget::HandleEquipClicked);
 	EquipButton->SetStyle(MakeArtifactButtonStyle(FVector2D(96.0f, 46.0f), FLinearColor(0.32f, 0.55f, 0.8f)));
-	SetArtifactLayout(Canvas->AddChildToCanvas(EquipButton), FVector2D(550.0f, 466.0f), FVector2D(96.0f, 46.0f));
+	SetArtifactLayout(Canvas->AddChildToCanvas(EquipButton), FVector2D(1190.0f, 143.0f), FVector2D(120.0f, 38.0f));
 	AddButtonLabel(WidgetTree, EquipButton, TEXT("装备"));
 	UpgradeButton = WidgetTree->ConstructWidget<UButton>(UButton::StaticClass(), TEXT("UpgradeArtifactButton"));
 	UpgradeButton->OnClicked.AddDynamic(this, &UImmortalArtifactWidget::HandleUpgradeClicked);
 	UpgradeButton->SetStyle(MakeArtifactButtonStyle(FVector2D(96.0f, 46.0f), FLinearColor(0.3f, 0.68f, 0.48f)));
-	SetArtifactLayout(Canvas->AddChildToCanvas(UpgradeButton), FVector2D(660.0f, 466.0f), FVector2D(96.0f, 46.0f));
+	SetArtifactLayout(Canvas->AddChildToCanvas(UpgradeButton), FVector2D(1320.0f, 143.0f), FVector2D(120.0f, 38.0f));
 	AddButtonLabel(WidgetTree, UpgradeButton, TEXT("蕴养"));
 	StarButton = WidgetTree->ConstructWidget<UButton>(UButton::StaticClass(), TEXT("StarArtifactButton"));
 	StarButton->OnClicked.AddDynamic(this, &UImmortalArtifactWidget::HandleStarClicked);
 	StarButton->SetStyle(MakeArtifactButtonStyle(FVector2D(96.0f, 46.0f), FLinearColor(0.72f, 0.48f, 0.18f)));
-	SetArtifactLayout(Canvas->AddChildToCanvas(StarButton), FVector2D(770.0f, 466.0f), FVector2D(96.0f, 46.0f));
+	SetArtifactLayout(Canvas->AddChildToCanvas(StarButton), FVector2D(1450.0f, 143.0f), FVector2D(120.0f, 38.0f));
 	AddButtonLabel(WidgetTree, StarButton, TEXT("升星"));
 
 	ResultText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("ArtifactResult"));
 	ResultText->SetAutoWrapText(true);
 	ResultText->SetJustification(ETextJustify::Center);
 	StyleArtifactText(ResultText, 15, FLinearColor(1.0f, 0.74f, 0.32f));
-	SetArtifactLayout(Canvas->AddChildToCanvas(ResultText), FVector2D(540.0f, 522.0f), FVector2D(335.0f, 58.0f));
+	SetArtifactLayout(Canvas->AddChildToCanvas(ResultText), FVector2D(1190.0f, 188.0f), FVector2D(390.0f, 70.0f));
 	RefreshFromPlayer();
+	ImmortalFeaturePageLayout::MakeScrollable(WidgetTree, ActiveText);
+	ImmortalFeaturePageLayout::MakeScrollable(WidgetTree, PassiveText);
+	ImmortalFeaturePageLayout::MakeScrollable(WidgetTree, CostText);
+	ImmortalFeaturePageLayout::MakeScrollable(WidgetTree, ResultText);
 }
 
 void UImmortalArtifactWidget::NativeTick(const FGeometry& MyGeometry, const float InDeltaTime)

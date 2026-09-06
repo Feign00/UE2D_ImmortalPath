@@ -13,9 +13,10 @@ class UButton;
 class UImage;
 class UTextBlock;
 class UWidgetSwitcher;
+class UTexture2D;
 
 /**
- * Logical 1600x300 home for every non-combat feature in the TBH strip.
+ * Full 1707x320 management scene with a reserved navigation strip.
  *
  * The widget only changes UMG pages. It deliberately never pauses the world,
  * so the adventure map continues spawning monsters and resolving combat while
@@ -77,6 +78,11 @@ protected:
 		float InDeltaTime) override;
 
 private:
+	UTexture2D* LoadOptionalTexture(const FString& AssetPath);
+
+	UPROPERTY(Transient)
+	TMap<FString, TObjectPtr<UTexture2D>> ThemeTextureCache;
+
 	void RequestFeature(EImmortalManagementFeature Feature);
 	void RequestScene(EImmortalManagementScene Scene);
 	void UpdateNavigationState();

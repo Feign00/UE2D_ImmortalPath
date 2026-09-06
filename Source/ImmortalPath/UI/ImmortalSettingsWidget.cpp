@@ -248,6 +248,13 @@ void UImmortalSettingsWidget::NativeOnInitialized()
 	AddSettingsButtonLabel(
 		WidgetTree, CloseLargeButton, TEXT("返回游戏"), 16);
 
+	UButton* TransparencyButton = AddSettingsButton(WidgetTree, Canvas,
+		TEXT("DesktopTransparency"), FVector2D(22.0f, 194.0f), FVector2D(300.0f, 64.0f),
+		FLinearColor(0.13f, 0.27f, 0.24f, 1.0f));
+	TransparencyButton->OnClicked.AddDynamic(this, &ThisClass::HandleTransparencyClicked);
+	TransparencyText = AddSettingsButtonLabel(WidgetTree, TransparencyButton, TEXT("透明桌面"), 16);
+	TransparencyButton->SetToolTipText(FText::FromString(TEXT("只隐藏历练背景，人物与按钮保持清晰。透明位置可点击桌面。仅独立运行可用。")));
+
 	ResultText = WidgetTree->ConstructWidget<UTextBlock>(
 		UTextBlock::StaticClass(), TEXT("DesktopSettingsResult"));
 	ResultText->SetAutoWrapText(true);
@@ -258,16 +265,19 @@ void UImmortalSettingsWidget::NativeOnInitialized()
 		true);
 	SetSettingsLayout(
 		Canvas->AddChildToCanvas(ResultText),
-		FVector2D(22.0f, 198.0f),
-		FVector2D(1556.0f, 78.0f));
+		FVector2D(340.0f, 198.0f),
+		FVector2D(1238.0f, 78.0f));
 	ResultText->SetText(FText::FromString(
-		TEXT("低功耗 2D 渲染已启用。窗口高度保持 320；修改会立即保存到本机设置，不会改写角色存档。")));
+		TEXT("透明桌面只影响历练画面。打开管理界面仍可操作全部养成功能，后台战斗不暂停。设置不改写角色存档。")));
 
 	RefreshFromPlayer();
 }
 
 void UImmortalSettingsWidget::RefreshFromPlayer()
 {
+	if (Player.IsValid() && TransparencyText)
+		TransparencyText->SetText(FText::FromString(Player->IsDesktopTransparent()
+			? TEXT("透明桌面  ● 开启") : TEXT("透明桌面  ○ 关闭")));
 	if (!Player.IsValid() || !SummaryText)
 	{
 		return;
@@ -333,6 +343,16 @@ void UImmortalSettingsWidget::HandleMuteClicked()
 				? TEXT("游戏已静音。")
 				: TEXT("游戏声音已恢复。")),
 		true);
+}
+
+void UImmortalSettingsWidget::HandleTransparencyClicked()
+{
+	if (!Player.IsValid()) return;
+	const bool bSucceeded = Player->ToggleDesktopTransparency();
+	RefreshFromPlayer();
+	SetResultMessage(FText::FromString(bSucceeded
+		? TEXT("桌面背景模式已切换并保存。")
+		: TEXT("请在独立运行或打包版本中切换，编辑器窗口不会被修改。")), bSucceeded);
 }
 
 void UImmortalSettingsWidget::HandleFrameRateClicked()

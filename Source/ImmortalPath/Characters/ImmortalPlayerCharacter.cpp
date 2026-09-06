@@ -5,6 +5,7 @@
 #include "../Combat/AutoAttackTarget.h"
 #include "../Save/ImmortalPathSaveGame.h"
 #include "../Settings/ImmortalDesktopSettings.h"
+#include "../Settings/ImmortalDesktopWindow.h"
 #include "../Spawning/ImmortalMonsterSpawner.h"
 #include "ImmortalMonsterCharacter.h"
 #include "ImmortalPetCharacter.h"
@@ -23,6 +24,7 @@
 #include "../UI/ImmortalMapWidget.h"
 #include "../UI/ImmortalPetWidget.h"
 #include "../UI/ImmortalPlayerStatusWidget.h"
+#include "../UI/ImmortalDesktopGroundWidget.h"
 #include "../UI/ImmortalQuestWidget.h"
 #include "../UI/ImmortalSectWidget.h"
 #include "../UI/ImmortalSettingsWidget.h"
@@ -519,6 +521,13 @@ void AImmortalPlayerCharacter::BeginPlay()
 	if (APlayerController* PlayerController = GetWorld() ? GetWorld()->GetFirstPlayerController() : nullptr)
 	{
 		PlayerStatusWidget = CreateWidget<UImmortalPlayerStatusWidget>(PlayerController, UImmortalPlayerStatusWidget::StaticClass());
+		DesktopGroundWidget = CreateWidget<UImmortalDesktopGroundWidget>(PlayerController);
+		if (DesktopGroundWidget)
+		{
+			DesktopGroundWidget->SetVisibility(ESlateVisibility::HitTestInvisible);
+			DesktopGroundWidget->ForceVolatile(true);
+			DesktopGroundWidget->AddToViewport(0);
+		}
 		if (PlayerStatusWidget)
 		{
 			PlayerStatusWidget->InitializeForPlayer(this);
@@ -526,6 +535,7 @@ void AImmortalPlayerCharacter::BeginPlay()
 			PlayerStatusWidget->SetPositionInViewport(FVector2D(24.0f, 16.0f), false);
 			PlayerStatusWidget->SetDesiredSizeInViewport(FVector2D(512.0f, 64.0f));
 		}
+		ConfigureModalWidget(nullptr, false);
 
 		PlayerManagementWidget = CreateWidget<UImmortalManagementWidget>(
 			PlayerController,
@@ -5000,290 +5010,6 @@ void AImmortalPlayerCharacter::SetManagementFeatureOpenFlags(
 	bSettingsOpen = Feature == EImmortalManagementFeature::Settings;
 }
 
-void AImmortalPlayerCharacter::RegisterManagementPages()
-{
-	if (!PlayerManagementWidget)
-	{
-		return;
-	}
-
-	PlayerManagementWidget->RegisterFeaturePage(
-		EImmortalManagementFeature::Cultivation,
-		PlayerCultivationWidget);
-	PlayerManagementWidget->RegisterFeaturePage(
-		EImmortalManagementFeature::Inventory,
-		PlayerInventoryWidget);
-	PlayerManagementWidget->RegisterFeaturePage(
-		EImmortalManagementFeature::Alchemy,
-		PlayerAlchemyWidget);
-	PlayerManagementWidget->RegisterFeaturePage(
-		EImmortalManagementFeature::Crafting,
-		PlayerCraftingWidget);
-	PlayerManagementWidget->RegisterFeaturePage(
-		EImmortalManagementFeature::Artifact,
-		PlayerArtifactWidget);
-	PlayerManagementWidget->RegisterFeaturePage(
-		EImmortalManagementFeature::Technique,
-		PlayerTechniqueWidget);
-	PlayerManagementWidget->RegisterFeaturePage(
-		EImmortalManagementFeature::CharacterBuild,
-		PlayerCharacterBuildWidget);
-	PlayerManagementWidget->RegisterFeaturePage(
-		EImmortalManagementFeature::Shop,
-		PlayerShopWidget);
-	PlayerManagementWidget->RegisterFeaturePage(
-		EImmortalManagementFeature::Map,
-		PlayerMapWidget);
-	PlayerManagementWidget->RegisterFeaturePage(
-		EImmortalManagementFeature::Quest,
-		PlayerQuestWidget);
-	PlayerManagementWidget->RegisterFeaturePage(
-		EImmortalManagementFeature::Cave,
-		PlayerCaveWidget);
-	PlayerManagementWidget->RegisterFeaturePage(
-		EImmortalManagementFeature::Farming,
-		PlayerFarmingWidget);
-	PlayerManagementWidget->RegisterFeaturePage(
-		EImmortalManagementFeature::Sect,
-		PlayerSectWidget);
-	PlayerManagementWidget->RegisterFeaturePage(
-		EImmortalManagementFeature::WorldBoss,
-		PlayerWorldBossWidget);
-	PlayerManagementWidget->RegisterFeaturePage(
-		EImmortalManagementFeature::EndlessDungeon,
-		PlayerEndlessDungeonWidget);
-	PlayerManagementWidget->RegisterFeaturePage(
-		EImmortalManagementFeature::Pet,
-		PlayerPetWidget);
-	PlayerManagementWidget->RegisterFeaturePage(
-		EImmortalManagementFeature::Settings,
-		PlayerSettingsWidget);
-	PlayerManagementWidget->ShowFeature(
-		EImmortalManagementFeature::Home);
-}
-
-void AImmortalPlayerCharacter::QueueManagementNotification(
-	const FText& Message,
-	const FLinearColor& Color,
-	const float DurationSeconds)
-{
-	if (PlayerManagementWidget)
-	{
-		PlayerManagementWidget->QueueNotification(
-			Message,
-			Color,
-			FMath::Max(DurationSeconds, 0.1f));
-	}
-}
-
-void AImmortalPlayerCharacter::OpenManagementInterface()
-{
-	OpenManagementFeature(EImmortalManagementFeature::Home);
-}
-
-void AImmortalPlayerCharacter::CloseManagementInterface()
-{
-	if (bDeathCultivationRecoveryRequired)
-	{
-		OpenManagementFeature(
-			EImmortalManagementFeature::Cultivation);
-		QueueManagementNotification(
-			FText::FromString(TEXT(
-				"历练通道仍处于关闭状态：完成下一次修炼突破后才能重返历练。")),
-			FLinearColor(1.0f, 0.58f, 0.32f, 1.0f),
-			5.0f);
-		UE_LOG(
-			LogTemp,
-			Display,
-			TEXT("Return to adventure blocked by death cultivation recovery"));
-		return;
-	}
-
-	const bool bShouldResumeAdventure =
-		bAdventureSuspendedForDeathRecovery;
-	if (PlayerManagementWidget)
-	{
-		PlayerManagementWidget->SetVisibility(
-			ESlateVisibility::Collapsed);
-		PlayerManagementWidget->ShowFeature(
-			EImmortalManagementFeature::Home);
-	}
-	bManagementInterfaceOpen = false;
-	ActiveManagementFeature = EImmortalManagementFeature::Home;
-	SetManagementFeatureOpenFlags(EImmortalManagementFeature::Home);
-	if (PlayerStatusWidget)
-	{
-		PlayerStatusWidget->SetVisibility(
-			ESlateVisibility::Visible);
-	}
-	ConfigureModalWidget(nullptr, false);
-	if (bShouldResumeAdventure)
-	{
-		ResumeAdventureAfterDeathRecovery();
-	}
-	UE_LOG(
-		LogTemp,
-		Display,
-		TEXT("Management interface closed: combatPaused=%s autoAttackActive=%s"),
-		UGameplayStatics::IsGamePaused(this) ? TEXT("true") : TEXT("false"),
-		GetWorldTimerManager().IsTimerActive(AutoAttackTimerHandle)
-			? TEXT("true")
-			: TEXT("false"));
-}
-
-void AImmortalPlayerCharacter::OpenManagementFeature(
-	const EImmortalManagementFeature Feature)
-{
-	if (!PlayerManagementWidget)
-	{
-		return;
-	}
-	const EImmortalManagementFeature EffectiveFeature =
-		bDeathCultivationRecoveryRequired
-		&& Feature != EImmortalManagementFeature::Cultivation
-			? EImmortalManagementFeature::Cultivation
-			: Feature;
-
-	if (bAscensionOpen && PlayerAscensionWidget)
-	{
-		PlayerAscensionWidget->SetVisibility(
-			ESlateVisibility::Collapsed);
-	}
-	bAscensionOpen = false;
-	bManagementInterfaceOpen = true;
-	ActiveManagementFeature = EffectiveFeature;
-	SetManagementFeatureOpenFlags(EffectiveFeature);
-
-	switch (EffectiveFeature)
-	{
-	case EImmortalManagementFeature::Cultivation:
-		if (PlayerCultivationWidget)
-		{
-			PlayerCultivationWidget->RefreshFromPlayer();
-		}
-		break;
-	case EImmortalManagementFeature::Inventory:
-		if (PlayerInventoryWidget)
-		{
-			PlayerInventoryWidget->ResetTransientInteraction();
-			PlayerInventoryWidget->RefreshFromPlayer();
-		}
-		break;
-	case EImmortalManagementFeature::Alchemy:
-		if (PlayerAlchemyWidget) PlayerAlchemyWidget->RefreshFromPlayer();
-		break;
-	case EImmortalManagementFeature::Crafting:
-		if (PlayerCraftingWidget) PlayerCraftingWidget->RefreshFromPlayer();
-		break;
-	case EImmortalManagementFeature::Artifact:
-		if (PlayerArtifactWidget) PlayerArtifactWidget->RefreshFromPlayer();
-		break;
-	case EImmortalManagementFeature::Technique:
-		if (PlayerTechniqueWidget) PlayerTechniqueWidget->RefreshFromPlayer();
-		break;
-	case EImmortalManagementFeature::CharacterBuild:
-		if (PlayerCharacterBuildWidget) PlayerCharacterBuildWidget->RefreshFromPlayer();
-		break;
-	case EImmortalManagementFeature::Shop:
-		EnsureDailyShopRefresh();
-		if (PlayerShopWidget) PlayerShopWidget->RefreshFromPlayer();
-		break;
-	case EImmortalManagementFeature::Map:
-		if (PlayerMapWidget) PlayerMapWidget->SelectMap(GetActiveMapId());
-		break;
-	case EImmortalManagementFeature::Quest:
-		EnsureQuestDailyState();
-		if (PlayerQuestWidget) PlayerQuestWidget->RefreshFromPlayer();
-		break;
-	case EImmortalManagementFeature::Cave:
-		SettleCaveProduction();
-		if (PlayerCaveWidget) PlayerCaveWidget->RefreshFromPlayer();
-		break;
-	case EImmortalManagementFeature::Farming:
-		SettleFarmingGrowth();
-		if (PlayerFarmingWidget) PlayerFarmingWidget->RefreshFromPlayer();
-		break;
-	case EImmortalManagementFeature::Sect:
-		EnsureSectDailyState();
-		if (PlayerSectWidget) PlayerSectWidget->RefreshFromPlayer();
-		break;
-	case EImmortalManagementFeature::WorldBoss:
-		RetryPendingWorldBossRewards();
-		if (PlayerWorldBossWidget) PlayerWorldBossWidget->RefreshFromPlayer();
-		break;
-	case EImmortalManagementFeature::EndlessDungeon:
-		RetryPendingEndlessDungeonRewards();
-		if (PlayerEndlessDungeonWidget)
-		{
-			PlayerEndlessDungeonWidget->RefreshFromPlayer();
-		}
-		break;
-	case EImmortalManagementFeature::Pet:
-		if (PlayerPetWidget) PlayerPetWidget->RefreshFromPlayer();
-		break;
-	case EImmortalManagementFeature::Settings:
-		if (PlayerSettingsWidget) PlayerSettingsWidget->RefreshFromPlayer();
-		break;
-	default:
-		break;
-	}
-
-	PlayerManagementWidget->ShowFeature(EffectiveFeature);
-	PlayerManagementWidget->RefreshTheme();
-	PlayerManagementWidget->SetVisibility(ESlateVisibility::Visible);
-	if (PlayerStatusWidget)
-	{
-		PlayerStatusWidget->SetVisibility(
-			ESlateVisibility::Collapsed);
-	}
-	ConfigureModalWidget(PlayerManagementWidget, true);
-	UE_LOG(
-		LogTemp,
-		Display,
-		TEXT("Management feature opened: page=%d combatPaused=%s autoAttackActive=%s cultivationRate=%.2f"),
-		static_cast<int32>(EffectiveFeature),
-		UGameplayStatics::IsGamePaused(this) ? TEXT("true") : TEXT("false"),
-		GetWorldTimerManager().IsTimerActive(AutoAttackTimerHandle)
-			? TEXT("true")
-			: TEXT("false"),
-		GetCultivationPerSecond());
-	if (EffectiveFeature != Feature)
-	{
-		QueueManagementNotification(
-			FText::FromString(TEXT(
-				"历练失败后必须先修炼：完成下一次突破即可解锁其他功能和重返历练。")),
-			FLinearColor(1.0f, 0.58f, 0.32f, 1.0f),
-			5.0f);
-	}
-}
-
-void AImmortalPlayerCharacter::ToggleManagementFeature(
-	const EImmortalManagementFeature Feature)
-{
-	if (bManagementInterfaceOpen
-		&& ActiveManagementFeature == Feature)
-	{
-		OpenManagementFeature(EImmortalManagementFeature::Home);
-		return;
-	}
-	OpenManagementFeature(Feature);
-}
-
-void AImmortalPlayerCharacter::HandleManagementToggleInput()
-{
-	if (bAscensionOpen)
-	{
-		OpenManagementFeature(EImmortalManagementFeature::Cultivation);
-	}
-	else if (bManagementInterfaceOpen)
-	{
-		CloseManagementInterface();
-	}
-	else
-	{
-		OpenManagementInterface();
-	}
-}
 
 void AImmortalPlayerCharacter::OpenAscensionInterface()
 {
@@ -5911,6 +5637,21 @@ void AImmortalPlayerCharacter::ToggleDesktopMute()
 		Settings->bMuted ? 0.0f : 1.0f);
 }
 
+bool AImmortalPlayerCharacter::IsDesktopTransparent() const
+{
+	return UImmortalDesktopSettings::GetMutable()->bTransparentBackground;
+}
+
+bool AImmortalPlayerCharacter::ToggleDesktopTransparency()
+{
+	UImmortalDesktopSettings* Settings = UImmortalDesktopSettings::GetMutable();
+	const bool bNewValue = !Settings->bTransparentBackground;
+	if (!ImmortalDesktopWindow::ApplyTransparency(GetWorld(), bNewValue)) return false;
+	Settings->bTransparentBackground = bNewValue;
+	Settings->SaveToDisk();
+	return true;
+}
+
 void AImmortalPlayerCharacter::CycleDesktopFrameRateLimit()
 {
 	UImmortalDesktopSettings* Settings =
@@ -5987,6 +5728,7 @@ bool AImmortalPlayerCharacter::SaveAndQuitDesktop()
 		TEXT("Save-and-quit committed: map=%s stage=%d"),
 		*CurrentMapState.ActiveMapId.ToString(),
 		GetActiveMapStage());
+	ImmortalDesktopWindow::PrepareForExit(GetWorld());
 	FPlatformMisc::RequestExit(false);
 	return true;
 }
@@ -8405,7 +8147,8 @@ void AImmortalPlayerCharacter::ConfigureModalWidget(UUserWidget* Widget, const b
 		return;
 	}
 
-	PlayerController->bShowMouseCursor = bOpen;
+	// The battle HUD is interactive too; GameOnly capture swallows its clicks.
+	PlayerController->bShowMouseCursor = true;
 	if (bOpen && Widget)
 	{
 		int32 ViewportWidth = 0;
@@ -8421,9 +8164,7 @@ void AImmortalPlayerCharacter::ConfigureModalWidget(UUserWidget* Widget, const b
 			|| Widget == PlayerAscensionWidget
 			|| Widget == PlayerSettingsWidget;
 		const FVector2D InventorySize = bIsFullViewportScene
-			? FVector2D(
-				FMath::Max(ViewportWidth, 1),
-				FMath::Max(ViewportHeight, 1))
+			? FVector2D(1707.0f, 320.0f)
 			: bIsTaskbarStripWidget
 				? FVector2D(1600.0f, 300.0f)
 			: FVector2D(900.0f, 600.0f);
@@ -8437,10 +8178,13 @@ void AImmortalPlayerCharacter::ConfigureModalWidget(UUserWidget* Widget, const b
 				AvailableHeight / InventorySize.Y), 0.1f, 1.0f)
 			: 1.0f;
 		const float DpiScale = FMath::Max(UWidgetLayoutLibrary::GetViewportScale(this), 0.01f);
-		// UMG applies the viewport DPI curve after the viewport slot is laid out.
-		// Compensate it here so InventorySize and CentredPosition remain physical
-		// TBH-window pixels (1707x320 currently uses roughly 0.44 DPI scale).
+		// Compensate UMG DPI against the scene's fixed design canvas, not a
+		// viewport-sized slot whose root SizeBox still measures 1707x320.
 		const float RenderScale = FitScale / DpiScale;
+		const FVector2D SceneRenderScale = bIsFullViewportScene
+			? FVector2D(FMath::Max(ViewportWidth, 1) / InventorySize.X,
+				FMath::Max(ViewportHeight, 1) / InventorySize.Y) / DpiScale
+			: FVector2D(RenderScale);
 		const FVector2D RenderedSize = InventorySize * FitScale;
 		const FVector2D CentredPosition = bIsFullViewportScene
 			? FVector2D::ZeroVector
@@ -8452,7 +8196,7 @@ void AImmortalPlayerCharacter::ConfigureModalWidget(UUserWidget* Widget, const b
 		// one another while the viewport slot is still unmanaged.
 		Widget->SetDesiredSizeInViewport(InventorySize);
 		Widget->SetRenderTransformPivot(FVector2D::ZeroVector);
-		Widget->SetRenderScale(FVector2D(RenderScale, RenderScale));
+		Widget->SetRenderScale(SceneRenderScale);
 		Widget->SetAnchorsInViewport(FAnchors(0.0f, 0.0f));
 		Widget->SetAlignmentInViewport(FVector2D::ZeroVector);
 		Widget->SetPositionInViewport(CentredPosition, true);
@@ -8468,7 +8212,10 @@ void AImmortalPlayerCharacter::ConfigureModalWidget(UUserWidget* Widget, const b
 	}
 	else
 	{
-		PlayerController->SetInputMode(FInputModeGameOnly());
+		FInputModeGameAndUI InputMode;
+		InputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
+		InputMode.SetHideCursorDuringCapture(false);
+		PlayerController->SetInputMode(InputMode);
 	}
 }
 
@@ -9040,8 +8787,10 @@ void AImmortalPlayerCharacter::ApplyTaskbarWindowPlacement()
 
 	HWND WindowHandle = static_cast<HWND>(GameWindow->GetNativeWindow()->GetOSWindowHandle());
 	if (!WindowHandle) return;
-	RECT WorkArea = {};
-	if (!SystemParametersInfo(SPI_GETWORKAREA, 0, &WorkArea, 0)) return;
+	MONITORINFO MonitorInfo = {};
+	MonitorInfo.cbSize = sizeof(MonitorInfo);
+	if (!GetMonitorInfo(MonitorFromWindow(WindowHandle, MONITOR_DEFAULTTONEAREST), &MonitorInfo)) return;
+	const RECT WorkArea = MonitorInfo.rcWork;
 
 	const int32 WorkWidth = static_cast<int32>(WorkArea.right - WorkArea.left);
 	const int32 WorkHeight = static_cast<int32>(WorkArea.bottom - WorkArea.top);
@@ -9059,62 +8808,11 @@ void AImmortalPlayerCharacter::ApplyTaskbarWindowPlacement()
 		Top,
 		Width,
 		Height,
-		SWP_FRAMECHANGED | SWP_SHOWWINDOW);
+		SWP_FRAMECHANGED | SWP_SHOWWINDOW | SWP_NOACTIVATE);
+	ImmortalDesktopWindow::ApplyTransparency(GetWorld(),
+		UImmortalDesktopSettings::GetMutable()->bTransparentBackground);
 	UE_LOG(LogTemp, Display, TEXT("TBH taskbar window applied: %dx%d at %d,%d | topmost=%s"),
 		Width, Height, WorkArea.left, Top, bTaskbarWindowAlwaysOnTop ? TEXT("true") : TEXT("false"));
-	if (PlayerStatusWidget)
-	{
-		APlayerController* PlayerController =
-			GetWorld()
-				? GetWorld()->GetFirstPlayerController()
-				: nullptr;
-		int32 ViewportWidth = 0;
-		int32 ViewportHeight = 0;
-		if (PlayerController)
-		{
-			PlayerController->GetViewportSize(
-				ViewportWidth, ViewportHeight);
-		}
-		const FVector2D StatusSize(512.0f, 64.0f);
-		const float AvailableWidth = FMath::Max(
-			static_cast<float>(ViewportWidth) - 16.0f,
-			1.0f);
-		const float FitScale =
-			ViewportWidth > 0
-				? FMath::Clamp(
-					AvailableWidth / StatusSize.X,
-					0.1f,
-					1.0f)
-				: 1.0f;
-		const float DpiScale = FMath::Max(
-			UWidgetLayoutLibrary::GetViewportScale(this),
-			0.01f);
-		const FVector2D StatusPosition(
-			24.0f,
-			16.0f);
-		PlayerStatusWidget->SetDesiredSizeInViewport(
-			StatusSize);
-		PlayerStatusWidget->SetRenderTransformPivot(
-			FVector2D::ZeroVector);
-		PlayerStatusWidget->SetRenderScale(FVector2D(
-			FitScale / DpiScale,
-			FitScale / DpiScale));
-		PlayerStatusWidget->SetAnchorsInViewport(
-			FAnchors(0.0f, 0.0f));
-		PlayerStatusWidget->SetAlignmentInViewport(
-			FVector2D::ZeroVector);
-		PlayerStatusWidget->SetPositionInViewport(
-			StatusPosition, true);
-		UE_LOG(LogTemp, Display,
-			TEXT("TBH player health fit applied: logical=512x64 viewport=%dx%d fit=%.3f dpi=%.3f render=%.3f position=%.0f,%.0f"),
-			ViewportWidth,
-			ViewportHeight,
-			FitScale,
-			DpiScale,
-			FitScale / DpiScale,
-			StatusPosition.X,
-			StatusPosition.Y);
-	}
 	// The viewport scale changes after the native TBH window is resized. Reapply
 	// the active modal's viewport geometry so it remains centered and fully visible.
 	if (bAscensionOpen) ConfigureModalWidget(PlayerAscensionWidget, true);
@@ -12501,6 +12199,13 @@ void AImmortalPlayerCharacter::RecalculateAscensionBonuses()
 
 void AImmortalPlayerCharacter::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
+	// Covers native window close / Alt+F4 as well as the in-game quit button.
+	// Level transitions must not hide the persistent game window.
+	if (EndPlayReason == EEndPlayReason::Quit || bSaveAndQuitRequested)
+	{
+		ImmortalDesktopWindow::PrepareForExit(GetWorld());
+	}
+	ImmortalDesktopWindow::Restore(GetWorld());
 	if (!bSaveAndQuitRequested)
 	{
 		SaveProgress();
@@ -12646,6 +12351,11 @@ void AImmortalPlayerCharacter::EndPlay(const EEndPlayReason::Type EndPlayReason)
 	{
 		PlayerStatusWidget->RemoveFromParent();
 		PlayerStatusWidget = nullptr;
+	}
+	if (DesktopGroundWidget)
+	{
+		DesktopGroundWidget->RemoveFromParent();
+		DesktopGroundWidget = nullptr;
 	}
 	Super::EndPlay(EndPlayReason);
 }

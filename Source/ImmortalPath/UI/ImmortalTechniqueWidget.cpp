@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "ImmortalTechniqueWidget.h"
+#include "ImmortalFeaturePageLayout.h"
 
 #include "ImmortalTechniqueEntryWidget.h"
 #include "../Characters/ImmortalPlayerCharacter.h"
@@ -97,109 +98,116 @@ void UImmortalTechniqueWidget::NativeOnInitialized()
 {
 	Super::NativeOnInitialized();
 	USizeBox* Root = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass(), TEXT("TechniquePanelSize"));
-	Root->SetWidthOverride(900.0f);
-	Root->SetHeightOverride(600.0f);
+	Root->SetWidthOverride(1600.0f);
+	Root->SetHeightOverride(270.0f);
 	WidgetTree->RootWidget = Root;
 	UCanvasPanel* Canvas = WidgetTree->ConstructWidget<UCanvasPanel>(UCanvasPanel::StaticClass(), TEXT("TechniqueCanvas"));
 	Root->AddChild(Canvas);
+	ImmortalFeaturePageLayout::AddReadabilityBackground(WidgetTree, Canvas);
 
 	UImage* Background = WidgetTree->ConstructWidget<UImage>(UImage::StaticClass(), TEXT("TechniqueBackground"));
 	Background->SetBrush(MakeTechniqueBrush(
-		TEXT("/Game/GAME/Asset/ui/inventory/panel_background.panel_background"), FVector2D(900.0f, 600.0f),
+		TEXT("/Game/GAME/Asset/ui/inventory/panel_background.panel_background"), FVector2D(1600.0f, 270.0f),
 		FLinearColor(0.68f, 0.82f, 0.92f, 0.99f)));
-	SetTechniqueLayout(Canvas->AddChildToCanvas(Background), FVector2D::ZeroVector, FVector2D(900.0f, 600.0f));
+	SetTechniqueLayout(Canvas->AddChildToCanvas(Background), FVector2D::ZeroVector, FVector2D(1600.0f, 270.0f));
 
 	UTextBlock* Title = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("TechniqueTitle"));
 	Title->SetText(FText::FromString(TEXT("藏经阁 · 功法参悟")));
 	StyleTechniqueText(Title, 28, FLinearColor(0.55f, 0.92f, 1.0f));
-	SetTechniqueLayout(Canvas->AddChildToCanvas(Title), FVector2D(28.0f, 14.0f), FVector2D(320.0f, 42.0f));
+	SetTechniqueLayout(Canvas->AddChildToCanvas(Title), FVector2D(16.0f, 4.0f), FVector2D(450.0f, 36.0f));
 
 	ResourceText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("TechniqueResources"));
 	ResourceText->SetJustification(ETextJustify::Right);
 	StyleTechniqueText(ResourceText, 15, FLinearColor(0.74f, 0.96f, 1.0f));
-	SetTechniqueLayout(Canvas->AddChildToCanvas(ResourceText), FVector2D(360.0f, 20.0f), FVector2D(440.0f, 34.0f));
+	SetTechniqueLayout(Canvas->AddChildToCanvas(ResourceText), FVector2D(700.0f, 7.0f), FVector2D(810.0f, 30.0f));
 
 	UButton* CloseButton = AddTechniqueButton(WidgetTree, Canvas, TEXT("TechniqueClose"), TEXT("×"),
-		FVector2D(816.0f, 10.0f), FVector2D(64.0f), FLinearColor(0.18f, 0.38f, 0.5f, 1.0f));
+		FVector2D(1540.0f, 3.0f), FVector2D(44.0f, 32.0f), FLinearColor(0.18f, 0.38f, 0.5f, 1.0f));
 	CloseButton->OnClicked.AddDynamic(this, &UImmortalTechniqueWidget::HandleCloseClicked);
 
 	UTextBlock* CatalogTitle = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("TechniqueCatalogTitle"));
 	CatalogTitle->SetText(FText::FromString(TEXT("功法目录")));
 	StyleTechniqueText(CatalogTitle, 20, FLinearColor::White);
-	SetTechniqueLayout(Canvas->AddChildToCanvas(CatalogTitle), FVector2D(24.0f, 70.0f), FVector2D(250.0f, 30.0f));
+	SetTechniqueLayout(Canvas->AddChildToCanvas(CatalogTitle), FVector2D(16.0f, 42.0f), FVector2D(250.0f, 26.0f));
 	UScrollBox* TechniqueScroll = WidgetTree->ConstructWidget<UScrollBox>(UScrollBox::StaticClass(), TEXT("TechniqueScroll"));
-	SetTechniqueLayout(Canvas->AddChildToCanvas(TechniqueScroll), FVector2D(20.0f, 104.0f), FVector2D(260.0f, 402.0f));
+	SetTechniqueLayout(Canvas->AddChildToCanvas(TechniqueScroll), FVector2D(12.0f, 72.0f), FVector2D(265.0f, 128.0f));
 	TechniqueList = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass(), TEXT("TechniqueList"));
 	TechniqueScroll->AddChild(TechniqueList);
 
 	SlotText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("TechniqueSlots"));
 	SlotText->SetAutoWrapText(true);
 	StyleTechniqueText(SlotText, 15, FLinearColor(0.48f, 1.0f, 0.78f));
-	SetTechniqueLayout(Canvas->AddChildToCanvas(SlotText), FVector2D(24.0f, 516.0f), FVector2D(260.0f, 66.0f));
+	SetTechniqueLayout(Canvas->AddChildToCanvas(SlotText), FVector2D(16.0f, 206.0f), FVector2D(265.0f, 57.0f));
 
 	DetailNameText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("TechniqueDetailName"));
 	StyleTechniqueText(DetailNameText, 24, FLinearColor(0.65f, 0.92f, 1.0f));
-	SetTechniqueLayout(Canvas->AddChildToCanvas(DetailNameText), FVector2D(305.0f, 72.0f), FVector2D(560.0f, 36.0f));
+	SetTechniqueLayout(Canvas->AddChildToCanvas(DetailNameText), FVector2D(300.0f, 42.0f), FVector2D(580.0f, 32.0f));
 	DetailMetaText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("TechniqueDetailMeta"));
 	StyleTechniqueText(DetailMetaText, 15, FLinearColor(0.72f, 0.86f, 0.96f));
-	SetTechniqueLayout(Canvas->AddChildToCanvas(DetailMetaText), FVector2D(305.0f, 108.0f), FVector2D(560.0f, 28.0f));
+	SetTechniqueLayout(Canvas->AddChildToCanvas(DetailMetaText), FVector2D(300.0f, 78.0f), FVector2D(580.0f, 28.0f));
 	DescriptionText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("TechniqueDescription"));
 	DescriptionText->SetAutoWrapText(true);
 	StyleTechniqueText(DescriptionText, 14, FLinearColor(0.88f, 0.9f, 0.94f));
-	SetTechniqueLayout(Canvas->AddChildToCanvas(DescriptionText), FVector2D(305.0f, 138.0f), FVector2D(560.0f, 48.0f));
+	SetTechniqueLayout(Canvas->AddChildToCanvas(DescriptionText), FVector2D(300.0f, 110.0f), FVector2D(580.0f, 42.0f));
 	ActiveText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("TechniqueActive"));
 	ActiveText->SetAutoWrapText(true);
 	StyleTechniqueText(ActiveText, 14, FLinearColor(0.44f, 0.9f, 1.0f));
-	SetTechniqueLayout(Canvas->AddChildToCanvas(ActiveText), FVector2D(305.0f, 190.0f), FVector2D(560.0f, 45.0f));
+	SetTechniqueLayout(Canvas->AddChildToCanvas(ActiveText), FVector2D(300.0f, 157.0f), FVector2D(280.0f, 100.0f));
 	UltimateText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("TechniqueUltimate"));
 	UltimateText->SetAutoWrapText(true);
 	StyleTechniqueText(UltimateText, 14, FLinearColor(1.0f, 0.66f, 0.25f));
-	SetTechniqueLayout(Canvas->AddChildToCanvas(UltimateText), FVector2D(305.0f, 236.0f), FVector2D(560.0f, 45.0f));
+	SetTechniqueLayout(Canvas->AddChildToCanvas(UltimateText), FVector2D(600.0f, 157.0f), FVector2D(280.0f, 100.0f));
 	PassiveText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("TechniquePassive"));
 	PassiveText->SetAutoWrapText(true);
 	StyleTechniqueText(PassiveText, 14, FLinearColor(0.5f, 1.0f, 0.68f));
-	SetTechniqueLayout(Canvas->AddChildToCanvas(PassiveText), FVector2D(305.0f, 282.0f), FVector2D(560.0f, 45.0f));
+	SetTechniqueLayout(Canvas->AddChildToCanvas(PassiveText), FVector2D(900.0f, 42.0f), FVector2D(300.0f, 90.0f));
 	SpecialText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("TechniqueSpecial"));
 	SpecialText->SetAutoWrapText(true);
 	StyleTechniqueText(SpecialText, 14, FLinearColor(0.95f, 0.58f, 1.0f));
-	SetTechniqueLayout(Canvas->AddChildToCanvas(SpecialText), FVector2D(305.0f, 328.0f), FVector2D(560.0f, 45.0f));
+	SetTechniqueLayout(Canvas->AddChildToCanvas(SpecialText), FVector2D(900.0f, 136.0f), FVector2D(300.0f, 120.0f));
 	CostText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("TechniqueCost"));
 	CostText->SetAutoWrapText(true);
 	StyleTechniqueText(CostText, 13, FLinearColor(0.96f, 0.88f, 0.62f));
-	SetTechniqueLayout(Canvas->AddChildToCanvas(CostText), FVector2D(305.0f, 374.0f), FVector2D(560.0f, 55.0f));
+	SetTechniqueLayout(Canvas->AddChildToCanvas(CostText), FVector2D(1220.0f, 42.0f), FVector2D(360.0f, 58.0f));
 
 	LearnButton = AddTechniqueButton(WidgetTree, Canvas, TEXT("TechniqueLearn"), TEXT("习得功法"),
-		FVector2D(305.0f, 438.0f), FVector2D(130.0f, 44.0f), FLinearColor(0.16f, 0.52f, 0.64f));
+		FVector2D(1220.0f, 106.0f), FVector2D(170.0f, 32.0f), FLinearColor(0.16f, 0.52f, 0.64f));
 	LearnButton->OnClicked.AddDynamic(this, &UImmortalTechniqueWidget::HandleLearnClicked);
 	EquipSlotOneButton = AddTechniqueButton(WidgetTree, Canvas, TEXT("TechniqueSlotOne"), TEXT("装入槽位一"),
-		FVector2D(305.0f, 438.0f), FVector2D(118.0f, 44.0f), FLinearColor(0.18f, 0.48f, 0.56f));
+		FVector2D(1220.0f, 106.0f), FVector2D(170.0f, 32.0f), FLinearColor(0.18f, 0.48f, 0.56f));
 	EquipSlotOneButton->OnClicked.AddDynamic(this, &UImmortalTechniqueWidget::HandleEquipSlotOneClicked);
 	EquipSlotTwoButton = AddTechniqueButton(WidgetTree, Canvas, TEXT("TechniqueSlotTwo"), TEXT("装入槽位二"),
-		FVector2D(429.0f, 438.0f), FVector2D(118.0f, 44.0f), FLinearColor(0.18f, 0.48f, 0.56f));
+		FVector2D(1400.0f, 106.0f), FVector2D(170.0f, 32.0f), FLinearColor(0.18f, 0.48f, 0.56f));
 	EquipSlotTwoButton->OnClicked.AddDynamic(this, &UImmortalTechniqueWidget::HandleEquipSlotTwoClicked);
 	UpgradeButton = AddTechniqueButton(WidgetTree, Canvas, TEXT("TechniqueUpgrade"), TEXT("提升等级"),
-		FVector2D(553.0f, 438.0f), FVector2D(112.0f, 44.0f), FLinearColor(0.26f, 0.62f, 0.42f));
+		FVector2D(1220.0f, 144.0f), FVector2D(170.0f, 32.0f), FLinearColor(0.26f, 0.62f, 0.42f));
 	UpgradeButton->OnClicked.AddDynamic(this, &UImmortalTechniqueWidget::HandleUpgradeClicked);
 	BreakthroughButton = AddTechniqueButton(WidgetTree, Canvas, TEXT("TechniqueBreakthrough"), TEXT("功法突破"),
-		FVector2D(671.0f, 438.0f), FVector2D(112.0f, 44.0f), FLinearColor(0.72f, 0.42f, 0.13f));
+		FVector2D(1400.0f, 144.0f), FVector2D(170.0f, 32.0f), FLinearColor(0.72f, 0.42f, 0.13f));
 	BreakthroughButton->OnClicked.AddDynamic(this, &UImmortalTechniqueWidget::HandleBreakthroughClicked);
 
 	ActivePointButton = AddTechniqueButton(WidgetTree, Canvas, TEXT("TechniqueActivePoint"), TEXT("主动 +1"),
-		FVector2D(305.0f, 490.0f), FVector2D(112.0f, 42.0f), FLinearColor(0.12f, 0.48f, 0.7f));
+		FVector2D(1220.0f, 182.0f), FVector2D(112.0f, 32.0f), FLinearColor(0.12f, 0.48f, 0.7f));
 	ActivePointButton->OnClicked.AddDynamic(this, &UImmortalTechniqueWidget::HandleActivePointClicked);
 	PassivePointButton = AddTechniqueButton(WidgetTree, Canvas, TEXT("TechniquePassivePoint"), TEXT("被动 +1"),
-		FVector2D(423.0f, 490.0f), FVector2D(112.0f, 42.0f), FLinearColor(0.18f, 0.58f, 0.36f));
+		FVector2D(1338.0f, 182.0f), FVector2D(112.0f, 32.0f), FLinearColor(0.18f, 0.58f, 0.36f));
 	PassivePointButton->OnClicked.AddDynamic(this, &UImmortalTechniqueWidget::HandlePassivePointClicked);
 	SpecialPointButton = AddTechniqueButton(WidgetTree, Canvas, TEXT("TechniqueSpecialPoint"), TEXT("特殊 +1"),
-		FVector2D(541.0f, 490.0f), FVector2D(112.0f, 42.0f), FLinearColor(0.52f, 0.26f, 0.65f));
+		FVector2D(1456.0f, 182.0f), FVector2D(112.0f, 32.0f), FLinearColor(0.52f, 0.26f, 0.65f));
 	SpecialPointButton->OnClicked.AddDynamic(this, &UImmortalTechniqueWidget::HandleSpecialPointClicked);
 
 	ResultText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("TechniqueResult"));
 	ResultText->SetAutoWrapText(true);
 	ResultText->SetJustification(ETextJustify::Center);
 	StyleTechniqueText(ResultText, 14, FLinearColor(1.0f, 0.75f, 0.3f));
-	SetTechniqueLayout(Canvas->AddChildToCanvas(ResultText), FVector2D(670.0f, 490.0f), FVector2D(200.0f, 80.0f));
+	SetTechniqueLayout(Canvas->AddChildToCanvas(ResultText), FVector2D(1220.0f, 220.0f), FVector2D(360.0f, 45.0f));
 	RefreshFromPlayer();
+	ImmortalFeaturePageLayout::MakeScrollable(WidgetTree, ActiveText);
+	ImmortalFeaturePageLayout::MakeScrollable(WidgetTree, UltimateText);
+	ImmortalFeaturePageLayout::MakeScrollable(WidgetTree, PassiveText);
+	ImmortalFeaturePageLayout::MakeScrollable(WidgetTree, SpecialText);
+	ImmortalFeaturePageLayout::MakeScrollable(WidgetTree, CostText);
+	ImmortalFeaturePageLayout::MakeScrollable(WidgetTree, ResultText);
 }
 
 void UImmortalTechniqueWidget::NativeTick(const FGeometry& MyGeometry, const float InDeltaTime)

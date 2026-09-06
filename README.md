@@ -1,6 +1,6 @@
 # Immortal Path: Idle Loot
 
-> 最新进度：第 29 步“装备位与套装系统扩展”已完成并通过 Editor/Game 构建、18/18 自动化、9 件普通装备 + 1 件独立法宝 TBH 实机、Step28 旧二进制存档→v17 迁移及重启持久化验证。详细记录见 [Docs/Step29_EquipmentSets.md](Docs/Step29_EquipmentSets.md)。
+> 最新进度（2026-09-06）：桌面透明横条、基础图标 HUD、管理页横向重构与退出粉屏修复已接入。验证范围与限制见 [第 40 步记录](Docs/Step40_TransparentDesktopAndGraphicalUI.md)；全演员动画和分地图植被重制尚未完成，见 [第 41 步计划](Docs/Step41_DesktopXianxiaArtRework.md)。按 [开发与 GitHub 交付流程](Docs/DevelopmentWorkflow.md) 分批测试、提交、推送。
 
 UE 5.7 + C++ 开发的 2D 横版挂机刷怪 ARPG。
 

@@ -10,8 +10,7 @@ class AImmortalPlayerCharacter;
 class UProgressBar;
 
 /**
- * Minimal battle HUD. The combat view intentionally contains only the
- * supplied 512x64 player health bar; clicking the bar opens management.
+ * Compact desktop HUD: health and five graphical management shortcuts.
  */
 UCLASS()
 class IMMORTALPATH_API UImmortalPlayerStatusWidget : public UUserWidget
@@ -30,10 +29,20 @@ protected:
 private:
 	UFUNCTION()
 	void HandleOpenManagementClicked();
+	UFUNCTION()
+	void HandleInventoryClicked();
+	UFUNCTION()
+	void HandleCultivationClicked();
+	UFUNCTION()
+	void HandleShopClicked();
+	UFUNCTION()
+	void HandleSettingsClicked();
 
 	UPROPERTY(Transient)
 	TWeakObjectPtr<AImmortalPlayerCharacter> Player;
 
 	UPROPERTY(Transient)
 	TObjectPtr<UProgressBar> HealthProgress;
+	FIntPoint LastViewportSize = FIntPoint::ZeroValue;
+	float LastViewportScale = 0.0f;
 };

@@ -1,6 +1,7 @@
 #include "Misc/AutomationTest.h"
 
-#if WITH_DEV_AUTOMATION_TESTS
+// Source rectangles and editable pivots are not part of the cooked runtime API.
+#if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
 
 #include "PaperFlipbook.h"
 #include "PaperSprite.h"

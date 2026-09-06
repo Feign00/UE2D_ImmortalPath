@@ -3,6 +3,7 @@
 #include "ImmortalShopEntryWidget.h"
 
 #include "ImmortalShopWidget.h"
+#include "ImmortalUITheme.h"
 #include "../Items/ImmortalEquipmentTypes.h"
 #include "../Items/ImmortalMaterialTypes.h"
 #include "../Shop/ImmortalShopTypes.h"
@@ -44,14 +45,24 @@ void UImmortalShopEntryWidget::NativeOnInitialized()
 	Root->AddChild(EntryButton);
 
 	EntryText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("ShopEntryText"));
-	EntryText->SetJustification(ETextJustify::Center);
-	EntryText->SetAutoWrapText(true);
+	EntryText->SetJustification(ETextJustify::Left);
+	EntryText->SetAutoWrapText(false);
+	EntryText->SetTextOverflowPolicy(ETextOverflowPolicy::Ellipsis);
 	EntryText->SetShadowOffset(FVector2D(1.0f));
 	EntryText->SetShadowColorAndOpacity(FLinearColor::Black);
 	FSlateFontInfo Font = EntryText->GetFont();
-	Font.Size = 14;
+	Font.Size = 11;
 	EntryText->SetFont(Font);
-	EntryButton->AddChild(EntryText);
+	UHorizontalBox* Row = WidgetTree->ConstructWidget<UHorizontalBox>();
+	EntryButton->AddChild(Row);
+	USizeBox* IconBox = WidgetTree->ConstructWidget<USizeBox>();
+	IconBox->SetWidthOverride(44); IconBox->SetHeightOverride(44);
+	ProductIcon = CreateWidget<UImmortalIconWidget>(this);
+	IconBox->AddChild(ProductIcon);
+	Row->AddChildToHorizontalBox(IconBox)->SetVerticalAlignment(VAlign_Center);
+	UHorizontalBoxSlot* TextSlot = Row->AddChildToHorizontalBox(EntryText);
+	TextSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+	TextSlot->SetPadding(FMargin(5,0)); TextSlot->SetVerticalAlignment(VAlign_Center);
 
 	RefreshAppearance();
 }
@@ -63,6 +74,9 @@ void UImmortalShopEntryWidget::InitializeOfferEntry(
 {
 	OwnerShop = InOwner;
 	EntryMode = EEntryMode::Offer;
+	ProductIconIndex = InListing.ProductType == EImmortalShopProductType::Equipment ? 4
+		: InListing.ProductType == EImmortalShopProductType::Pill ? 2
+		: InListing.ProductType == EImmortalShopProductType::Artifact ? 4 : 19;
 	EntryId = InListing.ListingId;
 	MaterialId = NAME_None;
 	bSelected = bInSelected;
@@ -85,6 +99,7 @@ void UImmortalShopEntryWidget::InitializeEquipmentSaleEntry(
 {
 	OwnerShop = InOwner;
 	EntryMode = EEntryMode::EquipmentSale;
+	ProductIconIndex = 4;
 	EntryId = InItem.ItemId;
 	MaterialId = NAME_None;
 	bSelected = bInSelected;
@@ -111,6 +126,7 @@ void UImmortalShopEntryWidget::InitializeMaterialSaleEntry(
 {
 	OwnerShop = InOwner;
 	EntryMode = EEntryMode::MaterialSale;
+	ProductIconIndex = InStack.MaterialId.ToString().Contains(TEXT("Herb")) ? 11 : 19;
 	EntryId.Invalidate();
 	MaterialId = InStack.MaterialId;
 	bSelected = bInSelected;
@@ -146,7 +162,9 @@ void UImmortalShopEntryWidget::RefreshAppearance()
 	Style.SetNormal(MakeShopEntryBrush(NormalTint));
 	Style.SetHovered(MakeShopEntryBrush(HoverTint));
 	Style.SetPressed(MakeShopEntryBrush(FLinearColor(0.75f, 0.54f, 0.2f, 1.0f)));
-	EntryButton->SetStyle(Style);
+	EntryButton->SetStyle(ImmortalUITheme::ButtonStyle(bSelected));
+	ProductIcon->SetIcon(ProductIconIndex);
+	EntryButton->SetToolTipText(DisplayText);
 	EntryButton->SetIsEnabled(!bSoldOut);
 	EntryText->SetText(DisplayText);
 	EntryText->SetColorAndOpacity(FSlateColor(bSoldOut
