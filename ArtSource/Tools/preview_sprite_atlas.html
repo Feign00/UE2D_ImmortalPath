@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="zh-CN">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>仙途 · 动画素材检查</title>
+<style>
+  :root { color-scheme: dark; font: 15px/1.6 system-ui, sans-serif; background: #101b20; color: #e4eee9; }
+  body { max-width: 1120px; margin: 24px auto; padding: 0 24px; }
+  h1 { font-size: 25px; margin-bottom: 4px; } p { color: #adc5bc; }
+  fieldset { border: 1px solid #3b5750; border-radius: 12px; padding: 16px; margin: 16px 0; display: flex; flex-wrap: wrap; gap: 16px; }
+  label { display: inline-flex; align-items: center; gap: 8px; }
+  input, select, button { font: inherit; border: 1px solid #57786d; border-radius: 6px; padding: 6px 10px; background: #1d302f; color: inherit; }
+  input[type=number] { width: 65px; } button { cursor: pointer; } button:disabled { opacity: .4; cursor: default; }
+  :focus-visible { outline: 2px solid #f5cc72; outline-offset: 3px; }
+  .stage { overflow: auto; border: 1px solid #3b5750; border-radius: 12px; }
+  canvas { display: block; margin: auto; max-width: 100%; height: auto; image-rendering: pixelated; }
+  #status { min-height: 24px; color: #f5cc72; }
+</style>
+<h1>动画素材检查</h1>
+<p>只读预览 · 先检查原始帧，再检查材质表现。不会修改、导出图片或自动居中；无网络请求。</p>
+<fieldset><legend>图集</legend>
+  <label>本地图片 <input id="file" type="file" accept="image/png,image/webp"></label>
+  <label>列 <input id="columns" type="number" min="1" max="64" value="4"></label>
+  <label>行 <input id="rows" type="number" min="1" max="64" value="2"></label>
+  <label>帧率 <input id="fps" type="number" min="1" max="60" value="8"></label>
+</fieldset>
+<fieldset><legend>检查选项</legend>
+  <label>背景 <select id="background"><option value="checker">棋盘</option><option value="light">浅色</option><option value="dark">深色</option><option value="magenta">洋红色键</option></select></label>
+  <label>材质 <select id="mode"><option value="source">原始透明通道</option><option value="masked">遮罩模拟（仅预览）</option></select></label>
+  <label>遮罩阈值 <input id="threshold" type="number" min="1" max="255" value="128"></label>
+  <label>缩放 <select id="zoom"><option value="0.5">50%</option><option value="1" selected>100%</option><option value="2">200%</option></select></label>
+  <label>脚线 Y <input id="ground" type="number" min="0" value="464"></label>
+  <label><input id="onion" type="checkbox">前一帧叠影</label>
+</fieldset>
+<fieldset><legend>播放</legend>
+  <button id="play" disabled>播放</button><button id="previous" disabled>上一帧</button><button id="next" disabled>下一帧</button>
+  <label>当前帧 <input id="frame" type="range" min="0" max="7" value="0" disabled><output id="counter">—</output></label>
+</fieldset>
+<p id="status" role="status" aria-live="polite">请选择图集。素材不会上传到网络。</p>
+<div class="stage"><canvas id="preview" width="960" height="600" aria-label="动画逐帧预览"></canvas></div>
+<p>红线为手动指定脚线，青线为固定单元格中心。上下排跳动、左右漂移、脚步不交替，不能通过提速或遮罩认定为合格。此页不能代替 UE 实机验收。</p>
+<script>
+  'use strict';
+  const $ = id => document.getElementById(id);
+  const canvas = $('preview'), ctx = canvas.getContext('2d');
+  const source = document.createElement('canvas'), sourceCtx = source.getContext('2d', { willReadFrequently: true });
+  const masked = document.createElement('canvas'), maskedCtx = masked.getContext('2d');
+  let image = null, frame = 0, playing = false, lastTime = 0, loadId = 0, maskedThreshold = -1;
+  let settings = null;
+  function validate() {
+    if (!image) return null;
+    const columns = Number($('columns').value), rows = Number($('rows').value), fps = Number($('fps').value);
+    const threshold = Number($('threshold').value), ground = Number($('ground').value), zoom = Number($('zoom').value);
+    if (![columns, rows].every(v => Number.isInteger(v) && v >= 1 && v <= 64)
+        || image.width % columns || image.height % rows
+        || !Number.isInteger(fps) || fps < 1 || fps > 60
+        || !Number.isInteger(threshold) || threshold < 1 || threshold > 255
+        || !Number.isFinite(ground) || ground < 0 || ground > image.height / rows
+        || ![0.5, 1, 2].includes(zoom)) {
+      $('status').textContent = '参数无效：网格必须整除图像；脚线须位于单元格内，帧率 1–60，阈值 1–255。';
+      return null;
+    }
+    return { columns, rows, fps, threshold, ground, zoom, width: image.width / columns, height: image.height / rows, count: columns * rows };
+  }
+  function controls(enabled) {
+    for (const id of ['play', 'previous', 'next', 'frame']) $(id).disabled = !enabled;
+  }
+  function stop() { playing = false; lastTime = 0; $('play').textContent = '播放'; }
+  function refresh() {
+    settings = validate(); controls(!!settings);
+    if (!settings) { stop(); ctx.clearRect(0, 0, canvas.width, canvas.height); return; }
+    frame = Math.min(frame, settings.count - 1);
+    $('frame').max = settings.count - 1;
+    $('status').textContent = `${image.width} × ${image.height} · ${settings.count} 帧 · 单帧 ${settings.width} × ${settings.height} · 未经实机验收`;
+    render();
+  }
+  function render() {
+    if (!settings) return;
+    const s = settings;
+    canvas.width = Math.max(480, Math.ceil(s.width * s.zoom + 96));
+    canvas.height = Math.max(360, Math.ceil(s.height * s.zoom + 80));
+    ctx.imageSmoothingEnabled = false;
+    const bg = $('background').value;
+    ctx.fillStyle = { light: '#e9eee9', dark: '#132027', magenta: '#ff00ff', checker: '#60726c' }[bg];
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    if (bg === 'checker') {
+      ctx.fillStyle = '#87988e';
+      for (let y = 0; y < canvas.height; y += 16) for (let x = 0; x < canvas.width; x += 16)
+        if ((x / 16 + y / 16) % 2 === 0) ctx.fillRect(x, y, 16, 16);
+    }
+    let atlas = source;
+    if ($('mode').value === 'masked') {
+      if (maskedThreshold !== s.threshold) {
+        const pixels = sourceCtx.getImageData(0, 0, source.width, source.height);
+        for (let i = 3; i < pixels.data.length; i += 4) pixels.data[i] = pixels.data[i] >= s.threshold ? 255 : 0;
+        masked.width = source.width; masked.height = source.height;
+        maskedCtx.putImageData(pixels, 0, 0); maskedThreshold = s.threshold;
+      }
+      atlas = masked;
+    }
+    const x = (canvas.width - s.width * s.zoom) / 2, y = 24;
+    const draw = index => ctx.drawImage(atlas, index % s.columns * s.width, Math.floor(index / s.columns) * s.height,
+      s.width, s.height, x, y, s.width * s.zoom, s.height * s.zoom);
+    if ($('onion').checked) { ctx.globalAlpha = 0.3; draw((frame + s.count - 1) % s.count); ctx.globalAlpha = 1; }
+    draw(frame);
+    ctx.strokeStyle = '#ef6868'; ctx.beginPath(); ctx.moveTo(0, y + s.ground * s.zoom + .5); ctx.lineTo(canvas.width, y + s.ground * s.zoom + .5); ctx.stroke();
+    ctx.strokeStyle = '#53ddcb'; ctx.beginPath(); ctx.moveTo(canvas.width / 2 + .5, 0); ctx.lineTo(canvas.width / 2 + .5, canvas.height); ctx.stroke();
+    $('frame').value = frame; $('counter').textContent = `${frame + 1} / ${s.count}`;
+    canvas.dataset.frame = frame;
+  }
+  $('file').addEventListener('change', async () => {
+    const id = ++loadId, file = $('file').files[0];
+    stop(); image = null; settings = null; controls(false); ctx.clearRect(0, 0, canvas.width, canvas.height);
+    if (!file) { $('status').textContent = '请选择图集。'; return; }
+    if (file.size > 32 * 1024 * 1024) { $('status').textContent = '图集过大：预览上限为 32 MB。'; return; }
+    let decoded;
+    try {
+      decoded = await createImageBitmap(file);
+      if (id !== loadId) return;
+      if (decoded.width * decoded.height > 16 * 1024 * 1024) throw new Error('size');
+      source.width = decoded.width; source.height = decoded.height;
+      sourceCtx.drawImage(decoded, 0, 0);
+      image = { width: decoded.width, height: decoded.height }; maskedThreshold = -1; frame = 0; refresh();
+    } catch {
+      if (id === loadId) $('status').textContent = '无法读取图片，或像素总数超过 16M。请选择有效图集。';
+    } finally { decoded?.close(); }
+  });
+  for (const id of ['columns', 'rows', 'fps', 'background', 'mode', 'threshold', 'ground', 'zoom', 'onion'])
+    $(id).addEventListener('input', () => { lastTime = 0; refresh(); });
+  $('play').addEventListener('click', () => { if (!settings) return; playing = !playing; lastTime = 0; $('play').textContent = playing ? '暂停' : '播放'; });
+  function step(delta) { if (!settings) return; stop(); frame = (frame + delta + settings.count) % settings.count; render(); }
+  $('previous').addEventListener('click', () => step(-1)); $('next').addEventListener('click', () => step(1));
+  $('frame').addEventListener('input', () => { stop(); frame = Number($('frame').value); render(); });
+  document.addEventListener('visibilitychange', () => { if (document.hidden) stop(); });
+  function tick(time) {
+    if (playing && settings) {
+      if (!lastTime) lastTime = time;
+      const steps = Math.floor((time - lastTime) * settings.fps / 1000);
+      if (steps > 0) { frame = (frame + steps) % settings.count; lastTime += steps * 1000 / settings.fps; render(); }
+    }
+    requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+</script>
+</html>
