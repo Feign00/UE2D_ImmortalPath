@@ -932,6 +932,8 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Immortal Path|Settings")
 	int32 GetDesktopWindowHeight() const;
 
+	int32 GetDesktopCombatViewportHeight() const { return DesktopCombatViewportHeight; }
+
 	UFUNCTION(BlueprintCallable, Category = "Immortal Path|Settings")
 	void ToggleDesktopAlwaysOnTop();
 
@@ -1261,6 +1263,11 @@ private:
 	void ResolvePendingAttack();
 	void LoadMortalRealmAnimationSet();
 	void RunPixelPlayerIntegrationFixture();
+	void RunDesktopPanelFixture();
+	void UpdateDesktopPanelPresentation();
+	FIntPoint LastDesktopPanelViewport = FIntPoint::ZeroValue;
+	bool bLastDesktopPanelExpanded = false;
+	int32 DesktopCombatViewportHeight = 320;
 	void ApplyMortalRealmSpritePresentation();
 	void UpdateMortalRealmLocomotionAnimation();
 	void PlayMortalRealmAttackAnimation();

@@ -24,6 +24,24 @@
 #include "Kismet/GameplayStatics.h"
 #include "TimerManager.h"
 
+void AImmortalPlayerCharacter::UpdateDesktopPanelPresentation()
+{
+	const bool bExpanded = bManagementInterfaceOpen || bAscensionOpen;
+	const bool bChanged = bExpanded != bLastDesktopPanelExpanded;
+	if (bChanged)
+	{
+		bLastDesktopPanelExpanded = bExpanded;
+		if (bEnableTaskbarWindowMode) ApplyTaskbarWindowPlacement();
+	}
+	APlayerController* PC = Cast<APlayerController>(GetController());
+	if (!PC) return;
+	FIntPoint Size; PC->GetViewportSize(Size.X, Size.Y);
+	if (bExpanded && (bChanged || Size != LastDesktopPanelViewport))
+		ConfigureModalWidget(bAscensionOpen ? static_cast<UUserWidget*>(PlayerAscensionWidget)
+			: static_cast<UUserWidget*>(PlayerManagementWidget), true);
+	LastDesktopPanelViewport = Size;
+}
+
 // Management navigation is isolated here; the character retains gameplay authority.
 void AImmortalPlayerCharacter::RegisterManagementPages()
 {
@@ -258,7 +276,7 @@ void AImmortalPlayerCharacter::OpenManagementFeature(
 	if (PlayerStatusWidget)
 	{
 		PlayerStatusWidget->SetVisibility(
-			ESlateVisibility::Collapsed);
+			ESlateVisibility::Visible);
 	}
 	ConfigureModalWidget(PlayerManagementWidget, true);
 	UE_LOG(

@@ -52,6 +52,10 @@ void AImmortalPlayerCharacter::RunPixelPlayerIntegrationFixture()
 	At(0.5f, [this, Check, Target, TargetHealth]
 	{
 		StopAutoAttack();
+		// Startup combat may already have begun before this fixture isolates the world.
+		// Locomotion checks require an idle baseline, not a pending one-shot reaction.
+		bPixelHurtQueued = false;
+		FinishMortalRealmOneShotAnimation();
 		for (TActorIterator<AImmortalPetCharacter> It(GetWorld()); It; ++It)
 		{
 			GetWorldTimerManager().ClearAllTimersForObject(*It); It->SetActorTickEnabled(false);

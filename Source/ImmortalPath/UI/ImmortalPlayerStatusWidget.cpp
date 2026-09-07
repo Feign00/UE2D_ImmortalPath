@@ -81,7 +81,8 @@ void UImmortalPlayerStatusWidget::NativeTick(
 			const float Fit = FMath::Clamp((Width - 16.0f) / 512.0f, 0.1f, 1.0f);
 			SetRenderTransformPivot(FVector2D::ZeroVector);
 			SetRenderScale(FVector2D(Fit / Dpi));
-			SetPositionInViewport(FVector2D(24,16), true);
+			const int32 BattleHeight = Player.IsValid() ? Player->GetDesktopCombatViewportHeight() : Height;
+			SetPositionInViewport(FVector2D(24, FMath::Max(Height - BattleHeight, 0) + 16), true);
 		}
 	}
 	if (Player.IsValid() && HealthProgress)

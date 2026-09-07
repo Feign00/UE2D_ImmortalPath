@@ -3,6 +3,7 @@
 #include "ImmortalPlayerCharacter.h"
 #include "ImmortalAnimationPlayback.h"
 #include "ImmortalPixelAnimationPreview.h"
+#include "../UI/ImmortalDesktopPanelLayout.h"
 
 #include "../Combat/AutoAttackTarget.h"
 #include "../Save/ImmortalPathSaveGame.h"
@@ -407,6 +408,7 @@ AImmortalPlayerCharacter::AImmortalPlayerCharacter()
 void AImmortalPlayerCharacter::Tick(const float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
+	UpdateDesktopPanelPresentation();
 	UpdateMortalRealmLocomotionAnimation();
 }
 
@@ -4965,6 +4967,7 @@ void AImmortalPlayerCharacter::BeginPlay()
 #endif
 	ImmortalPixelAnimationPreview::StartIfRequested(*this);
 	RunPixelPlayerIntegrationFixture();
+	RunDesktopPanelFixture();
 }
 
 void AImmortalPlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
@@ -8159,6 +8162,7 @@ void AImmortalPlayerCharacter::ConfigureModalWidget(UUserWidget* Widget, const b
 		int32 ViewportHeight = 0;
 		PlayerController->GetViewportSize(ViewportWidth, ViewportHeight);
 		const bool bIsFullViewportScene = Widget == PlayerManagementWidget;
+		const bool bIsDesktopPanel = bIsFullViewportScene || Widget == PlayerAscensionWidget;
 		const bool bIsTaskbarStripWidget = Widget == PlayerInventoryWidget
 			|| Widget == PlayerManagementWidget
 			|| Widget == PlayerFarmingWidget || Widget == PlayerSectWidget
@@ -8200,10 +8204,12 @@ void AImmortalPlayerCharacter::ConfigureModalWidget(UUserWidget* Widget, const b
 		// one another while the viewport slot is still unmanaged.
 		Widget->SetDesiredSizeInViewport(InventorySize);
 		Widget->SetRenderTransformPivot(FVector2D::ZeroVector);
-		Widget->SetRenderScale(SceneRenderScale);
+		const auto PanelLayout = ImmortalDesktopPanelLayout::Fit(
+			FVector2D(ViewportWidth, ViewportHeight), InventorySize, DesktopCombatViewportHeight);
+		Widget->SetRenderScale(bIsDesktopPanel ? FVector2D(PanelLayout.Scale / DpiScale) : SceneRenderScale);
 		Widget->SetAnchorsInViewport(FAnchors(0.0f, 0.0f));
 		Widget->SetAlignmentInViewport(FVector2D::ZeroVector);
-		Widget->SetPositionInViewport(CentredPosition, true);
+		Widget->SetPositionInViewport(bIsDesktopPanel ? PanelLayout.Position : CentredPosition, true);
 		UE_LOG(LogTemp, Display,
 			TEXT("Modal viewport fit applied: taskbarStrip=%s logical=%.0fx%.0f viewport=%dx%d fit=%.3f dpi=%.3f render=%.3f"),
 			bIsTaskbarStripWidget ? TEXT("true") : TEXT("false"), InventorySize.X, InventorySize.Y,
@@ -8799,7 +8805,9 @@ void AImmortalPlayerCharacter::ApplyTaskbarWindowPlacement()
 	const int32 WorkWidth = static_cast<int32>(WorkArea.right - WorkArea.left);
 	const int32 WorkHeight = static_cast<int32>(WorkArea.bottom - WorkArea.top);
 	const int32 Width = FMath::Max(WorkWidth, 640);
-	const int32 Height = FMath::Clamp(TaskbarWindowHeight, 180, FMath::Max(WorkHeight / 2, 180));
+	DesktopCombatViewportHeight = ImmortalDesktopPanelLayout::BattleHeight(TaskbarWindowHeight, WorkHeight);
+	const int32 Height = ImmortalDesktopPanelLayout::WindowHeight(DesktopCombatViewportHeight, WorkHeight,
+		bManagementInterfaceOpen || bAscensionOpen);
 	const int32 Top = WorkArea.bottom - Height;
 	LONG_PTR Style = GetWindowLongPtr(WindowHandle, GWL_STYLE);
 	Style &= ~(WS_CAPTION | WS_THICKFRAME | WS_MINIMIZEBOX | WS_MAXIMIZEBOX | WS_SYSMENU);

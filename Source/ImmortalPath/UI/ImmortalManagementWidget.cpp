@@ -161,16 +161,16 @@ namespace
 		case EImmortalManagementFeature::Cultivation:
 		case EImmortalManagementFeature::Alchemy:
 		case EImmortalManagementFeature::Crafting:
+		case EImmortalManagementFeature::Cave:
+		case EImmortalManagementFeature::Farming:
 			return EImmortalManagementScene::SectSanctuary;
 		case EImmortalManagementFeature::Shop:
+			return EImmortalManagementScene::MarketTown;
 		case EImmortalManagementFeature::Inventory:
 		case EImmortalManagementFeature::Artifact:
 		case EImmortalManagementFeature::Technique:
 		case EImmortalManagementFeature::CharacterBuild:
 		case EImmortalManagementFeature::Pet:
-			return EImmortalManagementScene::MarketTown;
-		case EImmortalManagementFeature::Cave:
-		case EImmortalManagementFeature::Farming:
 			return EImmortalManagementScene::CaveEstate;
 		case EImmortalManagementFeature::Map:
 		case EImmortalManagementFeature::Quest:
@@ -189,11 +189,11 @@ namespace
 		case EImmortalManagementScene::MarketTown:
 			return FText::FromString(TEXT("仙城坊市"));
 		case EImmortalManagementScene::CaveEstate:
-			return FText::FromString(TEXT("洞府"));
+			return FText::FromString(TEXT("角色养成"));
 		case EImmortalManagementScene::AdventureHall:
 			return FText::FromString(TEXT("历练台"));
 		default:
-			return FText::FromString(TEXT("宗门山门"));
+			return FText::FromString(TEXT("洞府仙居"));
 		}
 	}
 
@@ -372,6 +372,8 @@ void UImmortalManagementWidget::NativeOnInitialized()
 	ThemePlaceholder = WidgetTree->ConstructWidget<UBorder>(
 		UBorder::StaticClass(), TEXT("ManagementThemePlaceholder"));
 	ThemePlaceholder->SetPadding(FMargin(0.0f));
+	ThemePlaceholder->SetBrush(ImmortalUITheme::PanelBrush(FLinearColor(0.035f, 0.055f, 0.055f)));
+	ThemePlaceholder->SetVisibility(ESlateVisibility::HitTestInvisible);
 	SetManagementLayout(
 		RootCanvas->AddChildToCanvas(ThemePlaceholder),
 		FVector2D::ZeroVector,
@@ -382,13 +384,14 @@ void UImmortalManagementWidget::NativeOnInitialized()
 	ThemeImage->SetVisibility(ESlateVisibility::Collapsed);
 	SetManagementLayout(
 		RootCanvas->AddChildToCanvas(ThemeImage),
-		FVector2D::ZeroVector,
-		FVector2D(1707.0f, 320.0f));
+		FVector2D(8.0f, 46.0f),
+		FVector2D(1691.0f, 266.0f));
 
 	UBorder* ReadabilityOverlay = WidgetTree->ConstructWidget<UBorder>(
 		UBorder::StaticClass(), TEXT("ManagementReadabilityOverlay"));
 	ReadabilityOverlay->SetBrushColor(
-		FLinearColor(0.008f, 0.012f, 0.016f, 0.16f));
+		FLinearColor(0.008f, 0.012f, 0.016f, 0.0f));
+	ReadabilityOverlay->SetVisibility(ESlateVisibility::HitTestInvisible);
 	ReadabilityOverlay->SetPadding(FMargin(0.0f));
 	SetManagementLayout(
 		RootCanvas->AddChildToCanvas(ReadabilityOverlay),
@@ -469,10 +472,15 @@ void UImmortalManagementWidget::NativeOnInitialized()
 			FVector2D(X, 1.0f),
 			FVector2D(126.0f, 25.0f));
 	};
-	PlaceSceneButton(EImmortalManagementScene::SectSanctuary, TEXT("宗门山门"), 455.0f);
-	PlaceSceneButton(EImmortalManagementScene::MarketTown, TEXT("仙城坊市"), 585.0f);
-	PlaceSceneButton(EImmortalManagementScene::CaveEstate, TEXT("洞府"), 715.0f);
+	PlaceSceneButton(EImmortalManagementScene::SectSanctuary, TEXT("洞府"), 455.0f);
+	PlaceSceneButton(EImmortalManagementScene::MarketTown, TEXT("坊市"), 585.0f);
+	PlaceSceneButton(EImmortalManagementScene::CaveEstate, TEXT("角色"), 715.0f);
 	PlaceSceneButton(EImmortalManagementScene::AdventureHall, TEXT("历练台"), 845.0f);
+	UButton* AscensionButton = WidgetTree->ConstructWidget<UButton>(UButton::StaticClass(), TEXT("ManagementAscension"));
+	AscensionButton->SetStyle(ImmortalUITheme::ButtonStyle());
+	ImmortalUITheme::IconButton(this, AscensionButton, 0, FText::FromString(TEXT("飞升")));
+	AscensionButton->OnClicked.AddDynamic(this, &ThisClass::HandleAscensionClicked);
+	SetManagementLayout(SceneNavigationCanvas->AddChildToCanvas(AscensionButton), FVector2D(1224, 1), FVector2D(126, 25));
 
 	BackToSceneButton = WidgetTree->ConstructWidget<UButton>(
 		UButton::StaticClass(), TEXT("ManagementBackToScene"));
@@ -484,6 +492,7 @@ void UImmortalManagementWidget::NativeOnInitialized()
 	AddManagementLabel(
 		WidgetTree, BackToSceneButton,
 		FText::FromString(TEXT("返回场景")), 10);
+	ImmortalUITheme::IconButton(this, BackToSceneButton, 12, FText::FromString(TEXT("返回主页")));
 	SetManagementLayout(
 		SceneNavigationCanvas->AddChildToCanvas(BackToSceneButton),
 		FVector2D(984.0f, 1.0f),
@@ -501,6 +510,7 @@ void UImmortalManagementWidget::NativeOnInitialized()
 	ReturnButton->SetStyle(MakeManagementButtonStyle(
 		FVector2D(232.0f, 25.0f),
 		FLinearColor(0.34f, 0.12f, 0.10f, 1.0f)));
+	ImmortalUITheme::IconButton(this, ReturnButton, 8, FText::FromString(TEXT("收起 · 继续历练")));
 	SetManagementLayout(
 		SceneNavigationCanvas->AddChildToCanvas(ReturnButton),
 		FVector2D(1455.0f, 1.0f),
@@ -514,7 +524,7 @@ void UImmortalManagementWidget::NativeOnInitialized()
 	NotificationBar->SetVisibility(ESlateVisibility::Collapsed);
 	SetManagementLayout(
 		RootCanvas->AddChildToCanvas(NotificationBar),
-		FVector2D(400.0f, 289.0f),
+		FVector2D(400.0f, 328.0f),
 		FVector2D(907.0f, 27.0f));
 
 	NotificationText = WidgetTree->ConstructWidget<UTextBlock>(
@@ -764,11 +774,11 @@ void UImmortalManagementWidget::RefreshTheme()
 	LastThemeRealm = static_cast<uint8>(Realm);
 	ThemeRefreshAccumulator = 0.0f;
 	ThemePlaceholder->SetBrushColor(
-		GetTierPlaceholderColor(Tier, ActiveFeature));
+		GetTierPlaceholderColor(Tier, EImmortalManagementFeature::Home));
 
 	const FString AssetPath = BuildThemeAssetPath(Tier, ActiveScene);
 	UTexture2D* ThemeTexture = LoadOptionalTexture(AssetPath);
-	if (ThemeTexture)
+	if (ThemeTexture && ActiveFeature == EImmortalManagementFeature::Home)
 	{
 		ThemeImage->SetBrushFromTexture(ThemeTexture, false);
 		ThemeImage->SetColorAndOpacity(FLinearColor::White);
@@ -949,22 +959,22 @@ UWidget* UImmortalManagementWidget::BuildSceneHub(
 	switch (Scene)
 	{
 	case EImmortalManagementScene::SectSanctuary:
-		Place(EImmortalManagementFeature::Sect, TEXT("宗门大殿"), 35.0f, 68.0f, 390.0f, 220.0f);
-		Place(EImmortalManagementFeature::Cultivation, TEXT("修炼静室"), 490.0f, 82.0f, 340.0f, 206.0f);
-		Place(EImmortalManagementFeature::Alchemy, TEXT("炼丹房"), 845.0f, 65.0f, 390.0f, 223.0f);
-		Place(EImmortalManagementFeature::Crafting, TEXT("炼器坊"), 1260.0f, 65.0f, 410.0f, 223.0f);
+		Place(EImmortalManagementFeature::Cultivation, TEXT("修炼静室"), 24, 80, 265, 208);
+		Place(EImmortalManagementFeature::Sect, TEXT("宗门大殿"), 302, 80, 265, 208);
+		Place(EImmortalManagementFeature::Alchemy, TEXT("炼丹房"), 580, 80, 265, 208);
+		Place(EImmortalManagementFeature::Crafting, TEXT("炼器坊"), 858, 80, 265, 208);
+		Place(EImmortalManagementFeature::Cave, TEXT("洞府营造"), 1136, 80, 265, 208);
+		Place(EImmortalManagementFeature::Farming, TEXT("灵田"), 1414, 80, 265, 208);
 		break;
 	case EImmortalManagementScene::MarketTown:
-		Place(EImmortalManagementFeature::Shop, TEXT("百宝阁"), 10.0f, 70.0f, 270.0f, 218.0f);
-		Place(EImmortalManagementFeature::Inventory, TEXT("储物戒 / 装备"), 275.0f, 68.0f, 300.0f, 220.0f);
-		Place(EImmortalManagementFeature::Artifact, TEXT("法宝楼"), 575.0f, 68.0f, 300.0f, 220.0f);
-		Place(EImmortalManagementFeature::Technique, TEXT("藏经阁"), 875.0f, 68.0f, 300.0f, 220.0f);
-		Place(EImmortalManagementFeature::CharacterBuild, TEXT("测灵台"), 1175.0f, 70.0f, 240.0f, 218.0f);
-		Place(EImmortalManagementFeature::Pet, TEXT("灵兽园"), 1415.0f, 68.0f, 282.0f, 220.0f);
+		Place(EImmortalManagementFeature::Shop, TEXT("百宝阁 · 购买 / 出售"), 565, 80, 577, 208);
 		break;
 	case EImmortalManagementScene::CaveEstate:
-		Place(EImmortalManagementFeature::Cave, TEXT("洞府内院"), 35.0f, 62.0f, 790.0f, 226.0f);
-		Place(EImmortalManagementFeature::Farming, TEXT("灵田"), 865.0f, 62.0f, 807.0f, 226.0f);
+		Place(EImmortalManagementFeature::Inventory, TEXT("储物戒 / 装备"), 24, 80, 319, 208);
+		Place(EImmortalManagementFeature::Artifact, TEXT("法宝楼"), 359, 80, 319, 208);
+		Place(EImmortalManagementFeature::Technique, TEXT("藏经阁"), 694, 80, 319, 208);
+		Place(EImmortalManagementFeature::CharacterBuild, TEXT("测灵台"), 1029, 80, 319, 208);
+		Place(EImmortalManagementFeature::Pet, TEXT("灵兽园"), 1364, 80, 319, 208);
 		break;
 	case EImmortalManagementScene::AdventureHall:
 		Place(EImmortalManagementFeature::Map, TEXT("山河图"), 25.0f, 68.0f, 390.0f, 220.0f);
@@ -1121,14 +1131,13 @@ UButton* UImmortalManagementWidget::AddSceneHotspot(
 			*GetFeatureAssetToken(Feature))));
 	FLinearColor HotspotColor = GetFeatureFallbackAccent(Feature);
 	FButtonStyle HotspotStyle;
-	FLinearColor NormalColor = HotspotColor;
-	NormalColor.A = 0.035f;
+	FLinearColor NormalColor(0.035f, 0.055f, 0.055f, 1.0f);
 	FLinearColor HoveredColor = HotspotColor;
-	HoveredColor.A = 0.28f;
+	HoveredColor.A = 1.0f;
 	FLinearColor PressedColor = HotspotColor;
-	PressedColor.A = 0.46f;
+	PressedColor.A = 1.0f;
 	FSlateBrush NormalBrush = MakeManagementBrush(Size, NormalColor);
-	NormalBrush.OutlineSettings.Width = 0;
+	NormalBrush.OutlineSettings.Width = 2;
 	HotspotStyle.SetNormal(NormalBrush);
 	HotspotStyle.SetHovered(MakeManagementBrush(Size, HoveredColor));
 	HotspotStyle.SetPressed(MakeManagementBrush(Size, PressedColor));
@@ -1146,7 +1155,7 @@ UButton* UImmortalManagementWidget::AddSceneHotspot(
 	Button->SetToolTipText(Label);
 	SetManagementLayout(
 		Content->AddChildToCanvas(Icon),
-		FVector2D((Size.X - IconSize) * 0.5f, Size.Y - 113.0f),
+		FVector2D((Size.X - IconSize) * 0.5f, FMath::Max((Size.Y - 110.0f) * 0.5f, 24.0f)),
 		FVector2D(IconSize, IconSize));
 
 	const float LabelWidth = FMath::Min(Size.X - 18.0f, 180.0f);
@@ -1238,6 +1247,11 @@ void UImmortalManagementWidget::HandleMarketSceneClicked()
 void UImmortalManagementWidget::HandleCaveSceneClicked()
 {
 	RequestScene(EImmortalManagementScene::CaveEstate);
+}
+
+void UImmortalManagementWidget::HandleAscensionClicked()
+{
+	if (Player.IsValid()) Player->ToggleAscension();
 }
 
 void UImmortalManagementWidget::HandleAdventureSceneClicked()

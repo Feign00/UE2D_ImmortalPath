@@ -4,6 +4,34 @@
 #include "EngineUtils.h"
 #include "PaperTileMapActor.h"
 #include "SceneView.h"
+#include "../Characters/ImmortalPlayerCharacter.h"
+#include "../UI/ImmortalDesktopPanelLayout.h"
+#include "GameFramework/PlayerController.h"
+#include "UnrealClient.h"
+
+bool UImmortalDesktopLocalPlayer::GetProjectionData(FViewport* Viewport,
+	FSceneViewProjectionData& ProjectionData, int32 StereoViewIndex) const
+{
+	if (!Super::GetProjectionData(Viewport, ProjectionData, StereoViewIndex)) return false;
+	const auto* Player = PlayerController ? Cast<AImmortalPlayerCharacter>(PlayerController->GetPawn()) : nullptr;
+	if (Player && (Player->IsManagementInterfaceOpen() || Player->IsAscensionScreenOpen()))
+	{
+		const FIntPoint ViewportSize = Viewport->GetSizeXY();
+		const int32 BattleHeight = FMath::Min(Player->GetDesktopCombatViewportHeight(), ViewportSize.Y);
+		// Rebuild the original battle-strip projection before embedding it in the
+		// taller surface. MaintainYFOV otherwise enlarges actors when menus open.
+		FMinimalViewInfo ViewInfo; GetViewPoint(ViewInfo);
+		FSceneViewProjectionData BattleData = ProjectionData;
+		BattleData.SetViewRectangle(FIntRect(0, 0, ViewportSize.X, BattleHeight));
+		FMinimalViewInfo::CalculateProjectionMatrixGivenView(ViewInfo, AspectRatioAxisConstraint, Viewport, BattleData);
+		ProjectionData.ProjectionMatrix = BattleData.ProjectionMatrix;
+		for (int32 Row = 0; Row < 4; ++Row)
+			ProjectionData.ProjectionMatrix.M[Row][1] *= double(BattleHeight) / FMath::Max(ViewportSize.Y, 1);
+		ImmortalDesktopPanelLayout::AnchorBattleProjection(ProjectionData.ProjectionMatrix,
+			ViewportSize.Y, BattleHeight);
+	}
+	return true;
+}
 
 FSceneView* UImmortalDesktopLocalPlayer::CalcSceneView(FSceneViewFamily* ViewFamily,
 	FVector& OutViewLocation, FRotator& OutViewRotation, FViewport* Viewport,

@@ -9,6 +9,8 @@ class IMMORTALPATH_API UImmortalDesktopLocalPlayer : public ULocalPlayer
 {
 	GENERATED_BODY()
 public:
+	virtual bool GetProjectionData(FViewport* Viewport, FSceneViewProjectionData& ProjectionData,
+		int32 StereoViewIndex = INDEX_NONE) const override;
 	virtual FSceneView* CalcSceneView(FSceneViewFamily* ViewFamily,
 		FVector& OutViewLocation, FRotator& OutViewRotation, FViewport* Viewport,
 		FViewElementDrawer* ViewDrawer = nullptr, int32 StereoViewIndex = INDEX_NONE) override;

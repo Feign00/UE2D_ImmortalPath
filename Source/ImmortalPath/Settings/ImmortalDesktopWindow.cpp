@@ -114,11 +114,27 @@ bool ImmortalDesktopWindow::ApplyTransparency(UWorld* World, const bool bEnabled
 					const int32 Index = Height > 16 && Width > 16 ? 16*Width+Width-16 : INDEX_NONE;
 					const bool bSourceKey = Pixels.IsValidIndex(Index) && Pixels[Index].R == 255
 						&& Pixels[Index].G == 0 && Pixels[Index].B == 255;
-					POINT Foreground = {50,50}; ClientToScreen(Handle, &Foreground);
+					// Expanded panels leave (50,50) transparent. Find a stable solid
+					// source patch instead of mistaking intentional desktop space for failure.
+					int32 ForegroundIndex = INDEX_NONE;
+					POINT Foreground = {};
+					for (int32 Y = 24; Y < Height - 24 && ForegroundIndex == INDEX_NONE; Y += 16)
+						for (int32 X = 24; X < Width - 24; X += 16)
+						{
+							const int32 Candidate = Y * Width + X;
+							const FColor Color = Pixels[Candidate];
+							if (Color.R == 255 && Color.G == 0 && Color.B == 255) continue;
+							if (Color != Pixels[Candidate-2] || Color != Pixels[Candidate+2]
+								|| Color != Pixels[Candidate-2*Width] || Color != Pixels[Candidate+2*Width]) continue;
+							ForegroundIndex = Candidate;
+							RECT Bounds = {}; GetClientRect(Handle, &Bounds);
+							Foreground = { X * Bounds.right / Width, Y * Bounds.bottom / Height };
+							break;
+						}
+					ClientToScreen(Handle, &Foreground);
 					HDC Screen = GetDC(nullptr);
 					const COLORREF ForegroundColor = Screen ? GetPixel(Screen, Foreground.x, Foreground.y) : CLR_INVALID;
 					if (Screen) ReleaseDC(nullptr, Screen);
-					const int32 ForegroundIndex = 50*Width+50;
 					const bool bForegroundVisible = Pixels.IsValidIndex(ForegroundIndex)
 						&& ForegroundColor == RGB(Pixels[ForegroundIndex].R, Pixels[ForegroundIndex].G, Pixels[ForegroundIndex].B);
 					UE_LOG(LogTemp, Display, TEXT("Desktop composition audit: sourceKey=%s nativeKey=%s desktopVisible=%s foregroundVisible=%s"),

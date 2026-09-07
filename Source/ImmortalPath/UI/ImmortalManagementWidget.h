@@ -16,7 +16,7 @@ class UWidgetSwitcher;
 class UTexture2D;
 
 /**
- * Full 1707x320 management scene with a reserved navigation strip.
+	 * Inset 1707x320 management panel above the persistent desktop battle strip.
  *
  * The widget only changes UMG pages. It deliberately never pauses the world,
  * so the adventure map continues spawning monsters and resolving combat while
@@ -117,6 +117,9 @@ private:
 
 	UFUNCTION()
 	void HandleCaveSceneClicked();
+
+	UFUNCTION()
+	void HandleAscensionClicked();
 
 	UFUNCTION()
 	void HandleAdventureSceneClicked();
