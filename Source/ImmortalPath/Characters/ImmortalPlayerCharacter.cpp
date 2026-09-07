@@ -4964,6 +4964,7 @@ void AImmortalPlayerCharacter::BeginPlay()
 	}
 #endif
 	ImmortalPixelAnimationPreview::StartIfRequested(*this);
+	RunPixelPlayerIntegrationFixture();
 }
 
 void AImmortalPlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
@@ -12370,11 +12371,26 @@ void AImmortalPlayerCharacter::LoadMortalRealmAnimationSet()
 		return;
 	}
 
-	MortalRealmIdleFlipbook = MortalRealmIdleFlipbookAsset.LoadSynchronous();
-	MortalRealmMoveFlipbook = MortalRealmMoveFlipbookAsset.LoadSynchronous();
-	MortalRealmAttackFlipbook = MortalRealmAttackFlipbookAsset.LoadSynchronous();
-	MortalRealmHurtFlipbook = MortalRealmHurtFlipbookAsset.LoadSynchronous();
-	MortalRealmDeathFlipbook = MortalRealmDeathFlipbookAsset.LoadSynchronous();
+	TArray<UPaperFlipbook*> PixelClips;
+	bUsingDesktopPixelPlayer = bUseDesktopPixelPlayer && DesktopPixelPlayerAssets.LoadComplete(PixelClips);
+	if (bUsingDesktopPixelPlayer)
+	{
+		MortalRealmIdleFlipbook = PixelClips[0];
+		MortalRealmMoveFlipbook = PixelClips[1];
+		MortalRealmAttackFlipbook = PixelClips[2];
+		MortalRealmHurtFlipbook = PixelClips[3];
+		MortalRealmDeathFlipbook = PixelClips[4];
+	}
+	else
+	{
+		MortalRealmIdleFlipbook = MortalRealmIdleFlipbookAsset.LoadSynchronous();
+		MortalRealmMoveFlipbook = MortalRealmMoveFlipbookAsset.LoadSynchronous();
+		MortalRealmAttackFlipbook = MortalRealmAttackFlipbookAsset.LoadSynchronous();
+		MortalRealmHurtFlipbook = MortalRealmHurtFlipbookAsset.LoadSynchronous();
+		MortalRealmDeathFlipbook = MortalRealmDeathFlipbookAsset.LoadSynchronous();
+		if (bUseDesktopPixelPlayer) UE_LOG(LogTemp, Warning, TEXT("Pixel player family incomplete; using legacy family for all five actions."));
+	}
+	UE_LOG(LogTemp, Display, TEXT("Player animation family selected: %s"), bUsingDesktopPixelPlayer ? TEXT("DesktopPixelV2") : TEXT("Legacy"));
 	bMortalRealmOneShotAnimation = false;
 	ApplyMortalRealmSpritePresentation();
 	UpdateMortalRealmLocomotionAnimation();
@@ -12498,11 +12514,19 @@ void AImmortalPlayerCharacter::PlayMortalRealmAttackAnimation()
 	GetWorldTimerManager().ClearTimer(MortalRealmHurtAnimationTimerHandle);
 	bMortalRealmOneShotAnimation = true;
 	PlayMortalRealmFlipbook(MortalRealmAttackFlipbook, false);
+	float Duration = GetMortalRealmFlipbookDuration(MortalRealmAttackFlipbook, 0.67f);
+	if (bUsingDesktopPixelPlayer && GetSprite())
+	{
+		const auto Playback = ImmortalPixelPlayerTiming::Attack(Duration, MortalRealmAttackFlipbook->GetFramesPerSecond(), AttackWindup);
+		GetSprite()->SetPlayRate(Playback.Rate);
+		GetSprite()->SetPlaybackPosition(Playback.Start, false);
+		Duration = Playback.Duration;
+	}
 	GetWorldTimerManager().SetTimer(
 		MortalRealmAttackAnimationTimerHandle,
 		this,
 		&AImmortalPlayerCharacter::FinishMortalRealmOneShotAnimation,
-		GetMortalRealmFlipbookDuration(MortalRealmAttackFlipbook, 0.67f),
+		Duration,
 		false);
 }
 
@@ -12513,10 +12537,18 @@ void AImmortalPlayerCharacter::PlayMortalRealmHurtAnimation()
 		return;
 	}
 
+	if (bUsingDesktopPixelPlayer && GetWorldTimerManager().IsTimerActive(MortalRealmAttackAnimationTimerHandle))
+	{
+		// Damage is applied immediately; only its nonlethal visual reaction is deferred.
+		bPixelHurtQueued = true;
+		return;
+	}
 	const bool bAlreadyReacting = GetWorldTimerManager().IsTimerActive(MortalRealmHurtAnimationTimerHandle);
+	if (bUsingDesktopPixelPlayer && bAlreadyReacting) return;
 	GetWorldTimerManager().ClearTimer(MortalRealmAttackAnimationTimerHandle);
 	GetWorldTimerManager().ClearTimer(MortalRealmHurtAnimationTimerHandle);
 	bMortalRealmOneShotAnimation = true;
+	if (GetSprite()) GetSprite()->SetPlayRate(1.0f);
 	ImmortalAnimationPlayback::PlayHurtWithoutRestart(GetSprite(), MortalRealmHurtFlipbook, bAlreadyReacting);
 	GetWorldTimerManager().SetTimer(
 		MortalRealmHurtAnimationTimerHandle,
@@ -12528,6 +12560,7 @@ void AImmortalPlayerCharacter::PlayMortalRealmHurtAnimation()
 
 void AImmortalPlayerCharacter::PlayMortalRealmDeathAnimation()
 {
+	bPixelHurtQueued = false;
 	if (!bUseMortalRealmAnimationSet || !MortalRealmDeathFlipbook)
 	{
 		return;
@@ -12548,6 +12581,12 @@ void AImmortalPlayerCharacter::FinishMortalRealmOneShotAnimation()
 		return;
 	}
 
+	if (bUsingDesktopPixelPlayer && bPixelHurtQueued)
+	{
+		bPixelHurtQueued = false;
+		PlayMortalRealmHurtAnimation();
+		return;
+	}
 	bMortalRealmOneShotAnimation = false;
 	UpdateMortalRealmLocomotionAnimation();
 }
@@ -12563,6 +12602,7 @@ void AImmortalPlayerCharacter::PlayMortalRealmFlipbook(
 	}
 
 	SpriteComponent->SetFlipbook(Flipbook);
+	SpriteComponent->SetPlayRate(1.0f);
 	SpriteComponent->SetLooping(bLooping);
 	SpriteComponent->PlayFromStart();
 }
@@ -12830,7 +12870,8 @@ void AImmortalPlayerCharacter::TryAutoAttack()
 	BP_OnAutoAttackStarted(Target);
 	PlayMortalRealmAttackAnimation();
 
-	if (AttackWindup <= 0.0f)
+	const float Windup = ImmortalPixelPlayerTiming::SafeWindup(AttackWindup);
+	if (Windup <= UE_SMALL_NUMBER)
 	{
 		ResolvePendingAttack();
 		return;
@@ -12840,7 +12881,7 @@ void AImmortalPlayerCharacter::TryAutoAttack()
 		AttackWindupTimerHandle,
 		this,
 		&AImmortalPlayerCharacter::ResolvePendingAttack,
-		AttackWindup,
+		Windup,
 		false);
 }
 
@@ -12956,6 +12997,13 @@ float AImmortalPlayerCharacter::ApplyOutgoingDamage(AActor* Target, const float 
 
 void AImmortalPlayerCharacter::ResolvePendingAttack()
 {
+	if (!bAttackPending || bDead) return;
+	if (bUsingDesktopPixelPlayer && GetSprite() && GetSprite()->GetFlipbook() == MortalRealmAttackFlipbook)
+	{
+		// Timer ordering can precede the component tick. Never render a pre-contact pose at resolution.
+		const float Contact = 3.0f / MortalRealmAttackFlipbook->GetFramesPerSecond();
+		if (GetSprite()->GetPlaybackPosition() < Contact) GetSprite()->SetPlaybackPosition(Contact, false);
+	}
 	AActor* Target = CurrentAttackTarget.Get();
 	float DamageDealt = 0.0f;
 

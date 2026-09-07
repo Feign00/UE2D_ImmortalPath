@@ -25,6 +25,7 @@
 #include "../UI/ImmortalManagementTypes.h"
 #include "../WorldBoss/ImmortalWorldBossTypes.h"
 #include "PaperCharacter.h"
+#include "ImmortalPixelPlayerAssets.h"
 #include "ImmortalPlayerCharacter.generated.h"
 
 class AController;
@@ -1009,6 +1010,13 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Immortal Path|Animation")
 	bool bUseMortalRealmAnimationSet = true;
 
+	/** Use the entire new family, or fall back to the entire legacy family. Never mix. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Immortal Path|Animation")
+	bool bUseDesktopPixelPlayer = true;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Immortal Path|Animation")
+	FImmortalPixelPlayerAssets DesktopPixelPlayerAssets;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Immortal Path|Animation")
 	TSoftObjectPtr<UPaperFlipbook> MortalRealmIdleFlipbookAsset;
 
@@ -1252,6 +1260,7 @@ private:
 	FVector GetAutoAttackLocation(const AActor* Target) const;
 	void ResolvePendingAttack();
 	void LoadMortalRealmAnimationSet();
+	void RunPixelPlayerIntegrationFixture();
 	void ApplyMortalRealmSpritePresentation();
 	void UpdateMortalRealmLocomotionAnimation();
 	void PlayMortalRealmAttackAnimation();
@@ -1352,6 +1361,8 @@ private:
 	FTimerHandle CaveProductionTimerHandle;
 	bool bAttackPending = false;
 	bool bMortalRealmOneShotAnimation = false;
+	bool bUsingDesktopPixelPlayer = false;
+	bool bPixelHurtQueued = false;
 	bool bDeathCultivationRecoveryRequired = false;
 	bool bAdventureSuspendedForDeathRecovery = false;
 
