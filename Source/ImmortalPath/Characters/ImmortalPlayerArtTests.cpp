@@ -109,4 +109,37 @@ bool FImmortalDesktopPixelPreviewAssetsTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FImmortalDesktopPixelActionAssetsTest,
+	"ImmortalPath.Art.DesktopPixelActionAssets",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FImmortalDesktopPixelActionAssetsTest::RunTest(const FString& Parameters)
+{
+	for (const TCHAR* Name : { TEXT("Attack"), TEXT("Hurt"), TEXT("Death") })
+	{
+		const FString AssetName = FString::Printf(TEXT("FB_Player_Pixel_%s"), Name);
+		UPaperFlipbook* Clip = LoadObject<UPaperFlipbook>(nullptr,
+			*FString::Printf(TEXT("/Game/GAME/Asset/Player/desktop_pixel_v2/%s.%s"), *AssetName, *AssetName));
+		if (!TestNotNull(AssetName, Clip)) continue;
+		TestEqual(TEXT("Eight distinct action frames"), Clip->GetNumKeyFrames(), 8);
+		TestEqual(TEXT("Authored action speed"), Clip->GetFramesPerSecond(), FString(Name) == TEXT("Death") ? 10.0f : 12.0f);
+		TSet<const UPaperSprite*> UniqueSprites;
+		for (int32 Frame = 0; Frame < Clip->GetNumKeyFrames(); ++Frame)
+		{
+			const UPaperSprite* Sprite = Clip->GetKeyFrameChecked(Frame).Sprite;
+			if (!TestNotNull(TEXT("Sprite exists"), Sprite)) continue;
+			UniqueSprites.Add(Sprite);
+			TestEqual(TEXT("No repeated frame runs"), Clip->GetKeyFrameChecked(Frame).FrameRun, 1);
+			TestTrue(TEXT("Wide canvas keeps the extended sword"), Sprite->GetSourceSize().Equals(FVector2D(576, 512)));
+			TestTrue(TEXT("Atlas-local ground pivot"), (Sprite->GetPivotPosition() - Sprite->GetSourceUV()).Equals(FVector2D(220, 464)));
+			TestTrue(TEXT("Same world density as Idle/Move"), FMath::IsNearlyEqual(Sprite->GetPixelsPerUnrealUnit(), 2.56f));
+			if (TestNotNull(TEXT("Material exists"), Sprite->GetDefaultMaterial()))
+				TestEqual(TEXT("Masked desktop edges"), Sprite->GetDefaultMaterial()->GetBlendMode(), BLEND_Masked);
+		}
+		TestEqual(TEXT("Every pose is a separate sprite"), UniqueSprites.Num(), 8);
+	}
+	return true;
+}
+
 #endif

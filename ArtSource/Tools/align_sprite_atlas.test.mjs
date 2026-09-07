@@ -25,3 +25,12 @@ test('rejects bad manual anchors, scales and visible clipping', () => {
   const input = fixture(); input.set([255, 255, 255, 255], (1 * 8 + 3) * 4);
   assert.throws(() => alignRgba(input, 8, 4, settings), /clip/);
 });
+
+test('larger output canvas and explicit pose ordering do not duplicate frames', () => {
+  const result = alignRgba(fixture(), 8, 4, { ...settings, outputFrameSize: [6, 6], frameOrder: [1, 0] });
+  assert.equal(result.length, 12 * 6 * 4);
+  assert.deepEqual([...result.subarray((2 * 12 + 2) * 4, (2 * 12 + 2) * 4 + 4)], [70, 150, 210, 255]);
+  assert.deepEqual([...result.subarray((2 * 12 + 8) * 4, (2 * 12 + 8) * 4 + 4)], [90, 160, 200, 255]);
+  for (const frameOrder of [[0, 0], [1], [-1, 0], [0, 2]])
+    assert.throws(() => alignRgba(fixture(), 8, 4, { ...settings, frameOrder }));
+});

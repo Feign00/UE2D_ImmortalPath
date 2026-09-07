@@ -1,0 +1,144 @@
+{
+  "ImportGroups": [
+    {
+      "GroupName": "DesktopPixelPlayerAttack",
+      "bEnabled": true,
+      "Filenames": [
+        "ArtSource/MortalRealm/DesktopPixelV2/Player/attack-v1/atlas.png"
+      ],
+      "DestinationPath": "/Game/GAME/Asset/Player/desktop_pixel_v2/attack",
+      "DestinationName": "T_Player_Pixel_Attack",
+      "FactoryName": "TextureFactory",
+      "bReplaceExisting": true,
+      "TextureUsage": "Sprite",
+      "ExpectedFrameCount": 8,
+      "ExpectedWidth": 2304,
+      "ExpectedHeight": 1024,
+      "bCreateSprites": true,
+      "bSpriteSheet": true,
+      "SheetColumns": 4,
+      "SheetRows": 2,
+      "SheetFrameCount": 8,
+      "SpriteDestinationPath": "/Game/GAME/Asset/Player/desktop_pixel_v2/attack/sprites",
+      "SpriteName": "SP_Player_Pixel_Attack",
+      "PixelsPerUnrealUnit": 2.56,
+      "SourceUV": [
+        0,
+        0
+      ],
+      "SourceDimension": [
+        576,
+        512
+      ],
+      "PivotMode": "Custom",
+      "CustomPivot": [
+        220,
+        464
+      ],
+      "MaterialMode": "Masked"
+    },
+    {
+      "GroupName": "DesktopPixelPlayerHurt",
+      "bEnabled": true,
+      "Filenames": [
+        "ArtSource/MortalRealm/DesktopPixelV2/Player/hurt-v1/atlas.png"
+      ],
+      "DestinationPath": "/Game/GAME/Asset/Player/desktop_pixel_v2/hurt",
+      "DestinationName": "T_Player_Pixel_Hurt",
+      "FactoryName": "TextureFactory",
+      "bReplaceExisting": true,
+      "TextureUsage": "Sprite",
+      "ExpectedFrameCount": 8,
+      "ExpectedWidth": 2304,
+      "ExpectedHeight": 1024,
+      "bCreateSprites": true,
+      "bSpriteSheet": true,
+      "SheetColumns": 4,
+      "SheetRows": 2,
+      "SheetFrameCount": 8,
+      "SpriteDestinationPath": "/Game/GAME/Asset/Player/desktop_pixel_v2/hurt/sprites",
+      "SpriteName": "SP_Player_Pixel_Hurt",
+      "PixelsPerUnrealUnit": 2.56,
+      "SourceUV": [
+        0,
+        0
+      ],
+      "SourceDimension": [
+        576,
+        512
+      ],
+      "PivotMode": "Custom",
+      "CustomPivot": [
+        220,
+        464
+      ],
+      "MaterialMode": "Masked"
+    },
+    {
+      "GroupName": "DesktopPixelPlayerDeath",
+      "bEnabled": true,
+      "Filenames": [
+        "ArtSource/MortalRealm/DesktopPixelV2/Player/death-v1/atlas.png"
+      ],
+      "DestinationPath": "/Game/GAME/Asset/Player/desktop_pixel_v2/death",
+      "DestinationName": "T_Player_Pixel_Death",
+      "FactoryName": "TextureFactory",
+      "bReplaceExisting": true,
+      "TextureUsage": "Sprite",
+      "ExpectedFrameCount": 8,
+      "ExpectedWidth": 2304,
+      "ExpectedHeight": 1024,
+      "bCreateSprites": true,
+      "bSpriteSheet": true,
+      "SheetColumns": 4,
+      "SheetRows": 2,
+      "SheetFrameCount": 8,
+      "SpriteDestinationPath": "/Game/GAME/Asset/Player/desktop_pixel_v2/death/sprites",
+      "SpriteName": "SP_Player_Pixel_Death",
+      "PixelsPerUnrealUnit": 2.56,
+      "SourceUV": [
+        0,
+        0
+      ],
+      "SourceDimension": [
+        576,
+        512
+      ],
+      "PivotMode": "Custom",
+      "CustomPivot": [
+        220,
+        464
+      ],
+      "MaterialMode": "Masked"
+    }
+  ],
+  "FlipbookGroups": [
+    {
+      "GroupName": "DesktopPixelAttackFlipbook",
+      "bEnabled": true,
+      "SourceImportGroup": "DesktopPixelPlayerAttack",
+      "DestinationPath": "/Game/GAME/Asset/Player/desktop_pixel_v2",
+      "AssetName": "FB_Player_Pixel_Attack",
+      "FramesPerSecond": 12,
+      "FrameRun": 1
+    },
+    {
+      "GroupName": "DesktopPixelHurtFlipbook",
+      "bEnabled": true,
+      "SourceImportGroup": "DesktopPixelPlayerHurt",
+      "DestinationPath": "/Game/GAME/Asset/Player/desktop_pixel_v2",
+      "AssetName": "FB_Player_Pixel_Hurt",
+      "FramesPerSecond": 12,
+      "FrameRun": 1
+    },
+    {
+      "GroupName": "DesktopPixelDeathFlipbook",
+      "bEnabled": true,
+      "SourceImportGroup": "DesktopPixelPlayerDeath",
+      "DestinationPath": "/Game/GAME/Asset/Player/desktop_pixel_v2",
+      "AssetName": "FB_Player_Pixel_Death",
+      "FramesPerSecond": 10,
+      "FrameRun": 1
+    }
+  ]
+}

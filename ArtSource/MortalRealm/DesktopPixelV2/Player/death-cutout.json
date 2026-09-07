@@ -1,0 +1,9 @@
+{
+  "original": "sources/death-original-v1.png",
+  "originalSha256": "f1b6aa04a5de3b6b3b5ea6419282336d10e2c66c63a85d333e1e134caa1606d9",
+  "mask": "sources/death-alpha-v1.png",
+  "maskSha256": "c4d54bd16035456137982a4a4e2ec7b0ea95355d74660c86d3696dcca99741eb",
+  "paddingRight": 2,
+  "paddingBottom": 33,
+  "removeBrightBackdrop": false
+}

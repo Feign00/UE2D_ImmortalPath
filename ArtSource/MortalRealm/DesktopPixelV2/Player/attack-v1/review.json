@@ -1,0 +1,215 @@
+{
+  "sourceSha256": "6a9d870c09066ced6135694d79d678203f516b46249443e15988b4f9d9c38159",
+  "settings": {
+    "source": "sources/attack-cutout-v1.png",
+    "sourceSha256": "6a9d870c09066ced6135694d79d678203f516b46249443e15988b4f9d9c38159",
+    "columns": 4,
+    "rows": 2,
+    "outputFrameSize": [
+      576,
+      512
+    ],
+    "scale": 1.26,
+    "anchors": [
+      [
+        186,
+        414
+      ],
+      [
+        203,
+        414
+      ],
+      [
+        180,
+        414
+      ],
+      [
+        132,
+        414
+      ],
+      [
+        182,
+        327
+      ],
+      [
+        180,
+        327
+      ],
+      [
+        178,
+        333
+      ],
+      [
+        146,
+        333
+      ]
+    ],
+    "targetAnchor": [
+      220,
+      464
+    ],
+    "alphaThreshold": 128,
+    "bottomTolerance": 2,
+    "frameOrder": [
+      0,
+      1,
+      2,
+      4,
+      3,
+      5,
+      6,
+      7
+    ]
+  },
+  "report": {
+    "width": 2304,
+    "height": 1024,
+    "columns": 4,
+    "rows": 2,
+    "cellWidth": 576,
+    "cellHeight": 512,
+    "alphaThreshold": 128,
+    "bottomTolerance": 2,
+    "frames": [
+      {
+        "frame": 0,
+        "clear": 248736,
+        "partial": 0,
+        "opaque": 46176,
+        "solid": 46176,
+        "maxAlpha": 255,
+        "bounds": {
+          "left": 109,
+          "top": 64,
+          "right": 328,
+          "bottom": 464
+        },
+        "touchesCellEdge": false,
+        "maskedSha256": "32b5342f06aa783c48d3130dd0b9cdfa0fa7d117592dbe99fc09a52e4eda5398",
+        "sha256": "32b5342f06aa783c48d3130dd0b9cdfa0fa7d117592dbe99fc09a52e4eda5398"
+      },
+      {
+        "frame": 1,
+        "clear": 247060,
+        "partial": 0,
+        "opaque": 47852,
+        "solid": 47852,
+        "maxAlpha": 255,
+        "bounds": {
+          "left": 75,
+          "top": 104,
+          "right": 327,
+          "bottom": 464
+        },
+        "touchesCellEdge": false,
+        "maskedSha256": "c43e6cf8adfe0e9a9f62900382857935e41cb335f465d3a282ee3f94c9c43aa8",
+        "sha256": "c43e6cf8adfe0e9a9f62900382857935e41cb335f465d3a282ee3f94c9c43aa8"
+      },
+      {
+        "frame": 2,
+        "clear": 249243,
+        "partial": 0,
+        "opaque": 45669,
+        "solid": 45669,
+        "maxAlpha": 255,
+        "bounds": {
+          "left": 119,
+          "top": 23,
+          "right": 336,
+          "bottom": 464
+        },
+        "touchesCellEdge": false,
+        "maskedSha256": "de56834423a0c0ce79d6fbaf25582c0b9df9d90c968b4da04c514d18183f8434",
+        "sha256": "de56834423a0c0ce79d6fbaf25582c0b9df9d90c968b4da04c514d18183f8434"
+      },
+      {
+        "frame": 3,
+        "clear": 246581,
+        "partial": 0,
+        "opaque": 48331,
+        "solid": 48331,
+        "maxAlpha": 255,
+        "bounds": {
+          "left": 117,
+          "top": 75,
+          "right": 535,
+          "bottom": 464
+        },
+        "touchesCellEdge": false,
+        "maskedSha256": "f7c67d5c47f97f91e7a1d7301bd5f71bd84b1cd54e0a5723e816f1e1a097265b",
+        "sha256": "f7c67d5c47f97f91e7a1d7301bd5f71bd84b1cd54e0a5723e816f1e1a097265b"
+      },
+      {
+        "frame": 4,
+        "clear": 247216,
+        "partial": 0,
+        "opaque": 47696,
+        "solid": 47696,
+        "maxAlpha": 255,
+        "bounds": {
+          "left": 117,
+          "top": 122,
+          "right": 463,
+          "bottom": 464
+        },
+        "touchesCellEdge": false,
+        "maskedSha256": "189d3966e81da882667fa73850c5533728693ea99087967cebde9445ed7ee94a",
+        "sha256": "189d3966e81da882667fa73850c5533728693ea99087967cebde9445ed7ee94a"
+      },
+      {
+        "frame": 5,
+        "clear": 249268,
+        "partial": 0,
+        "opaque": 45644,
+        "solid": 45644,
+        "maxAlpha": 255,
+        "bounds": {
+          "left": 119,
+          "top": 100,
+          "right": 427,
+          "bottom": 464
+        },
+        "touchesCellEdge": false,
+        "maskedSha256": "70c1261c9717f25b9c4c80dfb6806a336966ed49a7d0a969f24928dcc3f40fa8",
+        "sha256": "70c1261c9717f25b9c4c80dfb6806a336966ed49a7d0a969f24928dcc3f40fa8"
+      },
+      {
+        "frame": 6,
+        "clear": 249651,
+        "partial": 0,
+        "opaque": 45261,
+        "solid": 45261,
+        "maxAlpha": 255,
+        "bounds": {
+          "left": 114,
+          "top": 67,
+          "right": 328,
+          "bottom": 464
+        },
+        "touchesCellEdge": false,
+        "maskedSha256": "c31cc038c99d80e2112062be8bd7c858ef883e50831689b7e1676a6a1ae29de6",
+        "sha256": "c31cc038c99d80e2112062be8bd7c858ef883e50831689b7e1676a6a1ae29de6"
+      },
+      {
+        "frame": 7,
+        "clear": 249293,
+        "partial": 0,
+        "opaque": 45619,
+        "solid": 45619,
+        "maxAlpha": 255,
+        "bounds": {
+          "left": 110,
+          "top": 67,
+          "right": 330,
+          "bottom": 464
+        },
+        "touchesCellEdge": false,
+        "maskedSha256": "d215dc67b6e8d32a93c2f036566bbc37cf338c3c8a738814ddb81572a9cf464b",
+        "sha256": "d215dc67b6e8d32a93c2f036566bbc37cf338c3c8a738814ddb81572a9cf464b"
+      }
+    ],
+    "silhouetteBottomSpread": 0,
+    "warnings": [],
+    "note": "Bounds are not anatomical foot anchors. Human visual/animation review is required."
+  }
+}

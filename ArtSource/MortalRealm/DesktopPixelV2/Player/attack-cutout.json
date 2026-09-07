@@ -1,0 +1,9 @@
+{
+  "original": "sources/attack-original-v1.png",
+  "originalSha256": "e13807ce22b785af2829099aa9e956c1592bf934221bdb05e45ef8197b1e0160",
+  "mask": "sources/attack-alpha-v1.png",
+  "maskSha256": "014311d550c5ec379f04fdf5965f14eae03bc85e69128df7fdc82d4cbaa9db2c",
+  "paddingRight": 2,
+  "paddingBottom": 33,
+  "removeBrightBackdrop": true
+}

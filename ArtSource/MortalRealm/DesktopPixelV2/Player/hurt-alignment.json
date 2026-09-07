@@ -1,0 +1,51 @@
+{
+  "source": "sources/hurt-cutout-v1.png",
+  "sourceSha256": "64c8cdce187c131378ec870b96c3e4caac394e89e99c6f9526444afa25f720fc",
+  "columns": 4,
+  "rows": 2,
+  "outputFrameSize": [
+    576,
+    512
+  ],
+  "scale": 1.08,
+  "anchors": [
+    [
+      225,
+      427
+    ],
+    [
+      209,
+      427
+    ],
+    [
+      205,
+      427
+    ],
+    [
+      184,
+      427
+    ],
+    [
+      214,
+      385
+    ],
+    [
+      177,
+      385
+    ],
+    [
+      187,
+      385
+    ],
+    [
+      182,
+      385
+    ]
+  ],
+  "targetAnchor": [
+    220,
+    464
+  ],
+  "alphaThreshold": 128,
+  "bottomTolerance": 2
+}

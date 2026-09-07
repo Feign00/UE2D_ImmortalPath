@@ -1,0 +1,51 @@
+{
+  "source": "sources/death-cutout-v1.png",
+  "sourceSha256": "3eb8553ddbcbd847c7483506c82f453a909eb05d2004423befcb4e4d5278cd86",
+  "columns": 4,
+  "rows": 2,
+  "outputFrameSize": [
+    576,
+    512
+  ],
+  "scale": 1.1,
+  "anchors": [
+    [
+      221,
+      426
+    ],
+    [
+      220,
+      426
+    ],
+    [
+      189,
+      426
+    ],
+    [
+      181,
+      426
+    ],
+    [
+      181,
+      318
+    ],
+    [
+      181,
+      324
+    ],
+    [
+      181,
+      330
+    ],
+    [
+      181,
+      331
+    ]
+  ],
+  "targetAnchor": [
+    220,
+    464
+  ],
+  "alphaThreshold": 128,
+  "bottomTolerance": 30
+}

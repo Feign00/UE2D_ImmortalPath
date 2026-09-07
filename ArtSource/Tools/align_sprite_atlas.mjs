@@ -10,14 +10,23 @@ export function alignRgba(data, width, height, settings) {
   const { columns, rows, anchors, targetAnchor, scale = 1, alphaThreshold = 128 } = settings;
   const original = auditRgba(data, width, height, columns, rows, { alphaThreshold });
   const { cellWidth: cw, cellHeight: ch } = original;
-  const pointInCell = p => Array.isArray(p) && p.length === 2
-    && p.every(Number.isInteger) && p[0] >= 0 && p[0] < cw && p[1] >= 0 && p[1] < ch;
-  if (!Array.isArray(anchors) || anchors.length !== columns * rows || !anchors.every(pointInCell)
-      || !pointInCell(targetAnchor) || !Number.isFinite(scale) || scale <= 0 || scale > 4) {
+  const [ow, oh] = settings.outputFrameSize ?? [cw, ch];
+  const frameOrder = settings.frameOrder ?? Array.from({ length: columns * rows }, (_, i) => i);
+  const pointInCell = (p, w, h) => Array.isArray(p) && p.length === 2
+    && p.every(Number.isInteger) && p[0] >= 0 && p[0] < w && p[1] >= 0 && p[1] < h;
+  if (![ow, oh].every(n => Number.isInteger(n) && n > 0 && n <= 4096)
+      || ow * oh * columns * rows > 16 * 1024 * 1024
+      || !Array.isArray(frameOrder) || frameOrder.length !== columns * rows
+      || new Set(frameOrder).size !== frameOrder.length
+      || !frameOrder.every(n => Number.isInteger(n) && n >= 0 && n < columns * rows)
+      || !Array.isArray(anchors) || anchors.length !== columns * rows || !anchors.every(p => pointInCell(p, cw, ch))
+      || !pointInCell(targetAnchor, ow, oh) || !Number.isFinite(scale) || scale <= 0 || scale > 4) {
     throw new Error('Supply one valid manual anchor per frame and a single scale for the whole clip.');
   }
-  const output = Buffer.alloc(data.length);
-  for (let frame = 0; frame < anchors.length; frame++) {
+  const outputWidth = ow * columns;
+  const output = Buffer.alloc(outputWidth * oh * rows * 4);
+  for (let outputFrame = 0; outputFrame < anchors.length; outputFrame++) {
+    const frame = frameOrder[outputFrame];
     const [ax, ay] = anchors[frame], [tx, ty] = targetAnchor;
     const originX = frame % columns * cw, originY = Math.floor(frame / columns) * ch;
     const offset = (x, y) => ((originY + y) * width + originX + x) * 4;
@@ -25,13 +34,14 @@ export function alignRgba(data, width, height, settings) {
     for (let y = 0; y < ch; y++) for (let x = 0; x < cw; x++) {
       if (data[offset(x, y) + 3] < alphaThreshold) continue;
       const dx = Math.round((x - ax) * scale + tx), dy = Math.round((y - ay) * scale + ty);
-      if (dx < 0 || dx >= cw || dy < 0 || dy >= ch) throw new Error(`Frame ${frame} would clip visible pixels.`);
+      if (dx < 0 || dx >= ow || dy < 0 || dy >= oh) throw new Error(`Frame ${frame} would clip visible pixels.`);
     }
     // Inverse nearest-neighbour sampling preserves aspect ratio and crisp pixel edges.
-    for (let y = 0; y < ch; y++) for (let x = 0; x < cw; x++) {
+    for (let y = 0; y < oh; y++) for (let x = 0; x < ow; x++) {
       const sx = Math.round((x - tx) / scale + ax), sy = Math.round((y - ty) / scale + ay);
       if (sx < 0 || sx >= cw || sy < 0 || sy >= ch) continue;
-      const source = offset(sx, sy), dest = offset(x, y);
+      const source = offset(sx, sy);
+      const dest = ((Math.floor(outputFrame / columns) * oh + y) * outputWidth + outputFrame % columns * ow + x) * 4;
       if (data[source + 3] < alphaThreshold) continue;
       output.set(data.subarray(source, source + 3), dest);
       output[dest + 3] = 255;
@@ -52,9 +62,11 @@ if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.ar
   if (sourceSha256 !== config.sourceSha256) throw new Error('Source image hash differs from the reviewed anchor configuration.');
   const { data, info } = await sharp(sourceBytes).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
   const aligned = alignRgba(data, info.width, info.height, config);
-  const report = auditRgba(aligned, info.width, info.height, config.columns, config.rows);
+  const [frameWidth, frameHeight] = config.outputFrameSize ?? [info.width / config.columns, info.height / config.rows];
+  const outputWidth = frameWidth * config.columns, outputHeight = frameHeight * config.rows;
+  const report = auditRgba(aligned, outputWidth, outputHeight, config.columns, config.rows, { bottomTolerance: config.bottomTolerance ?? 2 });
   if (report.warnings.length) throw new Error(`Aligned atlas failed QA: ${report.warnings.join(' ')}`);
-  const png = await sharp(aligned, { raw: { width: info.width, height: info.height, channels: 4 } }).png().toBuffer();
+  const png = await sharp(aligned, { raw: { width: outputWidth, height: outputHeight, channels: 4 } }).png().toBuffer();
   // Exclusive outputs: never overwrite either source artwork or an earlier revision.
   await mkdir(outDir, { recursive: false });
   await writeFile(path.join(outDir, 'atlas.png'), png, { flag: 'wx' });

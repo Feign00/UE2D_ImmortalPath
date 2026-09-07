@@ -1,0 +1,205 @@
+{
+  "sourceSha256": "3eb8553ddbcbd847c7483506c82f453a909eb05d2004423befcb4e4d5278cd86",
+  "settings": {
+    "source": "sources/death-cutout-v1.png",
+    "sourceSha256": "3eb8553ddbcbd847c7483506c82f453a909eb05d2004423befcb4e4d5278cd86",
+    "columns": 4,
+    "rows": 2,
+    "outputFrameSize": [
+      576,
+      512
+    ],
+    "scale": 1.1,
+    "anchors": [
+      [
+        221,
+        426
+      ],
+      [
+        220,
+        426
+      ],
+      [
+        189,
+        426
+      ],
+      [
+        181,
+        426
+      ],
+      [
+        181,
+        318
+      ],
+      [
+        181,
+        324
+      ],
+      [
+        181,
+        330
+      ],
+      [
+        181,
+        331
+      ]
+    ],
+    "targetAnchor": [
+      220,
+      464
+    ],
+    "alphaThreshold": 128,
+    "bottomTolerance": 30
+  },
+  "report": {
+    "width": 2304,
+    "height": 1024,
+    "columns": 4,
+    "rows": 2,
+    "cellWidth": 576,
+    "cellHeight": 512,
+    "alphaThreshold": 128,
+    "bottomTolerance": 30,
+    "frames": [
+      {
+        "frame": 0,
+        "clear": 242755,
+        "partial": 0,
+        "opaque": 52157,
+        "solid": 52157,
+        "maxAlpha": 255,
+        "bounds": {
+          "left": 112,
+          "top": 76,
+          "right": 339,
+          "bottom": 465
+        },
+        "touchesCellEdge": false,
+        "maskedSha256": "8e4688632409dcaf1a4244148aaed19a2992fb6481a90083c4e93f386b52780e",
+        "sha256": "8e4688632409dcaf1a4244148aaed19a2992fb6481a90083c4e93f386b52780e"
+      },
+      {
+        "frame": 1,
+        "clear": 244257,
+        "partial": 0,
+        "opaque": 50655,
+        "solid": 50655,
+        "maxAlpha": 255,
+        "bounds": {
+          "left": 100,
+          "top": 134,
+          "right": 351,
+          "bottom": 477
+        },
+        "touchesCellEdge": false,
+        "maskedSha256": "7810720967558c28991ef55b45bb26bd46c61bd2b68e697f16b9717bae8395ee",
+        "sha256": "7810720967558c28991ef55b45bb26bd46c61bd2b68e697f16b9717bae8395ee"
+      },
+      {
+        "frame": 2,
+        "clear": 250236,
+        "partial": 0,
+        "opaque": 44676,
+        "solid": 44676,
+        "maxAlpha": 255,
+        "bounds": {
+          "left": 96,
+          "top": 164,
+          "right": 366,
+          "bottom": 476
+        },
+        "touchesCellEdge": false,
+        "maskedSha256": "bdeffa82e69917a4d9feac3980efdeae8ffb5f0a465fcfc24857d9e05d70c5ee",
+        "sha256": "bdeffa82e69917a4d9feac3980efdeae8ffb5f0a465fcfc24857d9e05d70c5ee"
+      },
+      {
+        "frame": 3,
+        "clear": 251691,
+        "partial": 0,
+        "opaque": 43221,
+        "solid": 43221,
+        "maxAlpha": 255,
+        "bounds": {
+          "left": 77,
+          "top": 212,
+          "right": 384,
+          "bottom": 486
+        },
+        "touchesCellEdge": false,
+        "maskedSha256": "fa8df009cc15213ef2e2f2be532c584118e42d9ac1cdec1dc8011c1d1ed3c261",
+        "sha256": "fa8df009cc15213ef2e2f2be532c584118e42d9ac1cdec1dc8011c1d1ed3c261"
+      },
+      {
+        "frame": 4,
+        "clear": 250596,
+        "partial": 0,
+        "opaque": 44316,
+        "solid": 44316,
+        "maxAlpha": 255,
+        "bounds": {
+          "left": 88,
+          "top": 197,
+          "right": 410,
+          "bottom": 493
+        },
+        "touchesCellEdge": false,
+        "maskedSha256": "acd5a39d046326a27890722b814fef667e41f47c843e10e2cdfdbbc612eae486",
+        "sha256": "acd5a39d046326a27890722b814fef667e41f47c843e10e2cdfdbbc612eae486"
+      },
+      {
+        "frame": 5,
+        "clear": 253627,
+        "partial": 0,
+        "opaque": 41285,
+        "solid": 41285,
+        "maxAlpha": 255,
+        "bounds": {
+          "left": 70,
+          "top": 258,
+          "right": 437,
+          "bottom": 482
+        },
+        "touchesCellEdge": false,
+        "maskedSha256": "0504d52b6cf368ec39c77f73e2cd23d5ce0914b5ee8a0ee0357cf8dd6b52a038",
+        "sha256": "0504d52b6cf368ec39c77f73e2cd23d5ce0914b5ee8a0ee0357cf8dd6b52a038"
+      },
+      {
+        "frame": 6,
+        "clear": 257426,
+        "partial": 0,
+        "opaque": 37486,
+        "solid": 37486,
+        "maxAlpha": 255,
+        "bounds": {
+          "left": 36,
+          "top": 346,
+          "right": 448,
+          "bottom": 475
+        },
+        "touchesCellEdge": false,
+        "maskedSha256": "f76b32eec09db00a5bdaeb904cddd9b342db3b43bb84a87113228857965c82fc",
+        "sha256": "f76b32eec09db00a5bdaeb904cddd9b342db3b43bb84a87113228857965c82fc"
+      },
+      {
+        "frame": 7,
+        "clear": 256717,
+        "partial": 0,
+        "opaque": 38195,
+        "solid": 38195,
+        "maxAlpha": 255,
+        "bounds": {
+          "left": 31,
+          "top": 348,
+          "right": 458,
+          "bottom": 476
+        },
+        "touchesCellEdge": false,
+        "maskedSha256": "97014593f5cb736ba04e05ac6b0eec75085521a92985f704771640a2ab4cebdf",
+        "sha256": "97014593f5cb736ba04e05ac6b0eec75085521a92985f704771640a2ab4cebdf"
+      }
+    ],
+    "silhouetteBottomSpread": 28,
+    "warnings": [],
+    "note": "Bounds are not anatomical foot anchors. Human visual/animation review is required."
+  }
+}

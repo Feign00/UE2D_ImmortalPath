@@ -1,0 +1,9 @@
+{
+  "original": "sources/hurt-original-v1.png",
+  "originalSha256": "f2243c1190c6ff071847be755a0e1002e34bd66641b14479879d3b06427f9e25",
+  "mask": "sources/hurt-alpha-v1.png",
+  "maskSha256": "3f862199fbf34a2279f53bf8dc54f15870f316165fc6e7cd3725f838e91a80be",
+  "paddingRight": 2,
+  "paddingBottom": 33,
+  "removeBrightBackdrop": true
+}

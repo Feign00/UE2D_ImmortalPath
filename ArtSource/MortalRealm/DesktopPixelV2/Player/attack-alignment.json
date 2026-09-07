@@ -1,0 +1,61 @@
+{
+  "source": "sources/attack-cutout-v1.png",
+  "sourceSha256": "6a9d870c09066ced6135694d79d678203f516b46249443e15988b4f9d9c38159",
+  "columns": 4,
+  "rows": 2,
+  "outputFrameSize": [
+    576,
+    512
+  ],
+  "scale": 1.26,
+  "anchors": [
+    [
+      186,
+      414
+    ],
+    [
+      203,
+      414
+    ],
+    [
+      180,
+      414
+    ],
+    [
+      132,
+      414
+    ],
+    [
+      182,
+      327
+    ],
+    [
+      180,
+      327
+    ],
+    [
+      178,
+      333
+    ],
+    [
+      146,
+      333
+    ]
+  ],
+  "targetAnchor": [
+    220,
+    464
+  ],
+  "alphaThreshold": 128,
+  "bottomTolerance": 2,
+  "frameOrder": [
+    0,
+    1,
+    2,
+    4,
+    3,
+    5,
+    6,
+    7
+  ]
+}
