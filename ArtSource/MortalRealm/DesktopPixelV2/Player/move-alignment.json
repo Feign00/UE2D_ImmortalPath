@@ -1,0 +1,9 @@
+{
+  "source": "sources/move-alpha-v1.png",
+  "sourceSha256": "c59821a75b455fb6f952ffa6f6f66a8d770bcbb6ab2e67bfc4811190e06e5f49",
+  "columns": 4, "rows": 2, "alphaThreshold": 128,
+  "scale": 1,
+  "targetAnchor": [176, 464],
+  "anchors": [[232,464],[216,464],[192,464],[161,464],[232,433],[216,433],[192,433],[161,433]],
+  "reviewNote": "Manual ground anchors under the pelvis; preserve vertical compression and alternating foot positions. One scale for the entire move clip."
+}

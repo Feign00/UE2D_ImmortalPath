@@ -1,0 +1,9 @@
+{
+  "source": "sources/idle-alpha-v1.png",
+  "sourceSha256": "c9c46af24f9c475918abb154e04c69255a2b04aae03ae0f204fb592071d8db9b",
+  "columns": 4, "rows": 2, "alphaThreshold": 128,
+  "scale": 0.92,
+  "targetAnchor": [176, 464],
+  "anchors": [[207,491],[180,491],[175,491],[167,491],[207,465],[180,466],[175,466],[167,465]],
+  "reviewNote": "Manual midpoint of two planted boots; shared scale for all idle frames matches the move sheet framing. No per-frame stretch."
+}

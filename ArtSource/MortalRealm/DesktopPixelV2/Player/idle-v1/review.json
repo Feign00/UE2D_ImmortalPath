@@ -1,0 +1,201 @@
+{
+  "sourceSha256": "c9c46af24f9c475918abb154e04c69255a2b04aae03ae0f204fb592071d8db9b",
+  "settings": {
+    "source": "sources/idle-alpha-v1.png",
+    "sourceSha256": "c9c46af24f9c475918abb154e04c69255a2b04aae03ae0f204fb592071d8db9b",
+    "columns": 4,
+    "rows": 2,
+    "alphaThreshold": 128,
+    "scale": 0.92,
+    "targetAnchor": [
+      176,
+      464
+    ],
+    "anchors": [
+      [
+        207,
+        491
+      ],
+      [
+        180,
+        491
+      ],
+      [
+        175,
+        491
+      ],
+      [
+        167,
+        491
+      ],
+      [
+        207,
+        465
+      ],
+      [
+        180,
+        466
+      ],
+      [
+        175,
+        466
+      ],
+      [
+        167,
+        465
+      ]
+    ],
+    "reviewNote": "Manual midpoint of two planted boots; shared scale for all idle frames matches the move sheet framing. No per-frame stretch."
+  },
+  "report": {
+    "width": 1536,
+    "height": 1024,
+    "columns": 4,
+    "rows": 2,
+    "cellWidth": 384,
+    "cellHeight": 512,
+    "alphaThreshold": 128,
+    "bottomTolerance": 2,
+    "frames": [
+      {
+        "frame": 0,
+        "clear": 150613,
+        "partial": 0,
+        "opaque": 45995,
+        "solid": 45995,
+        "maxAlpha": 255,
+        "bounds": {
+          "left": 65,
+          "top": 60,
+          "right": 283,
+          "bottom": 464
+        },
+        "touchesCellEdge": false,
+        "maskedSha256": "2b5f302be304ace2a84e3988deb9c1aade7194a0fb8a4bfe496174ced17ddd7d",
+        "sha256": "2b5f302be304ace2a84e3988deb9c1aade7194a0fb8a4bfe496174ced17ddd7d"
+      },
+      {
+        "frame": 1,
+        "clear": 149590,
+        "partial": 0,
+        "opaque": 47018,
+        "solid": 47018,
+        "maxAlpha": 255,
+        "bounds": {
+          "left": 61,
+          "top": 60,
+          "right": 287,
+          "bottom": 464
+        },
+        "touchesCellEdge": false,
+        "maskedSha256": "f601cc522f2b3ebe69e531986ba60249ffb2554fd0d60cc12effb833304309e2",
+        "sha256": "f601cc522f2b3ebe69e531986ba60249ffb2554fd0d60cc12effb833304309e2"
+      },
+      {
+        "frame": 2,
+        "clear": 148925,
+        "partial": 0,
+        "opaque": 47683,
+        "solid": 47683,
+        "maxAlpha": 255,
+        "bounds": {
+          "left": 61,
+          "top": 60,
+          "right": 290,
+          "bottom": 464
+        },
+        "touchesCellEdge": false,
+        "maskedSha256": "c6245961796300412a2742478b6adf465d044c499ec4578ee912e555f85016a5",
+        "sha256": "c6245961796300412a2742478b6adf465d044c499ec4578ee912e555f85016a5"
+      },
+      {
+        "frame": 3,
+        "clear": 148295,
+        "partial": 0,
+        "opaque": 48313,
+        "solid": 48313,
+        "maxAlpha": 255,
+        "bounds": {
+          "left": 58,
+          "top": 60,
+          "right": 287,
+          "bottom": 464
+        },
+        "touchesCellEdge": false,
+        "maskedSha256": "ec773e17a332e27fff7144df1c6a2b1a19e9caebb889414d404c848bb0d038d9",
+        "sha256": "ec773e17a332e27fff7144df1c6a2b1a19e9caebb889414d404c848bb0d038d9"
+      },
+      {
+        "frame": 4,
+        "clear": 150403,
+        "partial": 0,
+        "opaque": 46205,
+        "solid": 46205,
+        "maxAlpha": 255,
+        "bounds": {
+          "left": 66,
+          "top": 62,
+          "right": 283,
+          "bottom": 464
+        },
+        "touchesCellEdge": false,
+        "maskedSha256": "3d765bd2a36ccabeaa33e21fe110302e7d21f8b98a68499fd1f7e1b74559e02e",
+        "sha256": "3d765bd2a36ccabeaa33e21fe110302e7d21f8b98a68499fd1f7e1b74559e02e"
+      },
+      {
+        "frame": 5,
+        "clear": 149605,
+        "partial": 0,
+        "opaque": 47003,
+        "solid": 47003,
+        "maxAlpha": 255,
+        "bounds": {
+          "left": 64,
+          "top": 61,
+          "right": 287,
+          "bottom": 464
+        },
+        "touchesCellEdge": false,
+        "maskedSha256": "82c04c739593a56345c50cea7e4143e49a425fbc0d6bdb313868b12389c6c57b",
+        "sha256": "82c04c739593a56345c50cea7e4143e49a425fbc0d6bdb313868b12389c6c57b"
+      },
+      {
+        "frame": 6,
+        "clear": 149727,
+        "partial": 0,
+        "opaque": 46881,
+        "solid": 46881,
+        "maxAlpha": 255,
+        "bounds": {
+          "left": 60,
+          "top": 65,
+          "right": 290,
+          "bottom": 464
+        },
+        "touchesCellEdge": false,
+        "maskedSha256": "57137dd2f6eabae1db350bb8de61edbd01ea67997c24c6d0a9343a0182f2ac14",
+        "sha256": "57137dd2f6eabae1db350bb8de61edbd01ea67997c24c6d0a9343a0182f2ac14"
+      },
+      {
+        "frame": 7,
+        "clear": 149823,
+        "partial": 0,
+        "opaque": 46785,
+        "solid": 46785,
+        "maxAlpha": 255,
+        "bounds": {
+          "left": 61,
+          "top": 66,
+          "right": 287,
+          "bottom": 464
+        },
+        "touchesCellEdge": false,
+        "maskedSha256": "cc9aaa7fed01170073a4dd46e68babae10c74e6c0f8ba11d0fb6c02f60d08791",
+        "sha256": "cc9aaa7fed01170073a4dd46e68babae10c74e6c0f8ba11d0fb6c02f60d08791"
+      }
+    ],
+    "silhouetteBottomSpread": 0,
+    "warnings": [],
+    "note": "Bounds are not anatomical foot anchors. Human visual/animation review is required."
+  }
+}

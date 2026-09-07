@@ -5,6 +5,7 @@
 
 #include "PaperFlipbook.h"
 #include "PaperSprite.h"
+#include "Materials/MaterialInterface.h"
 
 namespace
 {
@@ -76,6 +77,35 @@ bool FImmortalMortalPlayerAnimationSetTest::RunTest(const FString& Parameters)
 		TestEqual(TEXT("Ascension remains the original 17-frame sequence"), AscensionFlipbook->GetNumKeyFrames(), 17);
 	}
 
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FImmortalDesktopPixelPreviewAssetsTest,
+	"ImmortalPath.Art.DesktopPixelPreviewAssets",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FImmortalDesktopPixelPreviewAssetsTest::RunTest(const FString& Parameters)
+{
+	for (const TCHAR* Name : { TEXT("Idle"), TEXT("Move") })
+	{
+		const FString AssetName = FString::Printf(TEXT("FB_Player_Pixel_%s"), Name);
+		UPaperFlipbook* Clip = LoadObject<UPaperFlipbook>(nullptr,
+			*FString::Printf(TEXT("/Game/GAME/Asset/Player/desktop_pixel_v2/%s.%s"), *AssetName, *AssetName));
+		if (!TestNotNull(AssetName, Clip)) continue;
+		TestEqual(TEXT("Eight separately drawn frames"), Clip->GetNumKeyFrames(), 8);
+		TestEqual(TEXT("Preview timing is eight FPS"), Clip->GetFramesPerSecond(), 8.0f);
+		for (int32 Frame = 0; Frame < Clip->GetNumKeyFrames(); ++Frame)
+		{
+			const UPaperSprite* Sprite = Clip->GetKeyFrameChecked(Frame).Sprite;
+			if (!TestNotNull(TEXT("Sprite exists"), Sprite)) continue;
+			TestTrue(TEXT("Uniform cell"), Sprite->GetSourceSize().Equals(FVector2D(384, 512)));
+			TestTrue(TEXT("Atlas-local foot pivot"), (Sprite->GetPivotPosition() - Sprite->GetSourceUV()).Equals(FVector2D(176, 464)));
+			TestTrue(TEXT("Uniform physical scale"), FMath::IsNearlyEqual(Sprite->GetPixelsPerUnrealUnit(), 2.56f));
+			if (TestNotNull(TEXT("Material exists"), Sprite->GetDefaultMaterial()))
+				TestEqual(TEXT("Hard masked desktop edges"), Sprite->GetDefaultMaterial()->GetBlendMode(), BLEND_Masked);
+		}
+	}
 	return true;
 }
 

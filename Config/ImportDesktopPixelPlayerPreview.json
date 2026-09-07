@@ -1,0 +1,42 @@
+{
+  "ImportGroups": [
+    {
+      "GroupName": "DesktopPixelPlayerIdle",
+      "bEnabled": true,
+      "Filenames": ["ArtSource/MortalRealm/DesktopPixelV2/Player/idle-v1/atlas.png"],
+      "DestinationPath": "/Game/GAME/Asset/Player/desktop_pixel_v2/idle",
+      "DestinationName": "T_Player_Pixel_Idle",
+      "FactoryName": "TextureFactory", "bReplaceExisting": true,
+      "TextureUsage": "Sprite", "ExpectedFrameCount": 8,
+      "ExpectedWidth": 1536, "ExpectedHeight": 1024,
+      "bCreateSprites": true, "bSpriteSheet": true,
+      "SheetColumns": 4, "SheetRows": 2, "SheetFrameCount": 8,
+      "SpriteDestinationPath": "/Game/GAME/Asset/Player/desktop_pixel_v2/idle/sprites",
+      "SpriteName": "SP_Player_Pixel_Idle",
+      "PixelsPerUnrealUnit": 2.56,
+      "SourceUV": [0, 0], "SourceDimension": [384, 512],
+      "PivotMode": "Custom", "CustomPivot": [176, 464], "MaterialMode": "Masked"
+    },
+    {
+      "GroupName": "DesktopPixelPlayerMove",
+      "bEnabled": true,
+      "Filenames": ["ArtSource/MortalRealm/DesktopPixelV2/Player/move-v1/atlas.png"],
+      "DestinationPath": "/Game/GAME/Asset/Player/desktop_pixel_v2/move",
+      "DestinationName": "T_Player_Pixel_Move",
+      "FactoryName": "TextureFactory", "bReplaceExisting": true,
+      "TextureUsage": "Sprite", "ExpectedFrameCount": 8,
+      "ExpectedWidth": 1536, "ExpectedHeight": 1024,
+      "bCreateSprites": true, "bSpriteSheet": true,
+      "SheetColumns": 4, "SheetRows": 2, "SheetFrameCount": 8,
+      "SpriteDestinationPath": "/Game/GAME/Asset/Player/desktop_pixel_v2/move/sprites",
+      "SpriteName": "SP_Player_Pixel_Move",
+      "PixelsPerUnrealUnit": 2.56,
+      "SourceUV": [0, 0], "SourceDimension": [384, 512],
+      "PivotMode": "Custom", "CustomPivot": [176, 464], "MaterialMode": "Masked"
+    }
+  ],
+  "FlipbookGroups": [
+    { "GroupName": "DesktopPixelIdleFlipbook", "bEnabled": true, "SourceImportGroup": "DesktopPixelPlayerIdle", "DestinationPath": "/Game/GAME/Asset/Player/desktop_pixel_v2", "AssetName": "FB_Player_Pixel_Idle", "FramesPerSecond": 8.0, "FrameRun": 1 },
+    { "GroupName": "DesktopPixelMoveFlipbook", "bEnabled": true, "SourceImportGroup": "DesktopPixelPlayerMove", "DestinationPath": "/Game/GAME/Asset/Player/desktop_pixel_v2", "AssetName": "FB_Player_Pixel_Move", "FramesPerSecond": 8.0, "FrameRun": 1 }
+  ]
+}

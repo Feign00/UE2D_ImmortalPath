@@ -2,6 +2,7 @@
 
 #include "ImmortalPlayerCharacter.h"
 #include "ImmortalAnimationPlayback.h"
+#include "ImmortalPixelAnimationPreview.h"
 
 #include "../Combat/AutoAttackTarget.h"
 #include "../Save/ImmortalPathSaveGame.h"
@@ -4962,6 +4963,7 @@ void AImmortalPlayerCharacter::BeginPlay()
 			false);
 	}
 #endif
+	ImmortalPixelAnimationPreview::StartIfRequested(*this);
 }
 
 void AImmortalPlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
