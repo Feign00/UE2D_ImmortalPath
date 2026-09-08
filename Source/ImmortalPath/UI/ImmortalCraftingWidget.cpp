@@ -130,17 +130,17 @@ void UImmortalCraftingWidget::NativeOnInitialized()
 	StyleCraftingText(ItemNameText, 18, FLinearColor::White);
 	SetCraftingCanvasLayout(Canvas->AddChildToCanvas(ItemNameText), FVector2D(1010.0f, 42.0f), FVector2D(565.0f, 28.0f));
 	ItemStatsText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("CraftingItemStats"));
-	StyleCraftingText(ItemStatsText, 14, FLinearColor(0.84f, 0.88f, 0.94f));
+	StyleCraftingText(ItemStatsText, 16, FLinearColor(0.84f, 0.88f, 0.94f));
 	SetCraftingCanvasLayout(Canvas->AddChildToCanvas(ItemStatsText), FVector2D(1010.0f, 74.0f), FVector2D(290.0f, 75.0f));
 	AffixText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("CraftingAffixes"));
 	AffixText->SetAutoWrapText(true);
-	StyleCraftingText(AffixText, 13, FLinearColor(0.55f, 0.95f, 0.76f));
+	StyleCraftingText(AffixText, 16, FLinearColor(0.55f, 0.95f, 0.76f));
 	SetCraftingCanvasLayout(Canvas->AddChildToCanvas(AffixText), FVector2D(1010.0f, 150.0f), FVector2D(290.0f, 108.0f));
 	EnhancementCostText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("EnhancementCost"));
-	StyleCraftingText(EnhancementCostText, 12, FLinearColor(0.9f, 0.84f, 0.62f));
+	StyleCraftingText(EnhancementCostText, 15, FLinearColor(0.9f, 0.84f, 0.62f));
 	SetCraftingCanvasLayout(Canvas->AddChildToCanvas(EnhancementCostText), FVector2D(1320.0f, 48.0f), FVector2D(260.0f, 56.0f));
 	RefinementCostText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("RefinementCost"));
-	StyleCraftingText(RefinementCostText, 12, FLinearColor(0.9f, 0.84f, 0.62f));
+	StyleCraftingText(RefinementCostText, 15, FLinearColor(0.9f, 0.84f, 0.62f));
 	SetCraftingCanvasLayout(Canvas->AddChildToCanvas(RefinementCostText), FVector2D(1320.0f, 153.0f), FVector2D(260.0f, 56.0f));
 	EnhanceButton = WidgetTree->ConstructWidget<UButton>(UButton::StaticClass(), TEXT("EnhanceEquipmentButton"));
 	EnhanceButton->OnClicked.AddDynamic(this, &UImmortalCraftingWidget::HandleEnhanceClicked);
@@ -176,6 +176,9 @@ void UImmortalCraftingWidget::NativeOnInitialized()
 	ImmortalFeaturePageLayout::MakeScrollable(WidgetTree, ItemNameText);
 	ImmortalFeaturePageLayout::MakeScrollable(WidgetTree, EnhancementCostText);
 	ImmortalFeaturePageLayout::MakeScrollable(WidgetTree, RefinementCostText);
+	for (UScrollBox* List : {CastChecked<UScrollBox>(RecipeList->GetParent()),
+		CastChecked<UScrollBox>(EquipmentList->GetParent())})
+		ImmortalFeaturePageLayout::StyleScrollBox(List);
 }
 
 void UImmortalCraftingWidget::NativeTick(const FGeometry& MyGeometry, const float InDeltaTime)

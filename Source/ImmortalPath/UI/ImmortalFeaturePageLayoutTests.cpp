@@ -47,6 +47,10 @@ bool FImmortalFeatureScrollLayoutTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Adjacent actions keep their space"), After->GetSize(), FVector2D(430, 55));
 	TestEqual(TEXT("Layer order retained"), After->GetZOrder(), 3);
 	TestEqual(TEXT("Text cannot paint outside the region"), Scroll->GetClipping(), EWidgetClipping::ClipToBounds);
+	TestEqual(TEXT("Scrollbar remains compact"), Scroll->GetScrollbarThickness(), FVector2D(6, 6));
+	TestFalse(TEXT("No forced empty scrollbar track"), Scroll->IsAlwaysShowScrollbarTrack());
+	TestFalse(TEXT("Detail regions cannot overscroll past their content"), Scroll->IsAllowOverscroll());
+	TestEqual(TEXT("Bottom gradient cannot obscure text"), Scroll->GetWidgetStyle().BottomShadowBrush.DrawAs, ESlateBrushDrawType::NoDrawType);
 	TestEqual(TEXT("All detail lines retained"), Detail->GetText().ToString(), Content.ToString());
 	ImmortalFeaturePageLayout::MakeScrollable(Tree, Detail);
 	TestEqual(TEXT("Repeated application does not nest scroll boxes"), Detail->GetParent(), static_cast<UPanelWidget*>(Scroll));

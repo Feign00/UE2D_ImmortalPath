@@ -135,7 +135,7 @@ void UImmortalSectWidget::NativeOnInitialized()
 	USizeBox* RootSize = WidgetTree->ConstructWidget<USizeBox>(
 		USizeBox::StaticClass(), TEXT("SectScreenSize"));
 	RootSize->SetWidthOverride(1600.0f);
-	RootSize->SetHeightOverride(300.0f);
+	RootSize->SetHeightOverride(270.0f);
 	WidgetTree->RootWidget = RootSize;
 
 	UBorder* Background = WidgetTree->ConstructWidget<UBorder>(
@@ -151,13 +151,13 @@ void UImmortalSectWidget::NativeOnInitialized()
 	UTextBlock* Title = WidgetTree->ConstructWidget<UTextBlock>(
 		UTextBlock::StaticClass(), TEXT("SectScreenTitle"));
 	Title->SetText(FText::FromString(TEXT("宗门 [J]")));
-	StyleSectText(Title, 24, FLinearColor(0.87f, 0.71f, 1.0f, 1.0f));
+	StyleSectText(Title, 28, FLinearColor(0.87f, 0.71f, 1.0f, 1.0f));
 	SetSectLayout(Canvas->AddChildToCanvas(Title), FVector2D(18.0f, 3.0f), FVector2D(170.0f, 36.0f));
 
 	HeaderSummaryText = WidgetTree->ConstructWidget<UTextBlock>(
 		UTextBlock::StaticClass(), TEXT("SectHeaderSummary"));
 	HeaderSummaryText->SetAutoWrapText(true);
-	StyleSectText(HeaderSummaryText, 12, FLinearColor(0.93f, 0.88f, 0.70f, 1.0f), true);
+	StyleSectText(HeaderSummaryText, 15, FLinearColor(0.93f, 0.88f, 0.70f, 1.0f), true);
 	SetSectLayout(
 		Canvas->AddChildToCanvas(HeaderSummaryText),
 		FVector2D(184.0f, 1.0f),
@@ -181,7 +181,7 @@ void UImmortalSectWidget::NativeOnInitialized()
 	SetSectLayout(
 		Canvas->AddChildToCanvas(ChoicePanel),
 		FVector2D(8.0f, 42.0f),
-		FVector2D(330.0f, 250.0f));
+		FVector2D(330.0f, 220.0f));
 
 	UCanvasPanel* ChoiceCanvas = WidgetTree->ConstructWidget<UCanvasPanel>(
 		UCanvasPanel::StaticClass(), TEXT("SectChoiceCanvas"));
@@ -190,7 +190,7 @@ void UImmortalSectWidget::NativeOnInitialized()
 	UTextBlock* ChoiceTitle = WidgetTree->ConstructWidget<UTextBlock>(
 		UTextBlock::StaticClass(), TEXT("SectChoiceTitle"));
 	ChoiceTitle->SetText(FText::FromString(TEXT("四方宗门")));
-	StyleSectText(ChoiceTitle, 16, FLinearColor::White);
+	StyleSectText(ChoiceTitle, 18, FLinearColor::White);
 	SetSectLayout(
 		ChoiceCanvas->AddChildToCanvas(ChoiceTitle),
 		FVector2D(8.0f, 3.0f),
@@ -201,7 +201,7 @@ void UImmortalSectWidget::NativeOnInitialized()
 		UButton* SectButton = WidgetTree->ConstructWidget<UButton>(
 			UButton::StaticClass(), *FString::Printf(TEXT("SectChoiceButton%d"), SectIndex));
 		SectButton->SetStyle(MakeSectButtonStyle(
-			FVector2D(149.0f, 44.0f), FLinearColor(0.10f, 0.12f, 0.19f, 0.98f)));
+			FVector2D(149.0f, 38.0f), FLinearColor(0.10f, 0.12f, 0.19f, 0.98f)));
 		switch (SectIndex)
 		{
 		case 0: SectButton->OnClicked.AddDynamic(this, &UImmortalSectWidget::HandleSect0Clicked); break;
@@ -214,40 +214,40 @@ void UImmortalSectWidget::NativeOnInitialized()
 		const int32 Row = SectIndex / 2;
 		SetSectLayout(
 			ChoiceCanvas->AddChildToCanvas(SectButton),
-			FVector2D(8.0f + Column * 155.0f, 29.0f + Row * 48.0f),
-			FVector2D(149.0f, 44.0f));
+			FVector2D(8.0f + Column * 155.0f, 29.0f + Row * 42.0f),
+			FVector2D(149.0f, 38.0f));
 		SectButtons.Add(SectButton);
-		SectButtonLabels.Add(AddSectButtonLabel(WidgetTree, SectButton, TEXT("宗门"), 12));
+		SectButtonLabels.Add(AddSectButtonLabel(WidgetTree, SectButton, TEXT("宗门"), 15));
 	}
 
 	SelectedSectText = WidgetTree->ConstructWidget<UTextBlock>(
 		UTextBlock::StaticClass(), TEXT("SectSelectedDescription"));
 	SelectedSectText->SetAutoWrapText(true);
-	StyleSectText(SelectedSectText, 11, FLinearColor(0.85f, 0.87f, 0.96f, 1.0f));
+	StyleSectText(SelectedSectText, 16, FLinearColor(0.85f, 0.87f, 0.96f, 1.0f));
 	SetSectLayout(
 		ChoiceCanvas->AddChildToCanvas(SelectedSectText),
-		FVector2D(8.0f, 128.0f),
-		FVector2D(314.0f, 62.0f));
+		FVector2D(8.0f, 113.0f),
+		FVector2D(314.0f, 47.0f));
 
 	JoinButton = WidgetTree->ConstructWidget<UButton>(
 		UButton::StaticClass(), TEXT("SectJoinButton"));
 	JoinButton->SetStyle(MakeSectButtonStyle(
-		FVector2D(314.0f, 38.0f), FLinearColor(0.34f, 0.23f, 0.56f, 1.0f)));
+		FVector2D(314.0f, 32.0f), FLinearColor(0.34f, 0.23f, 0.56f, 1.0f)));
 	JoinButton->OnClicked.AddDynamic(this, &UImmortalSectWidget::HandleJoinClicked);
 	SetSectLayout(
 		ChoiceCanvas->AddChildToCanvas(JoinButton),
-		FVector2D(8.0f, 194.0f),
-		FVector2D(314.0f, 38.0f));
-	JoinButtonText = AddSectButtonLabel(WidgetTree, JoinButton, TEXT("加入所选宗门"), 13);
+		FVector2D(8.0f, 164.0f),
+		FVector2D(314.0f, 32.0f));
+	JoinButtonText = AddSectButtonLabel(WidgetTree, JoinButton, TEXT("加入所选宗门"), 16);
 
 	ResultText = WidgetTree->ConstructWidget<UTextBlock>(
 		UTextBlock::StaticClass(), TEXT("SectOperationResult"));
 	ResultText->SetAutoWrapText(false);
-	StyleSectText(ResultText, 10, FLinearColor(0.66f, 0.91f, 0.73f, 1.0f), true);
+	StyleSectText(ResultText, 14, FLinearColor(0.66f, 0.91f, 0.73f, 1.0f), true);
 	SetSectLayout(
 		ChoiceCanvas->AddChildToCanvas(ResultText),
-		FVector2D(8.0f, 233.0f),
-		FVector2D(314.0f, 15.0f));
+		FVector2D(8.0f, 198.0f),
+		FVector2D(314.0f, 20.0f));
 
 	UBorder* TaskPanel = WidgetTree->ConstructWidget<UBorder>(
 		UBorder::StaticClass(), TEXT("SectTaskPanel"));
@@ -256,7 +256,7 @@ void UImmortalSectWidget::NativeOnInitialized()
 	SetSectLayout(
 		Canvas->AddChildToCanvas(TaskPanel),
 		FVector2D(346.0f, 42.0f),
-		FVector2D(600.0f, 250.0f));
+		FVector2D(600.0f, 220.0f));
 
 	UCanvasPanel* TaskCanvas = WidgetTree->ConstructWidget<UCanvasPanel>(
 		UCanvasPanel::StaticClass(), TEXT("SectTaskCanvas"));
@@ -265,7 +265,7 @@ void UImmortalSectWidget::NativeOnInitialized()
 	UTextBlock* TaskPanelTitle = WidgetTree->ConstructWidget<UTextBlock>(
 		UTextBlock::StaticClass(), TEXT("SectTaskPanelTitle"));
 	TaskPanelTitle->SetText(FText::FromString(TEXT("每日宗门任务 · 完成后领取贡献")));
-	StyleSectText(TaskPanelTitle, 15, FLinearColor(0.70f, 0.89f, 1.0f, 1.0f));
+	StyleSectText(TaskPanelTitle, 18, FLinearColor(0.70f, 0.89f, 1.0f, 1.0f));
 	SetSectLayout(
 		TaskCanvas->AddChildToCanvas(TaskPanelTitle),
 		FVector2D(8.0f, 3.0f),
@@ -273,12 +273,12 @@ void UImmortalSectWidget::NativeOnInitialized()
 
 	for (int32 TaskIndex = 0; TaskIndex < VisibleTaskCount; ++TaskIndex)
 	{
-		const FVector2D CardPosition(6.0f, 30.0f + TaskIndex * 70.0f);
+		const FVector2D CardPosition(6.0f, 30.0f + TaskIndex * 62.0f);
 		UBorder* TaskBorder = WidgetTree->ConstructWidget<UBorder>(
 			UBorder::StaticClass(), *FString::Printf(TEXT("SectTaskBorder%d"), TaskIndex));
 		TaskBorder->SetBrushColor(FLinearColor(0.074f, 0.086f, 0.13f, 0.98f));
 		TaskBorder->SetPadding(FMargin(0.0f));
-		SetSectLayout(TaskCanvas->AddChildToCanvas(TaskBorder), CardPosition, FVector2D(588.0f, 65.0f));
+		SetSectLayout(TaskCanvas->AddChildToCanvas(TaskBorder), CardPosition, FVector2D(588.0f, 60.0f));
 		TaskBorders.Add(TaskBorder);
 
 		UCanvasPanel* CardCanvas = WidgetTree->ConstructWidget<UCanvasPanel>(
@@ -287,7 +287,7 @@ void UImmortalSectWidget::NativeOnInitialized()
 
 		UTextBlock* TaskTitle = WidgetTree->ConstructWidget<UTextBlock>(
 			UTextBlock::StaticClass(), *FString::Printf(TEXT("SectTaskTitle%d"), TaskIndex));
-		StyleSectText(TaskTitle, 13, FLinearColor::White);
+		StyleSectText(TaskTitle, 16, FLinearColor::White);
 		SetSectLayout(
 			CardCanvas->AddChildToCanvas(TaskTitle),
 			FVector2D(8.0f, 4.0f),
@@ -297,10 +297,10 @@ void UImmortalSectWidget::NativeOnInitialized()
 		UTextBlock* TaskDetail = WidgetTree->ConstructWidget<UTextBlock>(
 			UTextBlock::StaticClass(), *FString::Printf(TEXT("SectTaskDetail%d"), TaskIndex));
 		TaskDetail->SetAutoWrapText(true);
-		StyleSectText(TaskDetail, 11, FLinearColor(0.78f, 0.82f, 0.92f, 1.0f));
+		StyleSectText(TaskDetail, 14, FLinearColor(0.78f, 0.82f, 0.92f, 1.0f));
 		SetSectLayout(
 			CardCanvas->AddChildToCanvas(TaskDetail),
-			FVector2D(8.0f, 27.0f),
+			FVector2D(8.0f, 25.0f),
 			FVector2D(430.0f, 34.0f));
 		TaskDetailTexts.Add(TaskDetail);
 
@@ -317,10 +317,10 @@ void UImmortalSectWidget::NativeOnInitialized()
 		}
 		SetSectLayout(
 			CardCanvas->AddChildToCanvas(TaskButton),
-			FVector2D(448.0f, 14.0f),
+			FVector2D(448.0f, 10.0f),
 			FVector2D(132.0f, 38.0f));
 		TaskActionButtons.Add(TaskButton);
-		TaskActionLabels.Add(AddSectButtonLabel(WidgetTree, TaskButton, TEXT("领取"), 12));
+		TaskActionLabels.Add(AddSectButtonLabel(WidgetTree, TaskButton, TEXT("领取"), 15));
 	}
 
 	UBorder* OfferPanel = WidgetTree->ConstructWidget<UBorder>(
@@ -330,7 +330,7 @@ void UImmortalSectWidget::NativeOnInitialized()
 	SetSectLayout(
 		Canvas->AddChildToCanvas(OfferPanel),
 		FVector2D(954.0f, 42.0f),
-		FVector2D(638.0f, 250.0f));
+		FVector2D(638.0f, 220.0f));
 
 	UCanvasPanel* OfferCanvas = WidgetTree->ConstructWidget<UCanvasPanel>(
 		UCanvasPanel::StaticClass(), TEXT("SectOfferCanvas"));
@@ -339,7 +339,7 @@ void UImmortalSectWidget::NativeOnInitialized()
 	UTextBlock* OfferPanelTitle = WidgetTree->ConstructWidget<UTextBlock>(
 		UTextBlock::StaticClass(), TEXT("SectOfferPanelTitle"));
 	OfferPanelTitle->SetText(FText::FromString(TEXT("宗门宝库 · 贡献兑换 · 功法奖励")));
-	StyleSectText(OfferPanelTitle, 15, FLinearColor(1.0f, 0.80f, 0.48f, 1.0f));
+	StyleSectText(OfferPanelTitle, 18, FLinearColor(1.0f, 0.80f, 0.48f, 1.0f));
 	SetSectLayout(
 		OfferCanvas->AddChildToCanvas(OfferPanelTitle),
 		FVector2D(8.0f, 3.0f),
@@ -349,7 +349,7 @@ void UImmortalSectWidget::NativeOnInitialized()
 	{
 		const int32 Column = OfferIndex % 2;
 		const int32 Row = OfferIndex / 2;
-		const FVector2D CardPosition(6.0f + Column * 313.0f, 30.0f + Row * 104.0f);
+		const FVector2D CardPosition(6.0f + Column * 313.0f, 30.0f + Row * 94.0f);
 
 		UBorder* OfferBorder = WidgetTree->ConstructWidget<UBorder>(
 			UBorder::StaticClass(), *FString::Printf(TEXT("SectOfferBorder%d"), OfferIndex));
@@ -358,7 +358,7 @@ void UImmortalSectWidget::NativeOnInitialized()
 		SetSectLayout(
 			OfferCanvas->AddChildToCanvas(OfferBorder),
 			CardPosition,
-			FVector2D(306.0f, 98.0f));
+			FVector2D(306.0f, 90.0f));
 		OfferBorders.Add(OfferBorder);
 
 		UCanvasPanel* CardCanvas = WidgetTree->ConstructWidget<UCanvasPanel>(
@@ -367,7 +367,7 @@ void UImmortalSectWidget::NativeOnInitialized()
 
 		UTextBlock* OfferTitle = WidgetTree->ConstructWidget<UTextBlock>(
 			UTextBlock::StaticClass(), *FString::Printf(TEXT("SectOfferTitle%d"), OfferIndex));
-		StyleSectText(OfferTitle, 13, FLinearColor::White);
+		StyleSectText(OfferTitle, 16, FLinearColor::White);
 		SetSectLayout(
 			CardCanvas->AddChildToCanvas(OfferTitle),
 			FVector2D(8.0f, 4.0f),
@@ -377,11 +377,11 @@ void UImmortalSectWidget::NativeOnInitialized()
 		UTextBlock* OfferDetail = WidgetTree->ConstructWidget<UTextBlock>(
 			UTextBlock::StaticClass(), *FString::Printf(TEXT("SectOfferDetail%d"), OfferIndex));
 		OfferDetail->SetAutoWrapText(true);
-		StyleSectText(OfferDetail, 10, FLinearColor(0.86f, 0.80f, 0.92f, 1.0f));
+		StyleSectText(OfferDetail, 14, FLinearColor(0.86f, 0.80f, 0.92f, 1.0f));
 		SetSectLayout(
 			CardCanvas->AddChildToCanvas(OfferDetail),
-			FVector2D(8.0f, 27.0f),
-			FVector2D(290.0f, 34.0f));
+			FVector2D(8.0f, 25.0f),
+			FVector2D(290.0f, 28.0f));
 		OfferDetailTexts.Add(OfferDetail);
 
 		UButton* OfferButton = WidgetTree->ConstructWidget<UButton>(
@@ -398,14 +398,15 @@ void UImmortalSectWidget::NativeOnInitialized()
 		}
 		SetSectLayout(
 			CardCanvas->AddChildToCanvas(OfferButton),
-			FVector2D(166.0f, 64.0f),
+			FVector2D(166.0f, 57.0f),
 			FVector2D(132.0f, 29.0f));
 		OfferActionButtons.Add(OfferButton);
-		OfferActionLabels.Add(AddSectButtonLabel(WidgetTree, OfferButton, TEXT("兑换"), 11));
+		OfferActionLabels.Add(AddSectButtonLabel(WidgetTree, OfferButton, TEXT("兑换"), 15));
 	}
 
 	RefreshFromPlayer();
 	ImmortalFeaturePageLayout::MakeScrollable(WidgetTree, SelectedSectText);
+	ImmortalFeaturePageLayout::MakeScrollable(WidgetTree, ResultText);
 	for (UTextBlock* Detail : TaskDetailTexts) ImmortalFeaturePageLayout::MakeScrollable(WidgetTree, Detail);
 	for (UTextBlock* Detail : OfferDetailTexts) ImmortalFeaturePageLayout::MakeScrollable(WidgetTree, Detail);
 }
@@ -594,7 +595,8 @@ void UImmortalSectWidget::RefreshSectChoices()
 		SectButtons[SectIndex]->SetIsEnabled(!State.HasJoined());
 		SectButtonLabels[SectIndex]->SetColorAndOpacity(FSlateColor(
 			bSelected ? FLinearColor::White : Definition.DisplayColor.GetClamped(0.56f, 1.0f)));
-		SectButtonLabels[SectIndex]->SetText(FText::FromString(FString::Printf(
+		SectButtonLabels[SectIndex]->SetText(Definition.DisplayName);
+		SectButtons[SectIndex]->SetToolTipText(FText::FromString(FString::Printf(
 			TEXT("%s\n%s"),
 			*Definition.DisplayName.ToString(),
 			State.HasJoined()
@@ -718,7 +720,7 @@ void UImmortalSectWidget::RefreshTaskCards()
 		TaskTitleTexts[TaskIndex]->SetText(FText::FromString(FString::Printf(
 			TEXT("%d. %s"), TaskIndex + 1, *Definition->DisplayName.ToString())));
 		TaskDetailTexts[TaskIndex]->SetText(FText::FromString(FString::Printf(
-			TEXT("%s\n进度 %d/%d · 奖励 %d贡献"),
+			TEXT("%s · %d/%d · %d贡献"),
 			*Definition->Description.ToString(),
 			VisibleProgress,
 			TargetAmount,
@@ -743,8 +745,7 @@ void UImmortalSectWidget::RefreshTaskCards()
 		TaskActionButtons[TaskIndex]->SetIsEnabled(Evaluation.bCanClaim);
 		if (Evaluation.bCanClaim)
 		{
-			TaskActionLabels[TaskIndex]->SetText(FText::FromString(FString::Printf(
-				TEXT("领取 +%d贡献"), Definition->ContributionReward)));
+			TaskActionLabels[TaskIndex]->SetText(FText::FromString(TEXT("领取")));
 		}
 		else if (bClaimed)
 		{
@@ -834,7 +835,7 @@ void UImmortalSectWidget::RefreshOfferCards()
 				TEXT(" · 累计需%lld"), Definition->RequiredLifetimeContribution);
 		}
 		OfferDetailTexts[OfferIndex]->SetText(FText::FromString(FString::Printf(
-			TEXT("%s\n%s"), *Definition->Description.ToString(), *Rules)));
+			TEXT("%s\n%s"), *Rules, *Definition->Description.ToString())));
 		OfferBorders[OfferIndex]->SetBrushColor(Evaluation.bCanExchange
 			? FLinearColor(0.16f, 0.105f, 0.18f, 0.98f)
 			: FLinearColor(0.075f, 0.064f, 0.090f, 0.98f));
@@ -843,7 +844,7 @@ void UImmortalSectWidget::RefreshOfferCards()
 		FString ActionLabel;
 		if (Evaluation.bCanExchange)
 		{
-			ActionLabel = FString::Printf(TEXT("兑换 -%d贡献"), Definition->ContributionCost);
+			ActionLabel = TEXT("兑换");
 		}
 		else if (Evaluation.bClockRollbackDetected)
 		{

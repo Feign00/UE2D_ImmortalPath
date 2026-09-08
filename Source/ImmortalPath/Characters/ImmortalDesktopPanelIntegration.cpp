@@ -4,10 +4,16 @@
 #include "../UI/ImmortalDesktopPanelLayout.h"
 #include "../UI/ImmortalAlchemyWidget.h"
 #include "../UI/ImmortalCraftingWidget.h"
+#include "../UI/ImmortalSectWidget.h"
+#include "../UI/ImmortalFarmingWidget.h"
 #include "Blueprint/WidgetTree.h"
 #include "Components/Button.h"
 #include "Components/Image.h"
 #include "Components/VerticalBox.h"
+#include "Components/CanvasPanel.h"
+#include "Components/CanvasPanelSlot.h"
+#include "Components/SizeBox.h"
+#include "Components/TextBlock.h"
 #include "Engine/World.h"
 #include "Kismet/GameplayStatics.h"
 #include "Misc/CommandLine.h"
@@ -112,6 +118,27 @@ void AImmortalPlayerCharacter::RunDesktopPanelFixture()
 				&& PlayerManagementWidget->GetActiveFeature() == Page);
 		});
 		At(4.0f + Index, [this, Shot, Index, Page, Check] {
+			if (Page == EImmortalManagementFeature::Sect || Page == EImmortalManagementFeature::Farming)
+			{
+				UUserWidget* ReflowPage = Page == EImmortalManagementFeature::Sect
+					? static_cast<UUserWidget*>(PlayerSectWidget.Get()) : static_cast<UUserWidget*>(PlayerFarmingWidget.Get());
+				USizeBox* Root = Cast<USizeBox>(ReflowPage->WidgetTree->RootWidget);
+				Check(TEXT("reflow page matches 270px management content height"), Root && Root->GetHeightOverride() == 270);
+				bool bBounded = true;
+				bool bReadable = true;
+				ReflowPage->WidgetTree->ForEachWidget([&](UWidget* Widget)
+				{
+					if (UTextBlock* Text = Cast<UTextBlock>(Widget))
+						if (Text->GetVisibility() != ESlateVisibility::Collapsed) bReadable &= Text->GetFont().Size >= 14;
+					if (UCanvasPanelSlot* Slot = Cast<UCanvasPanelSlot>(Widget->Slot))
+					{
+						const FVector2D ParentSize = Widget->GetParent()->GetCachedGeometry().GetLocalSize();
+						const FVector2D Start = Slot->GetPosition(), End = Start + Slot->GetSize();
+						bBounded &= Start.X >= 0 && Start.Y >= 0 && End.X <= ParentSize.X + 1 && End.Y <= ParentSize.Y + 1;
+					}
+				});
+				Check(TEXT("reflow text uses at least 14pt without out-of-bounds controls"), bReadable && bBounded);
+			}
 			UUserWidget* DetailPage = nullptr;
 			const TCHAR* ListName = TEXT("");
 			if (Page == EImmortalManagementFeature::Alchemy)

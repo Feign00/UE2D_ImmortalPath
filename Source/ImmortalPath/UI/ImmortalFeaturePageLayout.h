@@ -11,6 +11,34 @@
 
 namespace ImmortalFeaturePageLayout
 {
+	inline void StyleScrollBox(UScrollBox* Scroll)
+	{
+		if (!Scroll) return;
+		FSlateBrush Track;
+		Track.DrawAs = ESlateBrushDrawType::Box;
+		Track.TintColor = FLinearColor(0.025f, 0.045f, 0.047f);
+		FSlateBrush Thumb = Track;
+		Thumb.TintColor = FLinearColor(0.32f, 0.53f, 0.47f);
+		FSlateBrush Highlight = Track;
+		Highlight.TintColor = FLinearColor(0.82f, 0.68f, 0.38f);
+		FScrollBarStyle Bar;
+		Bar.SetVerticalBackgroundImage(Track).SetHorizontalBackgroundImage(Track);
+		Bar.SetNormalThumbImage(Thumb).SetHoveredThumbImage(Highlight).SetDraggedThumbImage(Highlight);
+		Scroll->SetWidgetBarStyle(Bar);
+		Scroll->SetScrollbarThickness(FVector2D(6.0f, 6.0f));
+		Scroll->SetScrollbarPadding(FMargin(4.0f, 0.0f, 0.0f, 0.0f));
+		Scroll->SetAlwaysShowScrollbar(false);
+		Scroll->SetAlwaysShowScrollbarTrack(false);
+		Scroll->SetAllowOverscroll(false);
+		// No black gradient across the last readable line; the thumb indicates overflow.
+		FSlateBrush NoShadow;
+		NoShadow.DrawAs = ESlateBrushDrawType::NoDrawType;
+		FScrollBoxStyle Box;
+		Box.SetTopShadowBrush(NoShadow).SetBottomShadowBrush(NoShadow);
+		Box.SetLeftShadowBrush(NoShadow).SetRightShadowBrush(NoShadow);
+		Scroll->SetWidgetStyle(Box);
+	}
+
 	// Short action labels may contain explicit newlines, but must not auto-wrap
 	// against the desired width of a centered, not-yet-arranged button child.
 	inline void StabilizeButtonLabel(UButton* Button, UTextBlock* Text)
@@ -39,6 +67,7 @@ namespace ImmortalFeaturePageLayout
 		UScrollBox* Scroll = Tree->ConstructWidget<UScrollBox>(UScrollBox::StaticClass(),
 			FName(*(Text->GetName() + TEXT("Scroll"))));
 		Scroll->SetConsumeMouseWheel(EConsumeMouseWheel::WhenScrollingPossible);
+		StyleScrollBox(Scroll);
 		Scroll->SetClipping(EWidgetClipping::ClipToBounds);
 		UCanvasPanelSlot* ScrollSlot = Canvas->AddChildToCanvas(Scroll);
 		ScrollSlot->SetLayout(Layout);

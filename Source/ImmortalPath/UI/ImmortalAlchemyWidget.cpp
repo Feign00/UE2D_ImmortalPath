@@ -89,6 +89,7 @@ void UImmortalAlchemyWidget::NativeOnInitialized()
 	StyleText(RecipeTitle, 20, FLinearColor::White);
 	SetAlchemyCanvasLayout(Canvas->AddChildToCanvas(RecipeTitle), FVector2D(20.0f, 42.0f), FVector2D(120.0f, 26.0f));
 	UScrollBox* RecipeScroll = WidgetTree->ConstructWidget<UScrollBox>(UScrollBox::StaticClass(), TEXT("RecipeScroll"));
+	ImmortalFeaturePageLayout::StyleScrollBox(RecipeScroll);
 	SetAlchemyCanvasLayout(Canvas->AddChildToCanvas(RecipeScroll), FVector2D(18.0f, 69.0f), FVector2D(260.0f, 186.0f));
 	RecipeList = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass(), TEXT("RecipeList"));
 	RecipeScroll->AddChild(RecipeList);
@@ -98,7 +99,7 @@ void UImmortalAlchemyWidget::NativeOnInitialized()
 	SetAlchemyCanvasLayout(Canvas->AddChildToCanvas(RecipeNameText), FVector2D(300.0f, 45.0f), FVector2D(430.0f, 30.0f));
 	RecipeDescriptionText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("RecipeDescription"));
 	RecipeDescriptionText->SetAutoWrapText(true);
-	StyleText(RecipeDescriptionText, 15, FLinearColor(0.84f, 0.86f, 0.9f));
+	StyleText(RecipeDescriptionText, 16, FLinearColor(0.84f, 0.86f, 0.9f));
 	SetAlchemyCanvasLayout(Canvas->AddChildToCanvas(RecipeDescriptionText), FVector2D(300.0f, 77.0f), FVector2D(430.0f, 42.0f));
 	IngredientText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("IngredientText"));
 	IngredientText->SetAutoWrapText(true);
@@ -110,7 +111,7 @@ void UImmortalAlchemyWidget::NativeOnInitialized()
 	SetAlchemyCanvasLayout(Canvas->AddChildToCanvas(ChanceText), FVector2D(300.0f, 178.0f), FVector2D(430.0f, 28.0f));
 	RecipeEffectText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("RecipeEffectText"));
 	RecipeEffectText->SetAutoWrapText(true);
-	StyleText(RecipeEffectText, 14, FLinearColor(0.58f, 0.94f, 0.76f));
+	StyleText(RecipeEffectText, 16, FLinearColor(0.58f, 0.94f, 0.76f));
 	SetAlchemyCanvasLayout(Canvas->AddChildToCanvas(RecipeEffectText), FVector2D(300.0f, 208.0f), FVector2D(430.0f, 44.0f));
 
 	CraftButton = WidgetTree->ConstructWidget<UButton>(UButton::StaticClass(), TEXT("CraftButton"));
@@ -136,6 +137,7 @@ void UImmortalAlchemyWidget::NativeOnInitialized()
 	PillGrid = WidgetTree->ConstructWidget<UUniformGridPanel>(UUniformGridPanel::StaticClass(), TEXT("PillGrid"));
 	PillGrid->SetSlotPadding(FMargin(3.0f));
 	UScrollBox* PillScroll = WidgetTree->ConstructWidget<UScrollBox>(UScrollBox::StaticClass(), TEXT("PillInventoryScroll"));
+	ImmortalFeaturePageLayout::StyleScrollBox(PillScroll);
 	PillScroll->SetConsumeMouseWheel(EConsumeMouseWheel::WhenScrollingPossible);
 	PillScroll->SetClipping(EWidgetClipping::ClipToBounds);
 	SetAlchemyCanvasLayout(Canvas->AddChildToCanvas(PillScroll), FVector2D(980.0f, 70.0f), FVector2D(320.0f, 184.0f));
@@ -145,7 +147,7 @@ void UImmortalAlchemyWidget::NativeOnInitialized()
 	SetAlchemyCanvasLayout(Canvas->AddChildToCanvas(PillNameText), FVector2D(1320.0f, 54.0f), FVector2D(250.0f, 30.0f));
 	PillEffectText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("SelectedPillEffect"));
 	PillEffectText->SetAutoWrapText(true);
-	StyleText(PillEffectText, 15, FLinearColor(0.86f, 0.88f, 0.92f));
+	StyleText(PillEffectText, 16, FLinearColor(0.86f, 0.88f, 0.92f));
 	SetAlchemyCanvasLayout(Canvas->AddChildToCanvas(PillEffectText), FVector2D(1320.0f, 88.0f), FVector2D(250.0f, 96.0f));
 	UseButton = WidgetTree->ConstructWidget<UButton>(UButton::StaticClass(), TEXT("UsePillButton"));
 	UseButton->OnClicked.AddDynamic(this, &UImmortalAlchemyWidget::HandleUseClicked);
