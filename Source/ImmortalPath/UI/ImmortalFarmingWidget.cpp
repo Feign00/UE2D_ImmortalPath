@@ -1,6 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "ImmortalFarmingWidget.h"
+#include "ImmortalFeaturePageLayout.h"
+#include "ImmortalUITheme.h"
 
 #include "../Characters/ImmortalPlayerCharacter.h"
 #include "../Crafting/ImmortalCraftingTypes.h"
@@ -69,11 +71,8 @@ namespace
 
 	FButtonStyle MakeFarmingButtonStyle(const FVector2D Size, const FLinearColor& Tint)
 	{
-		FButtonStyle Style;
-		Style.SetNormal(MakeFarmingBrush(Size, Tint));
-		Style.SetHovered(MakeFarmingBrush(Size, (Tint * 1.16f).GetClamped()));
-		Style.SetPressed(MakeFarmingBrush(Size, (Tint * 0.76f).GetClamped()));
-		Style.SetDisabled(MakeFarmingBrush(Size, FLinearColor(0.075f, 0.085f, 0.078f, 0.90f)));
+		FButtonStyle Style = ImmortalUITheme::ButtonStyle();
+		Style.SetNormal(ImmortalUITheme::PanelBrush(Tint));
 		return Style;
 	}
 
@@ -89,6 +88,7 @@ namespace
 		Text->SetAutoWrapText(true);
 		StyleFarmingText(Text, FontSize, FLinearColor(1.0f, 0.92f, 0.66f, 1.0f), true);
 		Button->AddChild(Text);
+		ImmortalFeaturePageLayout::StabilizeButtonLabel(Button, Text);
 		return Text;
 	}
 
@@ -369,6 +369,9 @@ void UImmortalFarmingWidget::NativeOnInitialized()
 	SetFarmingLayout(PlotCanvas->AddChildToCanvas(FooterNote), FVector2D(8.0f, 213.0f), FVector2D(985.0f, 28.0f));
 
 	RefreshFromPlayer();
+	ImmortalFeaturePageLayout::MakeScrollable(WidgetTree, SelectedCropText);
+	ImmortalFeaturePageLayout::MakeScrollable(WidgetTree, ResultText);
+	for (UTextBlock* Detail : PlotDetailTexts) ImmortalFeaturePageLayout::MakeScrollable(WidgetTree, Detail);
 }
 
 void UImmortalFarmingWidget::NativeTick(const FGeometry& MyGeometry, const float InDeltaTime)

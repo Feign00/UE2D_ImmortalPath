@@ -3,6 +3,8 @@
 #include "ImmortalAlchemyRecipeSlotWidget.h"
 
 #include "ImmortalAlchemyWidget.h"
+#include "ImmortalFeaturePageLayout.h"
+#include "ImmortalUITheme.h"
 #include "../Alchemy/ImmortalAlchemyTypes.h"
 #include "Blueprint/WidgetTree.h"
 #include "Components/Button.h"
@@ -10,19 +12,6 @@
 #include "Components/TextBlock.h"
 #include "Engine/Texture2D.h"
 #include "Styling/SlateTypes.h"
-
-namespace
-{
-	FSlateBrush MakeRecipeBrush(const TCHAR* AssetPath, const FLinearColor& Tint)
-	{
-		FSlateBrush Brush;
-		Brush.DrawAs = ESlateBrushDrawType::Image;
-		Brush.ImageSize = FVector2D(230.0f, 68.0f);
-		Brush.TintColor = FSlateColor(Tint);
-		if (UTexture2D* Texture = LoadObject<UTexture2D>(nullptr, AssetPath)) Brush.SetResourceObject(Texture);
-		return Brush;
-	}
-}
 
 void UImmortalAlchemyRecipeSlotWidget::NativeOnInitialized()
 {
@@ -36,12 +25,12 @@ void UImmortalAlchemyRecipeSlotWidget::NativeOnInitialized()
 	Root->AddChild(Button);
 	Label = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("RecipeLabel"));
 	Label->SetJustification(ETextJustify::Center);
-	Label->SetAutoWrapText(true);
 	Label->SetShadowOffset(FVector2D(1.0f, 1.0f));
 	FSlateFontInfo Font = Label->GetFont();
 	Font.Size = 16;
 	Label->SetFont(Font);
 	Button->AddChild(Label);
+	ImmortalFeaturePageLayout::StabilizeButtonLabel(Button, Label);
 	RefreshAppearance();
 }
 
@@ -65,17 +54,7 @@ void UImmortalAlchemyRecipeSlotWidget::InitializeRecipe(
 void UImmortalAlchemyRecipeSlotWidget::RefreshAppearance()
 {
 	if (!Button || !Label) return;
-	const TCHAR* StatePath = bRecipeSelected
-		? TEXT("/Game/GAME/Asset/ui/inventory/slots/selected.selected")
-		: TEXT("/Game/GAME/Asset/ui/inventory/slots/normal.normal");
-	const FLinearColor Tint = bRecipeUnlocked ? FLinearColor::White : FLinearColor(0.45f, 0.45f, 0.48f, 0.8f);
-	const FSlateBrush Brush = MakeRecipeBrush(StatePath, Tint);
-	FButtonStyle Style;
-	Style.SetNormal(Brush);
-	Style.SetHovered(Brush);
-	Style.SetPressed(Brush);
-	Style.SetDisabled(Brush);
-	Button->SetStyle(Style);
+	Button->SetStyle(ImmortalUITheme::ButtonStyle(bRecipeSelected));
 	Button->SetIsEnabled(bRecipeUnlocked);
 
 	FImmortalPillDefinition Definition;

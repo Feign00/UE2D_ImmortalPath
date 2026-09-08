@@ -2,6 +2,8 @@
 
 #include "Blueprint/WidgetTree.h"
 #include "Components/Border.h"
+#include "Components/Button.h"
+#include "Components/ButtonSlot.h"
 #include "Components/CanvasPanel.h"
 #include "Components/CanvasPanelSlot.h"
 #include "Components/ScrollBox.h"
@@ -9,6 +11,22 @@
 
 namespace ImmortalFeaturePageLayout
 {
+	// Short action labels may contain explicit newlines, but must not auto-wrap
+	// against the desired width of a centered, not-yet-arranged button child.
+	inline void StabilizeButtonLabel(UButton* Button, UTextBlock* Text)
+	{
+		if (!Button || !Text) return;
+		Text->SetAutoWrapText(false);
+		Text->SetJustification(ETextJustify::Center);
+		Text->SetTextOverflowPolicy(ETextOverflowPolicy::Ellipsis);
+		if (UButtonSlot* Slot = Cast<UButtonSlot>(Text->Slot))
+		{
+			Slot->SetHorizontalAlignment(HAlign_Fill);
+			Slot->SetVerticalAlignment(VAlign_Center);
+			Slot->SetPadding(FMargin(4.0f, 0.0f));
+		}
+	}
+
 	// Preserve every line of variable-length stats without covering nearby actions.
 	inline void MakeScrollable(UWidgetTree* Tree, UTextBlock* Text)
 	{
@@ -16,10 +34,15 @@ namespace ImmortalFeaturePageLayout
 		UCanvasPanel* Canvas = Text ? Cast<UCanvasPanel>(Text->GetParent()) : nullptr;
 		if (!OriginalSlot || !Canvas) return;
 		const FAnchorData Layout = OriginalSlot->GetLayout();
+		const int32 ZOrder = OriginalSlot->GetZOrder();
 		Text->RemoveFromParent();
-		UScrollBox* Scroll = Tree->ConstructWidget<UScrollBox>(UScrollBox::StaticClass());
+		UScrollBox* Scroll = Tree->ConstructWidget<UScrollBox>(UScrollBox::StaticClass(),
+			FName(*(Text->GetName() + TEXT("Scroll"))));
 		Scroll->SetConsumeMouseWheel(EConsumeMouseWheel::WhenScrollingPossible);
-		Canvas->AddChildToCanvas(Scroll)->SetLayout(Layout);
+		Scroll->SetClipping(EWidgetClipping::ClipToBounds);
+		UCanvasPanelSlot* ScrollSlot = Canvas->AddChildToCanvas(Scroll);
+		ScrollSlot->SetLayout(Layout);
+		ScrollSlot->SetZOrder(ZOrder);
 		Text->SetAutoWrapText(true);
 		Scroll->AddChild(Text);
 	}

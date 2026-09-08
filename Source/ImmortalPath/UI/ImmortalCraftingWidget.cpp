@@ -2,6 +2,7 @@
 
 #include "ImmortalCraftingWidget.h"
 #include "ImmortalFeaturePageLayout.h"
+#include "ImmortalUITheme.h"
 
 #include "ImmortalCraftingEntryWidget.h"
 #include "../Characters/ImmortalPlayerCharacter.h"
@@ -20,16 +21,6 @@
 
 namespace
 {
-	FSlateBrush MakeCraftingBrush(const TCHAR* AssetPath, const FVector2D Size, const FLinearColor Tint = FLinearColor::White)
-	{
-		FSlateBrush Brush;
-		Brush.DrawAs = ESlateBrushDrawType::Image;
-		Brush.ImageSize = Size;
-		Brush.TintColor = FSlateColor(Tint);
-		if (UTexture2D* Texture = LoadObject<UTexture2D>(nullptr, AssetPath)) Brush.SetResourceObject(Texture);
-		return Brush;
-	}
-
 	void SetCraftingCanvasLayout(UCanvasPanelSlot* CanvasSlot, const FVector2D Position, const FVector2D Size)
 	{
 		if (!CanvasSlot) return;
@@ -50,14 +41,7 @@ namespace
 
 	FButtonStyle MakeCraftingButtonStyle(const FVector2D Size, const FLinearColor& Tint)
 	{
-		const FSlateBrush Brush = MakeCraftingBrush(
-			TEXT("/Game/GAME/Asset/ui/inventory/slots/normal.normal"), Size, Tint);
-		FButtonStyle Style;
-		Style.SetNormal(Brush);
-		Style.SetHovered(Brush);
-		Style.SetPressed(Brush);
-		Style.SetDisabled(Brush);
-		return Style;
+		return ImmortalUITheme::ButtonStyle();
 	}
 }
 
@@ -77,12 +61,6 @@ void UImmortalCraftingWidget::NativeOnInitialized()
 	UCanvasPanel* Canvas = WidgetTree->ConstructWidget<UCanvasPanel>(UCanvasPanel::StaticClass(), TEXT("CraftingCanvas"));
 	Root->AddChild(Canvas);
 	ImmortalFeaturePageLayout::AddReadabilityBackground(WidgetTree, Canvas);
-
-	UImage* Background = WidgetTree->ConstructWidget<UImage>(UImage::StaticClass(), TEXT("CraftingBackground"));
-	Background->SetBrush(MakeCraftingBrush(
-		TEXT("/Game/GAME/Asset/ui/inventory/panel_background.panel_background"), FVector2D(1600.0f, 270.0f),
-		FLinearColor(0.9f, 0.88f, 0.78f, 0.98f)));
-	SetCraftingCanvasLayout(Canvas->AddChildToCanvas(Background), FVector2D::ZeroVector, FVector2D(1600.0f, 270.0f));
 
 	UTextBlock* Title = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("CraftingTitle"));
 	Title->SetText(FText::FromString(TEXT("青云炼器炉")));
@@ -193,6 +171,11 @@ void UImmortalCraftingWidget::NativeOnInitialized()
 	ImmortalFeaturePageLayout::MakeScrollable(WidgetTree, AffixText);
 	ImmortalFeaturePageLayout::MakeScrollable(WidgetTree, ItemStatsText);
 	ImmortalFeaturePageLayout::MakeScrollable(WidgetTree, ResultText);
+	ImmortalFeaturePageLayout::MakeScrollable(WidgetTree, RecipeDescriptionText);
+	CastChecked<UCanvasPanelSlot>(ItemNameText->Slot)->SetSize(FVector2D(290.0f, 28.0f));
+	ImmortalFeaturePageLayout::MakeScrollable(WidgetTree, ItemNameText);
+	ImmortalFeaturePageLayout::MakeScrollable(WidgetTree, EnhancementCostText);
+	ImmortalFeaturePageLayout::MakeScrollable(WidgetTree, RefinementCostText);
 }
 
 void UImmortalCraftingWidget::NativeTick(const FGeometry& MyGeometry, const float InDeltaTime)
@@ -255,6 +238,7 @@ void UImmortalCraftingWidget::RebuildRecipeEntries()
 		Entry->InitializeRecipeEntry(this, RecipeId, Player->IsCraftingRecipeUnlocked(RecipeId), RecipeId == SelectedRecipeId);
 		RecipeList->AddChild(Entry);
 	}
+	RecipeList->ForceLayoutPrepass();
 }
 
 void UImmortalCraftingWidget::RebuildEquipmentEntries()
@@ -272,6 +256,7 @@ void UImmortalCraftingWidget::RebuildEquipmentEntries()
 		Entry->InitializeEquipmentEntry(this, Item, false, Item.ItemId == SelectedItemId);
 		EquipmentList->AddChild(Entry);
 	}
+	EquipmentList->ForceLayoutPrepass();
 }
 
 void UImmortalCraftingWidget::RefreshRecipeDetails()

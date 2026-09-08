@@ -2,9 +2,12 @@
 #if !UE_BUILD_SHIPPING
 #include "../UI/ImmortalManagementWidget.h"
 #include "../UI/ImmortalDesktopPanelLayout.h"
+#include "../UI/ImmortalAlchemyWidget.h"
+#include "../UI/ImmortalCraftingWidget.h"
 #include "Blueprint/WidgetTree.h"
 #include "Components/Button.h"
 #include "Components/Image.h"
+#include "Components/VerticalBox.h"
 #include "Engine/World.h"
 #include "Kismet/GameplayStatics.h"
 #include "Misc/CommandLine.h"
@@ -18,13 +21,27 @@ void AImmortalPlayerCharacter::RunDesktopPanelFixture()
 {
 #if !UE_BUILD_SHIPPING
 	const bool bBuildings = FParse::Param(FCommandLine::Get(), TEXT("ImmortalTestDesktopBuildings"));
-	if (!bBuildings && !FParse::Param(FCommandLine::Get(), TEXT("ImmortalTestDesktopPanels"))) return;
+	const bool bLayoutPreview = FParse::Param(FCommandLine::Get(), TEXT("ImmortalTestFeatureLayoutPreview"));
+	if (!bBuildings && !bLayoutPreview && !FParse::Param(FCommandLine::Get(), TEXT("ImmortalTestDesktopPanels"))) return;
 	FString UserDir;
 	if (!FParse::Value(FCommandLine::Get(), TEXT("UserDir="), UserDir)
 		|| !FPaths::IsUnderDirectory(FPaths::ConvertRelativePathToFull(UserDir),
 			FPaths::ConvertRelativePathToFull(FPaths::Combine(FPaths::ProjectDir(), TEXT("Saved/Automation/DesktopPanels")))))
 	{
 		UE_LOG(LogTemp, Error, TEXT("Desktop panel fixture refused: isolated UserDir required.")); return;
+	}
+	if (bLayoutPreview)
+	{
+		// Isolated, non-shipping visual fixture: enough rows to exercise the pill scroll area.
+		for (FName Recipe : UImmortalAlchemyLibrary::GetKnownRecipeIds())
+		{
+			AddPillInternal(Recipe, EImmortalPillQuality::Ordinary, 1);
+			AddPillInternal(Recipe, EImmortalPillQuality::Exceptional, 1);
+		}
+		++PillInventoryRevision;
+		InvulnerableUntilTime = GetWorld()->GetTimeSeconds() + 3600;
+		UE_LOG(LogTemp, Display, TEXT("Feature layout preview ready: %d pill stacks; manual navigation; isolated save."), PillInventory.Num());
+		return;
 	}
 	const auto Failures = MakeShared<int32>(0);
 	const auto Baseline = MakeShared<FVector2D>();
@@ -94,7 +111,28 @@ void AImmortalPlayerCharacter::RunDesktopPanelFixture()
 				&& GetWorldTimerManager().IsTimerActive(AutoAttackTimerHandle)
 				&& PlayerManagementWidget->GetActiveFeature() == Page);
 		});
-		At(4.0f + Index, [Shot, Index] { Shot(FString::Printf(TEXT("Page%d"), Index)); });
+		At(4.0f + Index, [this, Shot, Index, Page, Check] {
+			UUserWidget* DetailPage = nullptr;
+			const TCHAR* ListName = TEXT("");
+			if (Page == EImmortalManagementFeature::Alchemy)
+			{
+				PlayerAlchemyWidget->RefreshFromPlayer();
+				DetailPage = PlayerAlchemyWidget; ListName = TEXT("RecipeList");
+			}
+			else if (Page == EImmortalManagementFeature::Crafting)
+			{
+				PlayerCraftingWidget->RefreshFromPlayer();
+				DetailPage = PlayerCraftingWidget; ListName = TEXT("CraftingRecipeList");
+			}
+			if (DetailPage)
+			{
+				UVerticalBox* List = Cast<UVerticalBox>(DetailPage->WidgetTree->FindWidget(FName(ListName)));
+				bool bSized = List && List->GetChildrenCount() > 0;
+				if (List) for (UWidget* Row : List->GetAllChildren()) bSized &= Row->GetDesiredSize().Y >= 40;
+				Check(TEXT("rebuilt recipe rows have height in the same frame"), bSized);
+			}
+			Shot(FString::Printf(TEXT("Page%d"), Index));
+		});
 	}
 	if (bBuildings)
 	{

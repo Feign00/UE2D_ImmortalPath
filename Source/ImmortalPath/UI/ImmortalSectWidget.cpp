@@ -1,6 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "ImmortalSectWidget.h"
+#include "ImmortalFeaturePageLayout.h"
+#include "ImmortalUITheme.h"
 
 #include "../Characters/ImmortalPlayerCharacter.h"
 #include "../Maps/ImmortalMapTypes.h"
@@ -56,11 +58,8 @@ namespace
 
 	FButtonStyle MakeSectButtonStyle(const FVector2D Size, const FLinearColor& Tint)
 	{
-		FButtonStyle Style;
-		Style.SetNormal(MakeSectBrush(Size, Tint));
-		Style.SetHovered(MakeSectBrush(Size, (Tint * 1.16f).GetClamped()));
-		Style.SetPressed(MakeSectBrush(Size, (Tint * 0.76f).GetClamped()));
-		Style.SetDisabled(MakeSectBrush(Size, FLinearColor(0.075f, 0.075f, 0.085f, 0.92f)));
+		FButtonStyle Style = ImmortalUITheme::ButtonStyle();
+		Style.SetNormal(ImmortalUITheme::PanelBrush(Tint));
 		return Style;
 	}
 
@@ -76,6 +75,7 @@ namespace
 		Text->SetAutoWrapText(true);
 		StyleSectText(Text, FontSize, FLinearColor(1.0f, 0.91f, 0.66f, 1.0f), true);
 		Button->AddChild(Text);
+		ImmortalFeaturePageLayout::StabilizeButtonLabel(Button, Text);
 		return Text;
 	}
 
@@ -405,6 +405,9 @@ void UImmortalSectWidget::NativeOnInitialized()
 	}
 
 	RefreshFromPlayer();
+	ImmortalFeaturePageLayout::MakeScrollable(WidgetTree, SelectedSectText);
+	for (UTextBlock* Detail : TaskDetailTexts) ImmortalFeaturePageLayout::MakeScrollable(WidgetTree, Detail);
+	for (UTextBlock* Detail : OfferDetailTexts) ImmortalFeaturePageLayout::MakeScrollable(WidgetTree, Detail);
 }
 
 void UImmortalSectWidget::NativeTick(const FGeometry& MyGeometry, const float InDeltaTime)

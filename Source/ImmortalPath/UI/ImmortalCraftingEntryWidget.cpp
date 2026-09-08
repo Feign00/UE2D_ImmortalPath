@@ -3,6 +3,8 @@
 #include "ImmortalCraftingEntryWidget.h"
 
 #include "ImmortalCraftingWidget.h"
+#include "ImmortalFeaturePageLayout.h"
+#include "ImmortalUITheme.h"
 #include "../Crafting/ImmortalCraftingTypes.h"
 #include "Blueprint/WidgetTree.h"
 #include "Components/Button.h"
@@ -11,28 +13,11 @@
 #include "Engine/Texture2D.h"
 #include "Styling/SlateTypes.h"
 
-namespace
-{
-	FSlateBrush MakeCraftingEntryBrush(const FLinearColor& Tint)
-	{
-		FSlateBrush Brush;
-		Brush.DrawAs = ESlateBrushDrawType::Image;
-		Brush.ImageSize = FVector2D(250.0f, 44.0f);
-		Brush.TintColor = FSlateColor(Tint);
-		if (UTexture2D* Texture = LoadObject<UTexture2D>(nullptr,
-			TEXT("/Game/GAME/Asset/ui/inventory/slots/normal.normal")))
-		{
-			Brush.SetResourceObject(Texture);
-		}
-		return Brush;
-	}
-}
-
 void UImmortalCraftingEntryWidget::NativeOnInitialized()
 {
 	Super::NativeOnInitialized();
 	USizeBox* Root = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass(), TEXT("CraftingEntrySize"));
-	Root->SetWidthOverride(250.0f);
+	Root->SetWidthOverride(220.0f);
 	Root->SetHeightOverride(44.0f);
 	WidgetTree->RootWidget = Root;
 	EntryButton = WidgetTree->ConstructWidget<UButton>(UButton::StaticClass(), TEXT("CraftingEntryButton"));
@@ -46,6 +31,7 @@ void UImmortalCraftingEntryWidget::NativeOnInitialized()
 	Font.Size = 16;
 	EntryText->SetFont(Font);
 	EntryButton->AddChild(EntryText);
+	ImmortalFeaturePageLayout::StabilizeButtonLabel(EntryButton, EntryText);
 	RefreshAppearance();
 }
 
@@ -96,16 +82,8 @@ void UImmortalCraftingEntryWidget::InitializeEquipmentEntry(
 void UImmortalCraftingEntryWidget::RefreshAppearance()
 {
 	if (!EntryButton || !EntryText) return;
-	const FLinearColor Tint = bSelected
-		? FLinearColor(0.32f, 0.78f, 0.55f, 1.0f)
-		: FLinearColor(0.38f, 0.42f, 0.5f, bEnabled ? 0.86f : 0.45f);
-	const FSlateBrush Brush = MakeCraftingEntryBrush(Tint);
-	FButtonStyle Style;
-	Style.SetNormal(Brush);
-	Style.SetHovered(Brush);
-	Style.SetPressed(Brush);
-	Style.SetDisabled(Brush);
-	EntryButton->SetStyle(Style);
+	EntryButton->SetStyle(ImmortalUITheme::ButtonStyle(bSelected));
+	EntryButton->SetToolTipText(DisplayText);
 	EntryButton->SetIsEnabled(bEnabled);
 	EntryText->SetText(DisplayText);
 	EntryText->SetColorAndOpacity(FSlateColor(DisplayColor));
@@ -117,4 +95,3 @@ void UImmortalCraftingEntryWidget::HandleClicked()
 	if (bRecipeEntry) OwnerCrafting->SelectRecipe(RecipeId);
 	else OwnerCrafting->SelectEquipment(ItemId);
 }
-

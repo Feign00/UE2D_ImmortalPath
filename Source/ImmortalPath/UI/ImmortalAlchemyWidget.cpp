@@ -1,6 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "ImmortalAlchemyWidget.h"
+#include "ImmortalFeaturePageLayout.h"
+#include "ImmortalUITheme.h"
 
 #include "ImmortalAlchemyRecipeSlotWidget.h"
 #include "ImmortalPillSlotWidget.h"
@@ -20,16 +22,6 @@
 
 namespace
 {
-	FSlateBrush MakeAlchemyBrush(const TCHAR* AssetPath, const FVector2D Size, const FLinearColor Tint = FLinearColor::White)
-	{
-		FSlateBrush Brush;
-		Brush.DrawAs = ESlateBrushDrawType::Image;
-		Brush.ImageSize = Size;
-		Brush.TintColor = FSlateColor(Tint);
-		if (UTexture2D* Texture = LoadObject<UTexture2D>(nullptr, AssetPath)) Brush.SetResourceObject(Texture);
-		return Brush;
-	}
-
 	void SetAlchemyCanvasLayout(UCanvasPanelSlot* CanvasSlot, const FVector2D Position, const FVector2D Size)
 	{
 		if (!CanvasSlot) return;
@@ -50,14 +42,7 @@ namespace
 
 	FButtonStyle MakeTextButtonStyle(const FVector2D Size, const FLinearColor& Tint)
 	{
-		const FSlateBrush Brush = MakeAlchemyBrush(
-			TEXT("/Game/GAME/Asset/ui/inventory/slots/normal.normal"), Size, Tint);
-		FButtonStyle Style;
-		Style.SetNormal(Brush);
-		Style.SetHovered(Brush);
-		Style.SetPressed(Brush);
-		Style.SetDisabled(Brush);
-		return Style;
+		return ImmortalUITheme::ButtonStyle();
 	}
 }
 
@@ -77,11 +62,7 @@ void UImmortalAlchemyWidget::NativeOnInitialized()
 	UCanvasPanel* Canvas = WidgetTree->ConstructWidget<UCanvasPanel>(UCanvasPanel::StaticClass(), TEXT("AlchemyCanvas"));
 	Root->AddChild(Canvas);
 
-	UImage* Background = WidgetTree->ConstructWidget<UImage>(UImage::StaticClass(), TEXT("AlchemyBackground"));
-	Background->SetBrush(MakeAlchemyBrush(
-		TEXT("/Game/GAME/Asset/ui/inventory/panel_background.panel_background"), FVector2D(1600.0f, 270.0f),
-		FLinearColor(0.82f, 0.94f, 0.86f, 0.98f)));
-	SetAlchemyCanvasLayout(Canvas->AddChildToCanvas(Background), FVector2D::ZeroVector, FVector2D(1600.0f, 270.0f));
+	ImmortalFeaturePageLayout::AddReadabilityBackground(WidgetTree, Canvas);
 
 	UTextBlock* Title = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("AlchemyTitle"));
 	Title->SetText(FText::FromString(TEXT("青云丹炉")));
@@ -124,6 +105,7 @@ void UImmortalAlchemyWidget::NativeOnInitialized()
 	StyleText(IngredientText, 16, FLinearColor(0.88f, 0.9f, 0.92f));
 	SetAlchemyCanvasLayout(Canvas->AddChildToCanvas(IngredientText), FVector2D(300.0f, 121.0f), FVector2D(430.0f, 55.0f));
 	ChanceText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("ChanceText"));
+	ChanceText->SetToolTipText(FText::FromString(TEXT("当前概率已计入丹房加成")));
 	StyleText(ChanceText, 16, FLinearColor(1.0f, 0.75f, 0.3f));
 	SetAlchemyCanvasLayout(Canvas->AddChildToCanvas(ChanceText), FVector2D(300.0f, 178.0f), FVector2D(430.0f, 28.0f));
 	RecipeEffectText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("RecipeEffectText"));
@@ -153,7 +135,11 @@ void UImmortalAlchemyWidget::NativeOnInitialized()
 	SetAlchemyCanvasLayout(Canvas->AddChildToCanvas(PillTitle), FVector2D(984.0f, 42.0f), FVector2D(180.0f, 26.0f));
 	PillGrid = WidgetTree->ConstructWidget<UUniformGridPanel>(UUniformGridPanel::StaticClass(), TEXT("PillGrid"));
 	PillGrid->SetSlotPadding(FMargin(3.0f));
-	SetAlchemyCanvasLayout(Canvas->AddChildToCanvas(PillGrid), FVector2D(980.0f, 70.0f), FVector2D(320.0f, 184.0f));
+	UScrollBox* PillScroll = WidgetTree->ConstructWidget<UScrollBox>(UScrollBox::StaticClass(), TEXT("PillInventoryScroll"));
+	PillScroll->SetConsumeMouseWheel(EConsumeMouseWheel::WhenScrollingPossible);
+	PillScroll->SetClipping(EWidgetClipping::ClipToBounds);
+	SetAlchemyCanvasLayout(Canvas->AddChildToCanvas(PillScroll), FVector2D(980.0f, 70.0f), FVector2D(320.0f, 184.0f));
+	PillScroll->AddChild(PillGrid);
 	PillNameText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("SelectedPillName"));
 	StyleText(PillNameText, 19, FLinearColor(0.45f, 1.0f, 0.7f));
 	SetAlchemyCanvasLayout(Canvas->AddChildToCanvas(PillNameText), FVector2D(1320.0f, 54.0f), FVector2D(250.0f, 30.0f));
@@ -172,6 +158,11 @@ void UImmortalAlchemyWidget::NativeOnInitialized()
 	UseButton->AddChild(UseText);
 
 	RefreshFromPlayer();
+	for (UTextBlock* Detail : {RecipeDescriptionText.Get(), IngredientText.Get(), RecipeEffectText.Get(),
+		ResultText.Get(), PillEffectText.Get(), PillNameText.Get()})
+		ImmortalFeaturePageLayout::MakeScrollable(WidgetTree, Detail);
+	ImmortalFeaturePageLayout::StabilizeButtonLabel(CraftButton, CraftButtonText);
+	ImmortalFeaturePageLayout::StabilizeButtonLabel(UseButton, UseText);
 }
 
 void UImmortalAlchemyWidget::NativeTick(const FGeometry& MyGeometry, const float InDeltaTime)
@@ -270,6 +261,8 @@ void UImmortalAlchemyWidget::RebuildRecipes()
 			Player->GetCaveAlchemyExceptionalBonus());
 		RecipeList->AddChild(RecipeSlotWidget);
 	}
+	// Refresh may run after Slate's normal prepass (e.g. an inventory revision in Tick).
+	RecipeList->ForceLayoutPrepass();
 }
 
 void UImmortalAlchemyWidget::RebuildPills()
@@ -284,6 +277,7 @@ void UImmortalAlchemyWidget::RebuildPills()
 		PillSlotWidget->InitializePill(this, Stack, Stack.IsValid() && Stack.PillId == SelectedPillId && Stack.Quality == SelectedPillQuality);
 		PillGrid->AddChildToUniformGrid(PillSlotWidget, Index / 2, Index % 2);
 	}
+	PillGrid->ForceLayoutPrepass();
 }
 
 void UImmortalAlchemyWidget::RefreshRecipeDetails()
@@ -308,7 +302,7 @@ void UImmortalAlchemyWidget::RefreshRecipeDetails()
 	const float ActualExceptionalChance = FMath::Clamp(
 		Definition.ExceptionalChance + Player->GetCaveAlchemyExceptionalBonus(), 0.0f, ActualSuccessChance);
 	ChanceText->SetText(FText::FromString(FString::Printf(
-		TEXT("成丹率 %.0f%%    极品率 %.0f%%（丹房加成已计入）"),
+		TEXT("成丹 %.0f%%  ·  极品 %.0f%%"),
 		ActualSuccessChance * 100.0f,
 		ActualExceptionalChance * 100.0f)));
 	RecipeEffectText->SetText(FText::FromString(FString::Printf(
