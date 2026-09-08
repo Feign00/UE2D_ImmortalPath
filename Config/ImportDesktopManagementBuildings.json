@@ -1,0 +1,26 @@
+{
+  "ImportGroups": [
+    {
+      "GroupName": "MortalHubBuildingsV2",
+      "Filenames": ["ArtSource/MortalRealm/DesktopPixelV2/Management/hub-buildings-v1.png"],
+      "DestinationPath": "/Game/GAME/Asset/ui/management/desktop_v2",
+      "DestinationName": "T_Mortal_HubBuildings",
+      "TextureUsage": "Sprite",
+      "ExpectedWidth": 1536,
+      "ExpectedHeight": 1024,
+      "bReplaceExisting": true,
+      "bCreateSprites": false
+    },
+    {
+      "GroupName": "MortalMarketBuildingV2",
+      "Filenames": ["ArtSource/MortalRealm/DesktopPixelV2/Management/market-building-v1.png"],
+      "DestinationPath": "/Game/GAME/Asset/ui/management/desktop_v2",
+      "DestinationName": "T_Mortal_MarketBuilding",
+      "TextureUsage": "Sprite",
+      "ExpectedWidth": 1536,
+      "ExpectedHeight": 1024,
+      "bReplaceExisting": true,
+      "bCreateSprites": false
+    }
+  ]
+}

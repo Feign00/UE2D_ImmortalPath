@@ -2,6 +2,9 @@
 #if !UE_BUILD_SHIPPING
 #include "../UI/ImmortalManagementWidget.h"
 #include "../UI/ImmortalDesktopPanelLayout.h"
+#include "Blueprint/WidgetTree.h"
+#include "Components/Button.h"
+#include "Components/Image.h"
 #include "Engine/World.h"
 #include "Kismet/GameplayStatics.h"
 #include "Misc/CommandLine.h"
@@ -14,7 +17,8 @@
 void AImmortalPlayerCharacter::RunDesktopPanelFixture()
 {
 #if !UE_BUILD_SHIPPING
-	if (!FParse::Param(FCommandLine::Get(), TEXT("ImmortalTestDesktopPanels"))) return;
+	const bool bBuildings = FParse::Param(FCommandLine::Get(), TEXT("ImmortalTestDesktopBuildings"));
+	if (!bBuildings && !FParse::Param(FCommandLine::Get(), TEXT("ImmortalTestDesktopPanels"))) return;
 	FString UserDir;
 	if (!FParse::Value(FCommandLine::Get(), TEXT("UserDir="), UserDir)
 		|| !FPaths::IsUnderDirectory(FPaths::ConvertRelativePathToFull(UserDir),
@@ -63,16 +67,39 @@ void AImmortalPlayerCharacter::RunDesktopPanelFixture()
 		EImmortalManagementFeature::Inventory, EImmortalManagementFeature::Alchemy, EImmortalManagementFeature::Crafting,
 		EImmortalManagementFeature::Shop, EImmortalManagementFeature::Farming, EImmortalManagementFeature::Sect,
 		EImmortalManagementFeature::Settings };
+	const EImmortalManagementFeature BuildingPages[] = { EImmortalManagementFeature::Cultivation,
+		EImmortalManagementFeature::Sect, EImmortalManagementFeature::Alchemy, EImmortalManagementFeature::Crafting,
+		EImmortalManagementFeature::Cave, EImmortalManagementFeature::Farming, EImmortalManagementFeature::Shop };
+	const TCHAR* Tokens[] = {TEXT("Cultivation"), TEXT("Sect"), TEXT("Alchemy"), TEXT("Crafting"), TEXT("Cave"), TEXT("Farming"), TEXT("Shop")};
 	for (int32 Index = 0; Index < UE_ARRAY_COUNT(Pages); ++Index)
 	{
-		const auto Page = Pages[Index];
-		At(3.5f + Index, [this, Page, Check] {
-			OpenManagementFeature(Page);
+		if (bBuildings && Index >= UE_ARRAY_COUNT(BuildingPages)) break;
+		const auto Page = bBuildings ? BuildingPages[Index] : Pages[Index];
+		const FString Token = bBuildings ? Tokens[Index] : TEXT("");
+		At(3.5f + Index, [this, Page, Token, bBuildings, Check] {
+			if (bBuildings)
+			{
+				PlayerManagementWidget->ShowScene(Page == EImmortalManagementFeature::Shop
+					? EImmortalManagementScene::MarketTown : EImmortalManagementScene::SectSanctuary);
+				UImage* Art = Cast<UImage>(PlayerManagementWidget->WidgetTree->FindWidget(
+					FName(*(TEXT("ManagementBuilding_") + Token))));
+				Check(TEXT("building illustration loaded and visible"), Art && Art->GetBrush().GetResourceObject()
+					&& Art->GetVisibility() == ESlateVisibility::HitTestInvisible);
+				UButton* Button = Cast<UButton>(PlayerManagementWidget->WidgetTree->FindWidget(
+					FName(*(TEXT("ManagementHotspot_") + Token))));
+				if (Button) Button->OnClicked.Broadcast();
+			}
+			else OpenManagementFeature(Page);
 			Check(TEXT("page switch keeps live combat"), !UGameplayStatics::IsGamePaused(this)
 				&& GetWorldTimerManager().IsTimerActive(AutoAttackTimerHandle)
 				&& PlayerManagementWidget->GetActiveFeature() == Page);
 		});
 		At(4.0f + Index, [Shot, Index] { Shot(FString::Printf(TEXT("Page%d"), Index)); });
+	}
+	if (bBuildings)
+	{
+		At(10.6f, [this] { PlayerManagementWidget->ShowScene(EImmortalManagementScene::MarketTown); });
+		At(11.1f, [Shot] { Shot(TEXT("MarketBuildings")); });
 	}
 	At(12, [this] { ToggleAscension(); });
 	At(12.6f, [this, Check, Shot] { Check(TEXT("ascension remains separate without pausing"), bAscensionOpen

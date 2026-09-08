@@ -16,7 +16,7 @@ class UWidgetSwitcher;
 class UTexture2D;
 
 /**
-	 * Inset 1707x320 management panel above the persistent desktop battle strip.
+ * Inset 1707x320 management panel above the persistent desktop battle strip.
  *
  * The widget only changes UMG pages. It deliberately never pauses the world,
  * so the adventure map continues spawning monsters and resolving combat while
@@ -78,7 +78,22 @@ protected:
 		float InDeltaTime) override;
 
 private:
+	// Reflected soft references keep the new art discoverable for cooking.
+	UPROPERTY(EditDefaultsOnly, Category = "Immortal Path|Management|Art")
+	TSoftObjectPtr<UTexture2D> MortalBuildingAtlas = TSoftObjectPtr<UTexture2D>(FSoftObjectPath(
+		TEXT("/Game/GAME/Asset/ui/management/desktop_v2/T_Mortal_HubBuildings.T_Mortal_HubBuildings")));
+
+	UPROPERTY(EditDefaultsOnly, Category = "Immortal Path|Management|Art")
+	TSoftObjectPtr<UTexture2D> MortalMarketBuilding = TSoftObjectPtr<UTexture2D>(FSoftObjectPath(
+		TEXT("/Game/GAME/Asset/ui/management/desktop_v2/T_Mortal_MarketBuilding.T_Mortal_MarketBuilding")));
+
 	UTexture2D* LoadOptionalTexture(const FString& AssetPath);
+
+	UPROPERTY(Transient)
+	TMap<EImmortalManagementFeature, TObjectPtr<UImage>> BuildingImages;
+
+	UPROPERTY(Transient)
+	TMap<EImmortalManagementFeature, TObjectPtr<UUserWidget>> BuildingFallbackIcons;
 
 	UPROPERTY(Transient)
 	TMap<FString, TObjectPtr<UTexture2D>> ThemeTextureCache;

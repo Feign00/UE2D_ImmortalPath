@@ -2,12 +2,14 @@
 
 #include "ImmortalManagementWidget.h"
 #include "ImmortalUITheme.h"
+#include "ImmortalManagementArt.h"
 
 #include "../Characters/ImmortalPlayerCharacter.h"
 #include "../Progression/ImmortalCultivationComponent.h"
 #include "Blueprint/WidgetTree.h"
 #include "Components/Border.h"
 #include "Components/Button.h"
+#include "Components/ButtonSlot.h"
 #include "Components/CanvasPanel.h"
 #include "Components/CanvasPanelSlot.h"
 #include "Components/Image.h"
@@ -771,6 +773,14 @@ void UImmortalManagementWidget::RefreshTheme()
 		? Player->GetCultivationRealm()
 		: EImmortalCultivationRealm::QiRefining;
 	const EManagementWorldTier Tier = GetWorldTier(Realm);
+	for (const auto& Entry : BuildingImages)
+	{
+		Entry.Value->SetVisibility(Tier == EManagementWorldTier::Mortal
+			? ESlateVisibility::HitTestInvisible : ESlateVisibility::Collapsed);
+		if (const auto* Fallback = BuildingFallbackIcons.Find(Entry.Key))
+			(*Fallback)->SetVisibility(Tier == EManagementWorldTier::Mortal
+				? ESlateVisibility::Collapsed : ESlateVisibility::HitTestInvisible);
+	}
 	LastThemeRealm = static_cast<uint8>(Realm);
 	ThemeRefreshAccumulator = 0.0f;
 	ThemePlaceholder->SetBrushColor(
@@ -778,7 +788,10 @@ void UImmortalManagementWidget::RefreshTheme()
 
 	const FString AssetPath = BuildThemeAssetPath(Tier, ActiveScene);
 	UTexture2D* ThemeTexture = LoadOptionalTexture(AssetPath);
-	if (ThemeTexture && ActiveFeature == EImmortalManagementFeature::Home)
+	const bool bBuildingScene = Tier == EManagementWorldTier::Mortal
+		&& ((ActiveScene == EImmortalManagementScene::SectSanctuary && LoadOptionalTexture(MortalBuildingAtlas.ToString()))
+			|| (ActiveScene == EImmortalManagementScene::MarketTown && LoadOptionalTexture(MortalMarketBuilding.ToString())));
+	if (ThemeTexture && ActiveFeature == EImmortalManagementFeature::Home && !bBuildingScene)
 	{
 		ThemeImage->SetBrushFromTexture(ThemeTexture, false);
 		ThemeImage->SetColorAndOpacity(FLinearColor::White);
@@ -795,7 +808,7 @@ void UImmortalManagementWidget::RefreshTheme()
 			TEXT("%s · %s%s"),
 			*GetTierDisplayName(Tier).ToString(),
 			*GetSceneDisplayName(ActiveScene).ToString(),
-			ThemeTexture ? TEXT("") : TEXT("（美术占位）"))));
+			ThemeTexture || bBuildingScene ? TEXT("") : TEXT("（美术占位）"))));
 	}
 }
 
@@ -1147,16 +1160,44 @@ UButton* UImmortalManagementWidget::AddSceneHotspot(
 
 	UCanvasPanel* Content = WidgetTree->ConstructWidget<UCanvasPanel>(
 		UCanvasPanel::StaticClass());
-	Button->AddChild(Content);
+	Content->SetVisibility(ESlateVisibility::HitTestInvisible);
+	if (UButtonSlot* ContentSlot = Cast<UButtonSlot>(Button->AddChild(Content)))
+	{
+		ContentSlot->SetHorizontalAlignment(HAlign_Fill);
+		ContentSlot->SetVerticalAlignment(VAlign_Fill);
+		ContentSlot->SetPadding(FMargin(0));
+	}
 
-	const float IconSize = 76.0f;
-	UImmortalIconWidget* Icon = CreateWidget<UImmortalIconWidget>(this);
-	Icon->SetIcon(FMath::Max(static_cast<int32>(Feature)-1, 0));
 	Button->SetToolTipText(Label);
-	SetManagementLayout(
-		Content->AddChildToCanvas(Icon),
-		FVector2D((Size.X - IconSize) * 0.5f, FMath::Max((Size.Y - 110.0f) * 0.5f, 24.0f)),
-		FVector2D(IconSize, IconSize));
+	const int32 Cell = ImmortalManagementArt::BuildingCell(Feature);
+	const bool bMarket = Feature == EImmortalManagementFeature::Shop;
+	UTexture2D* BuildingTexture = Cell != INDEX_NONE ? LoadOptionalTexture(MortalBuildingAtlas.ToString())
+		: bMarket ? LoadOptionalTexture(MortalMarketBuilding.ToString()) : nullptr;
+	if (BuildingTexture)
+	{
+		UImage* Building = WidgetTree->ConstructWidget<UImage>(UImage::StaticClass(),
+			FName(*FString::Printf(TEXT("ManagementBuilding_%s"), *GetFeatureAssetToken(Feature))));
+		FSlateBrush Brush; Brush.SetResourceObject(BuildingTexture);
+		const FIntPoint ImportedSize = BuildingTexture->GetImportedSize();
+		const float Aspect = bMarket ? float(FMath::Max(ImportedSize.X, 1)) / FMath::Max(ImportedSize.Y, 1) : 1.0f;
+		const float ArtHeight = FMath::Min(Size.Y - 42.0f, (Size.X - 20.0f) / Aspect);
+		const FVector2D ArtSize(ArtHeight * Aspect, ArtHeight);
+		Brush.ImageSize = ArtSize;
+		if (Cell != INDEX_NONE) Brush.SetUVRegion(ImmortalManagementArt::CellUV(Cell));
+		Building->SetBrush(Brush);
+		BuildingImages.Add(Feature, Building);
+		SetManagementLayout(Content->AddChildToCanvas(Building), FVector2D((Size.X-ArtSize.X)*0.5f, 5), ArtSize);
+	}
+	{
+		// Keep entry points usable without art; later realms retain their existing icon presentation.
+		const float IconSize = 76.0f;
+		UImmortalIconWidget* Icon = CreateWidget<UImmortalIconWidget>(this);
+		Icon->SetIcon(FMath::Max(static_cast<int32>(Feature)-1, 0));
+		BuildingFallbackIcons.Add(Feature, Icon);
+		Icon->SetVisibility(BuildingTexture ? ESlateVisibility::Collapsed : ESlateVisibility::HitTestInvisible);
+		SetManagementLayout(Content->AddChildToCanvas(Icon),
+			FVector2D((Size.X - IconSize) * 0.5f, FMath::Max((Size.Y - 110.0f) * 0.5f, 24.0f)), FVector2D(IconSize));
+	}
 
 	const float LabelWidth = FMath::Min(Size.X - 18.0f, 180.0f);
 	UBorder* LabelPlate = WidgetTree->ConstructWidget<UBorder>(
@@ -1173,7 +1214,7 @@ UButton* UImmortalManagementWidget::AddSceneHotspot(
 	LabelText->SetText(Label);
 	StyleManagementText(
 		LabelText,
-		13,
+		BuildingTexture ? 16 : 13,
 		FLinearColor(1.0f, 0.94f, 0.75f, 1.0f),
 		true);
 	LabelPlate->AddChild(LabelText);
