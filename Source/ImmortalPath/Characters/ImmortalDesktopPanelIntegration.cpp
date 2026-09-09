@@ -4,6 +4,8 @@
 #include "../UI/ImmortalDesktopPanelLayout.h"
 #include "../UI/ImmortalAlchemyWidget.h"
 #include "../UI/ImmortalCraftingWidget.h"
+#include "../UI/ImmortalCultivationWidget.h"
+#include "Components/ProgressBar.h"
 #include "../UI/ImmortalSectWidget.h"
 #include "../UI/ImmortalFarmingWidget.h"
 #include "../UI/ImmortalInventoryWidget.h"
@@ -141,6 +143,40 @@ void AImmortalPlayerCharacter::RunDesktopPanelFixture()
 				&& PlayerManagementWidget->GetActiveFeature() == Page);
 		});
 		At(4.0f + Index, [this, Shot, Index, Page, Check] {
+			if (Page == EImmortalManagementFeature::Cultivation)
+			{
+				PlayerCultivationWidget->RefreshFromPlayer();
+				UWidgetTree* Tree = PlayerCultivationWidget->WidgetTree;
+				const USizeBox* Root = Cast<USizeBox>(Tree->RootWidget);
+				Check(TEXT("cultivation uses a full 1600x600 page"), Root && Root->GetWidthOverride() == 1600 && Root->GetHeightOverride() == 600);
+				bool bBounded = true, bReadable = true;
+				Tree->ForEachWidget([&](UWidget* Widget)
+				{
+					if (const UCanvasPanelSlot* Slot = Cast<UCanvasPanelSlot>(Widget->Slot))
+					{
+						const auto Start = Slot->GetPosition(), End = Start + Slot->GetSize();
+						const auto ParentSize = Widget->GetParent()->GetCachedGeometry().GetLocalSize();
+						bBounded &= Start.X >= 0 && Start.Y >= 0 && End.X <= ParentSize.X + 1 && End.Y <= ParentSize.Y + 1;
+					}
+					if (const UTextBlock* Text = Cast<UTextBlock>(Widget)) bReadable &= Text->GetFont().Size >= 18;
+				});
+				Check(TEXT("cultivation text is at least 18pt and controls are bounded"), bBounded && bReadable);
+				const UProgressBar* Progress = Cast<UProgressBar>(Tree->FindWidget(TEXT("CultivationProgressBar")));
+				Check(TEXT("cultivation has a large valid progress bar"), Progress && Progress->GetPercent() >= 0 && Progress->GetPercent() <= 1
+					&& Progress->GetCachedGeometry().GetLocalSize().X >= 948);
+				const bool WasRecoveryRequired = bDeathCultivationRecoveryRequired;
+				bDeathCultivationRecoveryRequired = true;
+				PlayerCultivationWidget->RefreshFromPlayer();
+				bool bLocked = true;
+				for (const TCHAR* Name : {TEXT("CultivationReturnHome"), TEXT("CultivationCloseToHome"), TEXT("CultivationOpenAscension")})
+				{
+					const UButton* Action = Cast<UButton>(Tree->FindWidget(FName(Name)));
+					bLocked &= Action && !Action->GetIsEnabled();
+				}
+				Check(TEXT("cultivation recovery visibly disables leaving and ascension"), bLocked);
+				bDeathCultivationRecoveryRequired = WasRecoveryRequired;
+				PlayerCultivationWidget->RefreshFromPlayer();
+			}
 			if (Page == EImmortalManagementFeature::Inventory)
 			{
 				UWidgetTree* Tree = PlayerInventoryWidget->WidgetTree;

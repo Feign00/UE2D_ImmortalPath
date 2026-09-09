@@ -5,6 +5,8 @@
 #include "../Characters/ImmortalPlayerCharacter.h"
 #include "../Progression/ImmortalCultivationComponent.h"
 #include "ImmortalManagementTypes.h"
+#include "ImmortalFeaturePageLayout.h"
+#include "ImmortalUITheme.h"
 #include "Blueprint/WidgetTree.h"
 #include "Components/Border.h"
 #include "Components/Button.h"
@@ -45,33 +47,6 @@ namespace
 			bCentered ? ETextJustify::Center : ETextJustify::Left);
 	}
 
-	FSlateBrush MakeCultivationBrush(
-		const FVector2D Size,
-		const FLinearColor& Color)
-	{
-		FSlateBrush Brush;
-		Brush.DrawAs = ESlateBrushDrawType::RoundedBox;
-		Brush.ImageSize = Size;
-		Brush.TintColor = FSlateColor(Color);
-		Brush.OutlineSettings.CornerRadii =
-			FVector4(6.0f, 6.0f, 6.0f, 6.0f);
-		return Brush;
-	}
-
-	FButtonStyle MakeCultivationButtonStyle(
-		const FVector2D Size,
-		const FLinearColor& Color)
-	{
-		FButtonStyle Style;
-		Style.SetNormal(MakeCultivationBrush(Size, Color));
-		Style.SetHovered(MakeCultivationBrush(
-			Size, (Color * 1.18f).GetClamped()));
-		Style.SetPressed(MakeCultivationBrush(
-			Size, (Color * 0.78f).GetClamped()));
-		Style.SetDisabled(MakeCultivationBrush(
-			Size, FLinearColor(0.10f, 0.11f, 0.12f, 0.84f)));
-		return Style;
-	}
 
 	UTextBlock* AddCultivationButtonLabel(
 		UWidgetTree* Tree,
@@ -88,6 +63,7 @@ namespace
 			FLinearColor(1.0f, 0.92f, 0.67f, 1.0f),
 			true);
 		Button->AddChild(Text);
+		ImmortalFeaturePageLayout::StabilizeButtonLabel(Button, Text);
 		return Text;
 	}
 }
@@ -102,168 +78,90 @@ void UImmortalCultivationWidget::InitializeForPlayer(
 void UImmortalCultivationWidget::NativeOnInitialized()
 {
 	Super::NativeOnInitialized();
+	USizeBox* Root = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass(), TEXT("CultivationPageLogicalSize"));
+	Root->SetWidthOverride(1600);
+	Root->SetHeightOverride(600);
+	WidgetTree->RootWidget = Root;
+	UCanvasPanel* Canvas = WidgetTree->ConstructWidget<UCanvasPanel>(UCanvasPanel::StaticClass(), TEXT("CultivationPageCanvas"));
+	Root->AddChild(Canvas);
 
-	USizeBox* RootSize = WidgetTree->ConstructWidget<USizeBox>(
-		USizeBox::StaticClass(), TEXT("CultivationPageLogicalSize"));
-	RootSize->SetWidthOverride(1286.0f);
-	RootSize->SetHeightOverride(238.0f);
-	WidgetTree->RootWidget = RootSize;
+	const auto Panel = [this](UCanvasPanel* Parent, const TCHAR* Name, FVector2D Position, FVector2D Size)
+	{
+		UBorder* Background = WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass(), Name);
+		Background->SetBrush(ImmortalUITheme::PanelBrush(FLinearColor(0.025f, 0.055f, 0.053f)));
+		Background->SetPadding(FMargin(0));
+		SetCultivationLayout(Parent->AddChildToCanvas(Background), Position, Size);
+		UCanvasPanel* Body = WidgetTree->ConstructWidget<UCanvasPanel>(UCanvasPanel::StaticClass(),
+			FName(*(FString(Name) + TEXT("Canvas"))));
+		Background->AddChild(Body);
+		return Body;
+	};
+	const auto Text = [this](UCanvasPanel* Parent, const TCHAR* Name, const TCHAR* Caption,
+		FVector2D Position, FVector2D Size, int32 Font, bool bCentered = false)
+	{
+		UTextBlock* Label = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), Name);
+		Label->SetText(FText::FromString(Caption));
+		StyleCultivationText(Label, Font, FLinearColor(0.93f, 0.89f, 0.76f), bCentered);
+		Label->SetTextOverflowPolicy(ETextOverflowPolicy::Ellipsis);
+		SetCultivationLayout(Parent->AddChildToCanvas(Label), Position, Size);
+		return Label;
+	};
+	const auto Button = [this](UCanvasPanel* Parent, const TCHAR* Name, FVector2D Position, FVector2D Size)
+	{
+		UButton* Action = WidgetTree->ConstructWidget<UButton>(UButton::StaticClass(), Name);
+		Action->SetStyle(ImmortalUITheme::ButtonStyle());
+		SetCultivationLayout(Parent->AddChildToCanvas(Action), Position, Size);
+		return Action;
+	};
+	const auto Icon = [this](UCanvasPanel* Parent, const TCHAR* Name, int32 Index, FVector2D Position, float Size)
+	{
+		UImmortalIconWidget* Symbol = CreateWidget<UImmortalIconWidget>(this, UImmortalIconWidget::StaticClass(), FName(Name));
+		Symbol->SetIcon(Index);
+		Symbol->SetVisibility(ESlateVisibility::HitTestInvisible);
+		SetCultivationLayout(Parent->AddChildToCanvas(Symbol), Position, FVector2D(Size));
+	};
 
-	UBorder* Background = WidgetTree->ConstructWidget<UBorder>(
-		UBorder::StaticClass(), TEXT("CultivationPageBackground"));
-	Background->SetBrushColor(
-		FLinearColor(0.018f, 0.045f, 0.046f, 0.76f));
-	Background->SetPadding(FMargin(0.0f));
-	RootSize->AddChild(Background);
+	UCanvasPanel* Header = Panel(Canvas, TEXT("CultivationHeader"), {12, 4}, {1576, 52});
+	Text(Header, TEXT("CultivationPageTitle"), TEXT("静修问道"), {20, 6}, {420, 40}, 28);
+	UButton* Home = Button(Header, TEXT("CultivationReturnHome"), {1344, 6}, {160, 40});
+	AddCultivationButtonLabel(WidgetTree, Home, TEXT("返回洞府"), 18);
+	Home->OnClicked.AddDynamic(this, &ThisClass::HandleHomeClicked);
+	UButton* Close = Button(Header, TEXT("CultivationCloseToHome"), {1516, 6}, {48, 40});
+	AddCultivationButtonLabel(WidgetTree, Close, TEXT("×"), 24);
+	Close->OnClicked.AddDynamic(this, &ThisClass::HandleCloseClicked);
 
-	UCanvasPanel* Canvas = WidgetTree->ConstructWidget<UCanvasPanel>(
-		UCanvasPanel::StaticClass(), TEXT("CultivationPageCanvas"));
-	Background->AddChild(Canvas);
+	UCanvasPanel* Meditation = Panel(Canvas, TEXT("CultivationMeditationPanel"), {12, 68}, {1008, 458});
+	Icon(Meditation, TEXT("CultivationRealmEmblem"), 0, {40, 42}, 196);
+	Text(Meditation, TEXT("CultivationRealmCaption"), TEXT("当前境界"), {280, 34}, {660, 32}, 20);
+	RealmText = Text(Meditation, TEXT("CultivationRealm"), TEXT(""), {280, 82}, {688, 70}, 40);
+	RateText = Text(Meditation, TEXT("CultivationRate"), TEXT(""), {280, 170}, {688, 40}, 23);
+	Text(Meditation, TEXT("CultivationProgressCaption"), TEXT("修为积累 · 达标自动突破"),
+		{28, 272}, {948, 32}, 20);
+	ProgressText = Text(Meditation, TEXT("CultivationProgressText"), TEXT(""), {28, 326}, {948, 40}, 26);
+	CultivationProgressBar = WidgetTree->ConstructWidget<UProgressBar>(UProgressBar::StaticClass(), TEXT("CultivationProgressBar"));
+	FProgressBarStyle BarStyle;
+	BarStyle.SetBackgroundImage(ImmortalUITheme::PanelBrush(FLinearColor(0.015f, 0.025f, 0.025f)));
+	BarStyle.SetFillImage(ImmortalUITheme::PanelBrush(FLinearColor::White, FLinearColor(0.55f, 0.75f, 0.46f)));
+	CultivationProgressBar->SetWidgetStyle(BarStyle);
+	CultivationProgressBar->SetFillColorAndOpacity(FLinearColor(0.38f, 0.72f, 0.49f));
+	SetCultivationLayout(Meditation->AddChildToCanvas(CultivationProgressBar), {28, 386}, {948, 34});
 
-	UTextBlock* Title = WidgetTree->ConstructWidget<UTextBlock>(
-		UTextBlock::StaticClass(), TEXT("CultivationPageTitle"));
-	Title->SetText(FText::FromString(TEXT("静修问道")));
-	StyleCultivationText(
-		Title,
-		20,
-		FLinearColor(0.89f, 0.96f, 0.72f, 1.0f));
-	SetCultivationLayout(
-		Canvas->AddChildToCanvas(Title),
-		FVector2D(18.0f, 4.0f),
-		FVector2D(250.0f, 30.0f));
+	UCanvasPanel* Ascension = Panel(Canvas, TEXT("CultivationAscensionPanel"), {1032, 68}, {556, 458});
+	Text(Ascension, TEXT("CultivationAscensionTitle"), TEXT("飞升之路"), {28, 18}, {500, 40}, 26, true);
+	Icon(Ascension, TEXT("CultivationAscensionEmblem"), 0, {220, 74}, 116);
+	AscensionHintText = Text(Ascension, TEXT("CultivationAscensionHint"), TEXT(""),
+		{28, 210}, {500, 132}, 20);
+	ImmortalFeaturePageLayout::MakeScrollable(WidgetTree, AscensionHintText);
+	AscensionButton = Button(Ascension, TEXT("CultivationOpenAscension"), {28, 374}, {500, 60});
+	AscensionButton->OnClicked.AddDynamic(this, &ThisClass::HandleAscensionClicked);
+	AscensionButtonText = AddCultivationButtonLabel(WidgetTree, AscensionButton, TEXT("查看飞升条件"), 22);
 
-	UButton* HomeButton = WidgetTree->ConstructWidget<UButton>(
-		UButton::StaticClass(), TEXT("CultivationReturnHome"));
-	HomeButton->SetStyle(MakeCultivationButtonStyle(
-		FVector2D(110.0f, 27.0f),
-		FLinearColor(0.10f, 0.28f, 0.26f, 1.0f)));
-	HomeButton->OnClicked.AddDynamic(
-		this, &UImmortalCultivationWidget::HandleHomeClicked);
-	AddCultivationButtonLabel(
-		WidgetTree, HomeButton, TEXT("返回主页"), 11);
-	SetCultivationLayout(
-		Canvas->AddChildToCanvas(HomeButton),
-		FVector2D(1112.0f, 4.0f),
-		FVector2D(110.0f, 27.0f));
-
-	UButton* CloseButton = WidgetTree->ConstructWidget<UButton>(
-		UButton::StaticClass(), TEXT("CultivationCloseToHome"));
-	CloseButton->SetStyle(MakeCultivationButtonStyle(
-		FVector2D(36.0f, 27.0f),
-		FLinearColor(0.38f, 0.13f, 0.11f, 1.0f)));
-	CloseButton->OnClicked.AddDynamic(
-		this, &UImmortalCultivationWidget::HandleCloseClicked);
-	AddCultivationButtonLabel(WidgetTree, CloseButton, TEXT("×"), 16);
-	SetCultivationLayout(
-		Canvas->AddChildToCanvas(CloseButton),
-		FVector2D(1232.0f, 4.0f),
-		FVector2D(36.0f, 27.0f));
-
-	RuleText = WidgetTree->ConstructWidget<UTextBlock>(
-		UTextBlock::StaticClass(), TEXT("CultivationIndependentRule"));
-	RuleText->SetAutoWrapText(true);
-	RuleText->SetText(FText::FromString(
-		TEXT("修炼与历练相互独立：战斗不产修为。"
-			"无论正在查看哪个养成功能，角色都会持续自动修炼，历练地图也会继续自动刷怪。")));
-	StyleCultivationText(
-		RuleText,
-		11,
-		FLinearColor(0.72f, 0.91f, 0.82f, 1.0f),
-		true);
-	SetCultivationLayout(
-		Canvas->AddChildToCanvas(RuleText),
-		FVector2D(280.0f, 3.0f),
-		FVector2D(820.0f, 31.0f));
-
-	UBorder* MeditationPanel = WidgetTree->ConstructWidget<UBorder>(
-		UBorder::StaticClass(), TEXT("CultivationMeditationPanel"));
-	MeditationPanel->SetBrushColor(
-		FLinearColor(0.025f, 0.085f, 0.078f, 0.90f));
-	MeditationPanel->SetPadding(FMargin(0.0f));
-	SetCultivationLayout(
-		Canvas->AddChildToCanvas(MeditationPanel),
-		FVector2D(12.0f, 40.0f),
-		FVector2D(1262.0f, 128.0f));
-
-	UCanvasPanel* MeditationCanvas =
-		WidgetTree->ConstructWidget<UCanvasPanel>(
-			UCanvasPanel::StaticClass(),
-			TEXT("CultivationMeditationCanvas"));
-	MeditationPanel->AddChild(MeditationCanvas);
-
-	RealmText = WidgetTree->ConstructWidget<UTextBlock>(
-		UTextBlock::StaticClass(), TEXT("CultivationRealm"));
-	StyleCultivationText(
-		RealmText,
-		25,
-		FLinearColor(1.0f, 0.88f, 0.52f, 1.0f),
-		true);
-	SetCultivationLayout(
-		MeditationCanvas->AddChildToCanvas(RealmText),
-		FVector2D(18.0f, 10.0f),
-		FVector2D(245.0f, 42.0f));
-
-	ProgressText = WidgetTree->ConstructWidget<UTextBlock>(
-		UTextBlock::StaticClass(), TEXT("CultivationProgressText"));
-	StyleCultivationText(
-		ProgressText,
-		14,
-		FLinearColor(0.86f, 0.95f, 0.90f, 1.0f),
-		true);
-	SetCultivationLayout(
-		MeditationCanvas->AddChildToCanvas(ProgressText),
-		FVector2D(282.0f, 10.0f),
-		FVector2D(430.0f, 28.0f));
-
-	CultivationProgressBar = WidgetTree->ConstructWidget<UProgressBar>(
-		UProgressBar::StaticClass(), TEXT("CultivationProgressBar"));
-	CultivationProgressBar->SetFillColorAndOpacity(
-		FLinearColor(0.40f, 0.92f, 0.58f, 1.0f));
-	SetCultivationLayout(
-		MeditationCanvas->AddChildToCanvas(CultivationProgressBar),
-		FVector2D(282.0f, 44.0f),
-		FVector2D(520.0f, 24.0f));
-
-	RateText = WidgetTree->ConstructWidget<UTextBlock>(
-		UTextBlock::StaticClass(), TEXT("CultivationRate"));
-	StyleCultivationText(
-		RateText,
-		14,
-		FLinearColor(0.60f, 0.93f, 1.0f, 1.0f),
-		true);
-	SetCultivationLayout(
-		MeditationCanvas->AddChildToCanvas(RateText),
-		FVector2D(820.0f, 12.0f),
-		FVector2D(420.0f, 28.0f));
-
-	AscensionHintText = WidgetTree->ConstructWidget<UTextBlock>(
-		UTextBlock::StaticClass(), TEXT("CultivationAscensionHint"));
-	AscensionHintText->SetAutoWrapText(true);
-	StyleCultivationText(
-		AscensionHintText,
-		11,
-		FLinearColor(0.86f, 0.82f, 0.98f, 1.0f),
-		true);
-	SetCultivationLayout(
-		MeditationCanvas->AddChildToCanvas(AscensionHintText),
-		FVector2D(820.0f, 43.0f),
-		FVector2D(420.0f, 65.0f));
-
-	AscensionButton = WidgetTree->ConstructWidget<UButton>(
-		UButton::StaticClass(), TEXT("CultivationOpenAscension"));
-	AscensionButton->SetStyle(MakeCultivationButtonStyle(
-		FVector2D(310.0f, 42.0f),
-		FLinearColor(0.36f, 0.17f, 0.45f, 1.0f)));
-	AscensionButton->OnClicked.AddDynamic(
-		this, &UImmortalCultivationWidget::HandleAscensionClicked);
-	AscensionButtonText = AddCultivationButtonLabel(
-		WidgetTree, AscensionButton, TEXT("查看飞升台"), 14);
-	SetCultivationLayout(
-		Canvas->AddChildToCanvas(AscensionButton),
-		FVector2D(488.0f, 184.0f),
-		FVector2D(310.0f, 42.0f));
-
+	UCanvasPanel* Footer = Panel(Canvas, TEXT("CultivationStatusPanel"), {12, 538}, {1576, 54});
+	RuleText = Text(Footer, TEXT("CultivationIndependentRule"), TEXT(""),
+		{16, 5}, {1544, 44}, 18);
+	ImmortalFeaturePageLayout::MakeScrollable(WidgetTree, RuleText);
 	RefreshFromPlayer();
+	ForceLayoutPrepass();
 }
 
 void UImmortalCultivationWidget::NativeTick(
@@ -298,6 +196,11 @@ void UImmortalCultivationWidget::RefreshFromPlayer()
 	const bool bReachedAscension = Cultivation->HasReachedAscension();
 	const bool bDeathRecoveryRequired =
 		Player->IsDeathCultivationRecoveryRequired();
+	for (const TCHAR* Name : { TEXT("CultivationReturnHome"), TEXT("CultivationCloseToHome") })
+	{
+		if (UButton* NavigationButton = Cast<UButton>(WidgetTree->FindWidget(FName(Name))))
+			NavigationButton->SetIsEnabled(!bDeathRecoveryRequired);
+	}
 
 	if (RuleText)
 	{
@@ -333,7 +236,9 @@ void UImmortalCultivationWidget::RefreshFromPlayer()
 	if (bDeathRecoveryRequired)
 	{
 		AscensionHintText->SetText(FText::FromString(
-			TEXT("当前处于死亡后的强制修炼状态。返回历练与其他功能均已锁定；完成下一次境界突破后，按钮会恢复。")));
+			bReachedAscension
+				? TEXT("历练通道暂时关闭。当前已修至圆满，调息恢复后解锁。")
+				: TEXT("历练通道暂时关闭。完成下一次境界突破后解锁；修炼继续自动进行。")));
 		AscensionButtonText->SetText(FText::FromString(
 			TEXT("强制修炼中")));
 	}
