@@ -3,9 +3,11 @@
 #include "ImmortalInventorySlotWidget.h"
 
 #include "ImmortalInventoryWidget.h"
+#include "ImmortalInventoryPresentation.h"
 #include "ImmortalUITheme.h"
 #include "Blueprint/WidgetTree.h"
 #include "Components/Button.h"
+#include "Components/ButtonSlot.h"
 #include "Components/Image.h"
 #include "Components/Overlay.h"
 #include "Components/OverlaySlot.h"
@@ -16,9 +18,8 @@
 
 namespace
 {
-	// Keep ten combat slots (nine equipment plus one artifact) and nine backpack columns inside their fixed TBH
-	// panels, including grid padding and the vertical scroll bar.
-	constexpr float SlotSize = 70.0f;
+	// Shared cell size for paper-doll equipment and the seven-column backpack.
+	constexpr float SlotSize = ImmortalInventoryPresentation::SlotSize;
 
 	FSlateBrush MakeInventoryBrush(const TCHAR* AssetPath, const FVector2D Size, const FLinearColor Tint = FLinearColor::White)
 	{
@@ -49,19 +50,6 @@ namespace
 		}
 	}
 
-	const TCHAR* GetQualityFramePath(const EImmortalEquipmentQuality Quality)
-	{
-		switch (Quality)
-		{
-		case EImmortalEquipmentQuality::Uncommon: return TEXT("/Game/GAME/Asset/ui/inventory/quality_frames/green.green");
-		case EImmortalEquipmentQuality::Rare: return TEXT("/Game/GAME/Asset/ui/inventory/quality_frames/blue.blue");
-		case EImmortalEquipmentQuality::Epic: return TEXT("/Game/GAME/Asset/ui/inventory/quality_frames/purple.purple");
-		case EImmortalEquipmentQuality::Legendary: return TEXT("/Game/GAME/Asset/ui/inventory/quality_frames/gold.gold");
-		case EImmortalEquipmentQuality::Immortal:
-		case EImmortalEquipmentQuality::Divine: return TEXT("/Game/GAME/Asset/ui/inventory/quality_frames/white.white");
-		default: return TEXT("/Game/GAME/Asset/ui/inventory/quality_frames/white.white");
-		}
-	}
 }
 
 void UImmortalInventorySlotWidget::NativeOnInitialized()
@@ -80,13 +68,17 @@ void UImmortalInventorySlotWidget::NativeOnInitialized()
 	UOverlay* Layers = WidgetTree->ConstructWidget<UOverlay>(UOverlay::StaticClass(), TEXT("InventorySlotLayers"));
 	Layers->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
 	SlotButton->AddChild(Layers);
+	UButtonSlot* ContentSlot = CastChecked<UButtonSlot>(Layers->Slot);
+	ContentSlot->SetHorizontalAlignment(HAlign_Fill);
+	ContentSlot->SetVerticalAlignment(VAlign_Fill);
+	SlotButton->SetClipping(EWidgetClipping::ClipToBounds);
 
 	ItemIcon = WidgetTree->ConstructWidget<UImage>(UImage::StaticClass(), TEXT("InventoryItemIcon"));
 	if (UOverlaySlot* IconSlot = Layers->AddChildToOverlay(ItemIcon))
 	{
 		IconSlot->SetHorizontalAlignment(HAlign_Center);
 		IconSlot->SetVerticalAlignment(VAlign_Center);
-		IconSlot->SetPadding(FMargin(16.0f));
+		IconSlot->SetPadding(FMargin(4.0f, 2.0f, 4.0f, 14.0f));
 	}
 
 	MaterialGlyphText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("InventoryMaterialGlyph"));
@@ -106,8 +98,12 @@ void UImmortalInventorySlotWidget::NativeOnInitialized()
 	MaterialGlyphText->RemoveFromParent();
 	SymbolIcon = CreateWidget<UImmortalIconWidget>(this);
 	UOverlaySlot* SymbolSlot = Layers->AddChildToOverlay(SymbolIcon);
+	SymbolSlot->SetHorizontalAlignment(HAlign_Fill);
+	SymbolSlot->SetVerticalAlignment(VAlign_Fill);
 	SymbolSlot->SetPadding(FMargin(8.0f, 4.0f, 8.0f, 16.0f));
-	Layers->AddChildToOverlay(QualityFrame);
+	UOverlaySlot* FrameSlot = Layers->AddChildToOverlay(QualityFrame);
+	FrameSlot->SetHorizontalAlignment(HAlign_Fill);
+	FrameSlot->SetVerticalAlignment(VAlign_Fill);
 
 	LevelText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("InventoryItemLevel"));
 	LevelText->SetColorAndOpacity(FSlateColor(FLinearColor::White));
@@ -241,17 +237,6 @@ void UImmortalInventorySlotWidget::RefreshAppearance()
 		return;
 	}
 
-	const TCHAR* StatePath = bSelected
-		? TEXT("/Game/GAME/Asset/ui/inventory/slots/selected.selected")
-		: (bEquipped
-			? TEXT("/Game/GAME/Asset/ui/inventory/slots/equipped.equipped")
-			: TEXT("/Game/GAME/Asset/ui/inventory/slots/normal.normal"));
-	const FSlateBrush StateBrush = MakeInventoryBrush(StatePath, FVector2D(SlotSize));
-	FButtonStyle ButtonStyle;
-	ButtonStyle.SetNormal(StateBrush);
-	ButtonStyle.SetHovered(StateBrush);
-	ButtonStyle.SetPressed(StateBrush);
-	ButtonStyle.SetDisabled(StateBrush);
 	SlotButton->SetStyle(ImmortalUITheme::ButtonStyle(bSelected));
 	SymbolIcon->SetVisibility((bQuestItem || bArtifactItem || bPillItem || bMaterialItem)
 		? ESlateVisibility::HitTestInvisible : ESlateVisibility::Collapsed);
@@ -363,8 +348,12 @@ void UImmortalInventorySlotWidget::RefreshAppearance()
 	const EImmortalEquipmentSlot VisibleSlot = bHasItem ? Item.Slot : PlaceholderSlot;
 	if (VisibleSlot != EImmortalEquipmentSlot::MAX)
 	{
+		SlotButton->SetToolTipText(FText::FromString(bHasItem
+			? FString::Printf(TEXT("%s · %s%s"), *Item.DisplayName.ToString(),
+				*UImmortalEquipmentLibrary::GetSlotText(VisibleSlot).ToString(), bEquipped ? TEXT(" · 已穿戴") : TEXT(""))
+			: UImmortalEquipmentLibrary::GetSlotText(VisibleSlot).ToString()));
 		const float Alpha = bHasItem ? 1.0f : 0.32f;
-		ItemIcon->SetBrush(MakeInventoryBrush(GetSlotTexturePath(VisibleSlot), FVector2D(64.0f), FLinearColor(1.0f, 1.0f, 1.0f, Alpha)));
+		ItemIcon->SetBrush(MakeInventoryBrush(GetSlotTexturePath(VisibleSlot), FVector2D(52.0f), FLinearColor(1.0f, 1.0f, 1.0f, Alpha)));
 		ItemIcon->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
 		FString SlotGlyph;
 		switch (VisibleSlot)
@@ -392,9 +381,8 @@ void UImmortalInventorySlotWidget::RefreshAppearance()
 
 	if (bHasItem)
 	{
-		const FLinearColor FrameTint = Item.Quality >= EImmortalEquipmentQuality::Immortal
-			? UImmortalEquipmentLibrary::GetQualityColor(Item.Quality) : FLinearColor::White;
-		QualityFrame->SetBrush(MakeInventoryBrush(GetQualityFramePath(Item.Quality), FVector2D(SlotSize), FrameTint));
+		QualityFrame->SetBrush(ImmortalUITheme::PanelBrush(FLinearColor::Transparent,
+			UImmortalEquipmentLibrary::GetQualityColor(Item.Quality)));
 		QualityFrame->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
 		LevelText->SetText(FText::AsNumber(Item.ItemLevel));
 		LevelText->SetVisibility(ESlateVisibility::SelfHitTestInvisible);

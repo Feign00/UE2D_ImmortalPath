@@ -16,7 +16,7 @@ class UImage;
 class UImmortalInventoryWidget;
 class UTextBlock;
 
-/** One 96x96 equipment/backpack cell assembled from the supplied UI textures. */
+/** One 84x84 item cell with supplied icons and scalable quality outlines. */
 UCLASS()
 class IMMORTALPATH_API UImmortalInventorySlotWidget : public UUserWidget
 {

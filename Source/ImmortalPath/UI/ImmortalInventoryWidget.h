@@ -11,9 +11,11 @@ class AImmortalPlayerCharacter;
 class UButton;
 class UTextBlock;
 class UUniformGridPanel;
+class UCanvasPanel;
+class UImage;
 enum class EImmortalEquipmentSlot : uint8;
 
-/** Native 1600x300 TBH backpack with five categories and safe equipment management. */
+/** Desktop management page: paper doll, categorized item grid and bounded comparison. */
 UCLASS()
 class IMMORTALPATH_API UImmortalInventoryWidget : public UUserWidget
 {
@@ -74,7 +76,9 @@ private:
 	UFUNCTION() void HandleBatchDismantleClicked();
 
 	UPROPERTY(Transient) TWeakObjectPtr<AImmortalPlayerCharacter> Player;
-	UPROPERTY(Transient) TObjectPtr<UUniformGridPanel> EquipmentGrid;
+	UPROPERTY(Transient) TObjectPtr<UCanvasPanel> EquipmentGrid;
+	UPROPERTY(Transient) TObjectPtr<UImage> PortraitImage;
+	UPROPERTY(Transient) TObjectPtr<UWidget> PortraitPanel;
 	UPROPERTY(Transient) TObjectPtr<UUniformGridPanel> BackpackGrid;
 	UPROPERTY(Transient) TObjectPtr<UTextBlock> EquipmentTitleText;
 	UPROPERTY(Transient) TObjectPtr<UTextBlock> CategoryOverviewText;

@@ -8172,7 +8172,7 @@ void AImmortalPlayerCharacter::ConfigureModalWidget(UUserWidget* Widget, const b
 			|| Widget == PlayerAscensionWidget
 			|| Widget == PlayerSettingsWidget;
 		const FVector2D InventorySize = bIsFullViewportScene
-			? FVector2D(1707.0f, 320.0f)
+			? ImmortalDesktopPanelLayout::ManagementSize
 			: bIsTaskbarStripWidget
 				? FVector2D(1600.0f, 300.0f)
 			: FVector2D(900.0f, 600.0f);

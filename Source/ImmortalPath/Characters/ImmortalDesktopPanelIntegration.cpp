@@ -6,6 +6,12 @@
 #include "../UI/ImmortalCraftingWidget.h"
 #include "../UI/ImmortalSectWidget.h"
 #include "../UI/ImmortalFarmingWidget.h"
+#include "../UI/ImmortalInventoryWidget.h"
+#include "../UI/ImmortalInventorySlotWidget.h"
+#include "Components/ButtonSlot.h"
+#include "Components/OverlaySlot.h"
+#include "Components/UniformGridPanel.h"
+#include "Components/UniformGridSlot.h"
 #include "Blueprint/WidgetTree.h"
 #include "Components/Button.h"
 #include "Components/Image.h"
@@ -27,14 +33,31 @@ void AImmortalPlayerCharacter::RunDesktopPanelFixture()
 {
 #if !UE_BUILD_SHIPPING
 	const bool bBuildings = FParse::Param(FCommandLine::Get(), TEXT("ImmortalTestDesktopBuildings"));
-	const bool bLayoutPreview = FParse::Param(FCommandLine::Get(), TEXT("ImmortalTestFeatureLayoutPreview"));
-	if (!bBuildings && !bLayoutPreview && !FParse::Param(FCommandLine::Get(), TEXT("ImmortalTestDesktopPanels"))) return;
+	const bool bInventoryPreview = FParse::Param(FCommandLine::Get(), TEXT("ImmortalTestInventoryPreview"));
+	const bool bInventoryFixture = bInventoryPreview || FParse::Param(FCommandLine::Get(), TEXT("ImmortalTestInventoryPanels"));
+	const bool bLayoutPreview = bInventoryPreview || FParse::Param(FCommandLine::Get(), TEXT("ImmortalTestFeatureLayoutPreview"));
+	if (!bBuildings && !bLayoutPreview && !bInventoryFixture && !FParse::Param(FCommandLine::Get(), TEXT("ImmortalTestDesktopPanels"))) return;
 	FString UserDir;
 	if (!FParse::Value(FCommandLine::Get(), TEXT("UserDir="), UserDir)
 		|| !FPaths::IsUnderDirectory(FPaths::ConvertRelativePathToFull(UserDir),
 			FPaths::ConvertRelativePathToFull(FPaths::Combine(FPaths::ProjectDir(), TEXT("Saved/Automation/DesktopPanels")))))
 	{
 		UE_LOG(LogTemp, Error, TEXT("Desktop panel fixture refused: isolated UserDir required.")); return;
+	}
+	if (bInventoryFixture)
+	{
+		// This fixture is intentionally unreachable in Shipping and outside the isolated directory.
+		bAutoEquipNewItems = false;
+		InventoryItems.Reset();
+		for (int32 Index = 0; Index < GetInventoryCapacity(); ++Index)
+		{
+			auto Item = UImmortalEquipmentLibrary::GenerateCraftedEquipment(1 + Index,
+				static_cast<EImmortalEquipmentSlot>(Index % 9), static_cast<EImmortalEquipmentQuality>(Index % 5));
+			Item.bLocked = Index <= 1;
+			InventoryItems.Add(Item);
+		}
+		InventoryItems[0].DisplayName = TEXT("青云镇岳流光长剑·长名称与多词条布局验证");
+		++EquipmentInventoryRevision;
 	}
 	if (bLayoutPreview)
 	{
@@ -118,6 +141,66 @@ void AImmortalPlayerCharacter::RunDesktopPanelFixture()
 				&& PlayerManagementWidget->GetActiveFeature() == Page);
 		});
 		At(4.0f + Index, [this, Shot, Index, Page, Check] {
+			if (Page == EImmortalManagementFeature::Inventory)
+			{
+				UWidgetTree* Tree = PlayerInventoryWidget->WidgetTree;
+				USizeBox* Root = Cast<USizeBox>(Tree->RootWidget);
+				UCanvasPanel* Doll = Cast<UCanvasPanel>(Tree->FindWidget(TEXT("EquipmentGrid")));
+				UImage* Portrait = Cast<UImage>(Tree->FindWidget(TEXT("InventoryPortrait")));
+				Check(TEXT("inventory uses enlarged paper doll with ten slots and portrait"), Root && Root->GetHeightOverride() == 600
+					&& Doll && Doll->GetChildrenCount() == 10 && Portrait && Portrait->GetBrush().GetResourceObject());
+				UUniformGridPanel* Bag = Cast<UUniformGridPanel>(Tree->FindWidget(TEXT("BackpackGrid")));
+				bool bGrid = Bag && Bag->GetChildrenCount() >= GetInventoryCapacity();
+				if (Bag) for (UWidget* Cell : Bag->GetAllChildren())
+				{
+					UUniformGridSlot* Slot = Cast<UUniformGridSlot>(Cell->Slot);
+					bGrid &= Slot && Slot->GetColumn() < 7 && Cell->GetDesiredSize().X >= 84;
+				}
+				Check(TEXT("inventory grid has seven columns and same-frame sized cells"), bGrid);
+				bool bFill = Bag && Bag->GetChildrenCount() > 0;
+				if (Bag) for (UWidget* Cell : Bag->GetAllChildren())
+				{
+					UImmortalInventorySlotWidget* ItemCell = Cast<UImmortalInventorySlotWidget>(Cell);
+					UWidget* Layers = ItemCell ? ItemCell->WidgetTree->FindWidget(TEXT("InventorySlotLayers")) : nullptr;
+					UWidget* Frame = ItemCell ? ItemCell->WidgetTree->FindWidget(TEXT("InventoryQualityFrame")) : nullptr;
+					const UButtonSlot* Content = Layers ? Cast<UButtonSlot>(Layers->Slot) : nullptr;
+					const UOverlaySlot* Border = Frame ? Cast<UOverlaySlot>(Frame->Slot) : nullptr;
+					bFill &= Content && Border && Content->GetHorizontalAlignment() == HAlign_Fill
+						&& Content->GetVerticalAlignment() == VAlign_Fill && Border->GetHorizontalAlignment() == HAlign_Fill
+						&& Border->GetVerticalAlignment() == VAlign_Fill;
+				}
+				Check(TEXT("inventory cell content and quality outline fill their slots"), bFill);
+				bool bWithinPanel = true;
+				Tree->ForEachWidget([&](UWidget* Widget)
+				{
+					if (const UCanvasPanelSlot* Slot = Cast<UCanvasPanelSlot>(Widget->Slot))
+					{
+						const auto End = Slot->GetPosition() + Slot->GetSize();
+						const auto ParentSize = Widget->GetParent()->GetCachedGeometry().GetLocalSize();
+						bWithinPanel &= Slot->GetPosition().X >= 0 && Slot->GetPosition().Y >= 0
+							&& End.X <= ParentSize.X + 1 && End.Y <= ParentSize.Y + 1;
+					}
+				});
+				Check(TEXT("inventory controls stay inside parent bounds"), bWithinPanel);
+				if (!InventoryItems.IsEmpty())
+				{
+					const FGuid Id = InventoryItems[0].ItemId;
+					PlayerInventoryWidget->HandleSlotSelected(Id);
+					SetEquipmentLocked(Id, true); PlayerInventoryWidget->RefreshFromPlayer();
+					UButton* SellLocked = Cast<UButton>(Tree->FindWidget(TEXT("InventorySellSelectedButton")));
+					UButton* DismantleLocked = Cast<UButton>(Tree->FindWidget(TEXT("InventoryDismantleSelectedButton")));
+					Check(TEXT("selected locked item disables sale and dismantle"), SellLocked && DismantleLocked
+						&& !SellLocked->GetIsEnabled() && !DismantleLocked->GetIsEnabled());
+					SetEquipmentLocked(Id, false);
+				}
+				const auto Before = InventoryItems;
+				InventoryItems.Reset(); ++EquipmentInventoryRevision;
+				PlayerInventoryWidget->RefreshFromPlayer();
+				UButton* Sell = Cast<UButton>(Tree->FindWidget(TEXT("InventorySellSelectedButton")));
+				Check(TEXT("empty backpack disables destructive action"), Sell && !Sell->GetIsEnabled());
+				InventoryItems = Before; ++EquipmentInventoryRevision;
+				PlayerInventoryWidget->RefreshFromPlayer();
+			}
 			if (Page == EImmortalManagementFeature::Sect || Page == EImmortalManagementFeature::Farming)
 			{
 				UUserWidget* ReflowPage = Page == EImmortalManagementFeature::Sect

@@ -3,6 +3,12 @@
 #include "ImmortalInventoryWidget.h"
 
 #include "ImmortalInventorySlotWidget.h"
+#include "ImmortalInventoryPresentation.h"
+#include "ImmortalFeaturePageLayout.h"
+#include "ImmortalUITheme.h"
+#include "Components/ScaleBox.h"
+#include "PaperFlipbook.h"
+#include "PaperSprite.h"
 #include "../Characters/ImmortalPlayerCharacter.h"
 #include "../Items/ImmortalEquipmentTypes.h"
 #include "../Items/ImmortalMaterialTypes.h"
@@ -25,15 +31,6 @@ namespace
 		UButton* Button = nullptr;
 		UTextBlock* Text = nullptr;
 	};
-
-	FSlateBrush MakeSolidBrush(const FVector2D Size, const FLinearColor Color)
-	{
-		FSlateBrush Brush;
-		Brush.DrawAs = ESlateBrushDrawType::Box;
-		Brush.ImageSize = Size;
-		Brush.TintColor = FSlateColor(Color);
-		return Brush;
-	}
 
 	void SetCanvasLayout(UCanvasPanelSlot* Slot, const FVector2D Position, const FVector2D Size)
 	{
@@ -61,26 +58,18 @@ namespace
 		const FString& Label,
 		const FVector2D Position,
 		const FVector2D Size,
-		const FLinearColor Color,
 		const int32 FontSize = 13)
 	{
 		FInventoryTextButton Result;
 		Result.Button = Tree->ConstructWidget<UButton>(UButton::StaticClass(), Name);
-		FButtonStyle Style;
-		const FSlateBrush Normal = MakeSolidBrush(Size, Color);
-		const FSlateBrush Hovered = MakeSolidBrush(Size, Color * 1.18f);
-		const FSlateBrush Pressed = MakeSolidBrush(Size, Color * 0.82f);
-		Style.SetNormal(Normal);
-		Style.SetHovered(Hovered);
-		Style.SetPressed(Pressed);
-		Style.SetDisabled(MakeSolidBrush(Size, FLinearColor(0.12f, 0.13f, 0.15f, 0.75f)));
-		Result.Button->SetStyle(Style);
 		SetCanvasLayout(Canvas->AddChildToCanvas(Result.Button), Position, Size);
 		Result.Text = Tree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), *(Name.ToString() + TEXT("Label")));
 		Result.Text->SetText(FText::FromString(Label));
 		Result.Text->SetJustification(ETextJustify::Center);
 		SetTextAppearance(Result.Text, FontSize, FLinearColor::White);
 		Result.Button->AddChild(Result.Text);
+		Result.Button->SetStyle(ImmortalUITheme::ButtonStyle());
+		ImmortalFeaturePageLayout::StabilizeButtonLabel(Result.Button, Result.Text);
 		return Result;
 	}
 
@@ -136,118 +125,112 @@ void UImmortalInventoryWidget::ResetTransientInteraction()
 void UImmortalInventoryWidget::NativeOnInitialized()
 {
 	Super::NativeOnInitialized();
-
-	USizeBox* RootBox = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass(), TEXT("InventoryPanelSize"));
-	RootBox->SetWidthOverride(1600.0f);
-	RootBox->SetHeightOverride(300.0f);
-	WidgetTree->RootWidget = RootBox;
+	USizeBox* Root = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass(), TEXT("InventoryPanelSize"));
+	Root->SetWidthOverride(1600);
+	Root->SetHeightOverride(600);
+	WidgetTree->RootWidget = Root;
 	UCanvasPanel* Canvas = WidgetTree->ConstructWidget<UCanvasPanel>(UCanvasPanel::StaticClass(), TEXT("InventoryCanvas"));
-	RootBox->AddChild(Canvas);
+	Root->AddChild(Canvas);
 
-	auto AddPanel = [this, Canvas](const FName Name, const FVector2D Position, const FVector2D Size, const FLinearColor Color)
+	const auto Panel = [this, Canvas](const TCHAR* Name, FVector2D Position, FVector2D Size)
 	{
-		UImage* Image = WidgetTree->ConstructWidget<UImage>(UImage::StaticClass(), Name);
-		Image->SetBrush(MakeSolidBrush(Size, Color));
-		SetCanvasLayout(Canvas->AddChildToCanvas(Image), Position, Size);
+		UImage* Background = WidgetTree->ConstructWidget<UImage>(UImage::StaticClass(), Name);
+		Background->SetBrush(ImmortalUITheme::PanelBrush(FLinearColor(0.035f, 0.065f, 0.065f)));
+		Background->SetVisibility(ESlateVisibility::HitTestInvisible);
+		SetCanvasLayout(Canvas->AddChildToCanvas(Background), Position, Size);
 	};
-	AddPanel(TEXT("InventoryBackground"), FVector2D::ZeroVector, FVector2D(1600.0f, 300.0f), FLinearColor(0.025f, 0.035f, 0.045f, 0.97f));
-	AddPanel(TEXT("InventoryHeaderBand"), FVector2D(8.0f, 5.0f), FVector2D(1584.0f, 40.0f), FLinearColor(0.11f, 0.16f, 0.18f, 0.98f));
-	AddPanel(TEXT("InventoryEquipmentPanel"), FVector2D(10.0f, 50.0f), FVector2D(390.0f, 240.0f), FLinearColor(0.07f, 0.09f, 0.11f, 0.94f));
-	AddPanel(TEXT("InventoryBackpackPanel"), FVector2D(406.0f, 50.0f), FVector2D(696.0f, 240.0f), FLinearColor(0.055f, 0.07f, 0.085f, 0.94f));
-	AddPanel(TEXT("InventoryDetailPanel"), FVector2D(1108.0f, 50.0f), FVector2D(482.0f, 240.0f), FLinearColor(0.07f, 0.09f, 0.11f, 0.94f));
+	const auto Text = [this, Canvas](const TCHAR* Name, const TCHAR* Caption, FVector2D Position, FVector2D Size, int32 Font)
+	{
+		UTextBlock* Label = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), Name);
+		Label->SetText(FText::FromString(Caption));
+		SetTextAppearance(Label, Font, FLinearColor(0.94f, 0.89f, 0.75f));
+		Label->SetTextOverflowPolicy(ETextOverflowPolicy::Ellipsis);
+		SetCanvasLayout(Canvas->AddChildToCanvas(Label), Position, Size);
+		return Label;
+	};
+	const auto Button = [this, Canvas](const TCHAR* Name, const TCHAR* Label, FVector2D Position, FVector2D Size)
+	{
+		return AddTextButton(WidgetTree, Canvas, Name, Label, Position, Size, 17);
+	};
+	const auto Scroll = [this, Canvas](const TCHAR* Name, FVector2D Position, FVector2D Size)
+	{
+		UScrollBox* Box = WidgetTree->ConstructWidget<UScrollBox>(UScrollBox::StaticClass(), Name);
+		ImmortalFeaturePageLayout::StyleScrollBox(Box);
+		Box->SetClipping(EWidgetClipping::ClipToBounds);
+		Box->SetConsumeMouseWheel(EConsumeMouseWheel::WhenScrollingPossible);
+		SetCanvasLayout(Canvas->AddChildToCanvas(Box), Position, Size);
+		return Box;
+	};
 
-	UTextBlock* Title = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("InventoryTitle"));
-	Title->SetText(FText::FromString(TEXT("储物戒 · 背包管理")));
-	SetTextAppearance(Title, 20, FLinearColor(0.98f, 0.82f, 0.42f, 1.0f));
-	SetCanvasLayout(Canvas->AddChildToCanvas(Title), FVector2D(18.0f, 10.0f), FVector2D(240.0f, 30.0f));
+	Panel(TEXT("InventoryHeaderBand"), {8, 2}, {1584, 48});
+	Panel(TEXT("InventoryEquipmentPanel"), {8, 58}, {420, 534});
+	Panel(TEXT("InventoryBackpackPanel"), {436, 58}, {660, 534});
+	Panel(TEXT("InventoryDetailPanel"), {1104, 58}, {488, 534});
+	Text(TEXT("InventoryTitle"), TEXT("储物戒"), {20, 6}, {170, 30}, 24);
 
-	const FInventoryTextButton EquipmentTab = AddTextButton(WidgetTree, Canvas, TEXT("EquipmentTabButton"), TEXT("装备"), FVector2D(278.0f, 9.0f), FVector2D(80.0f, 32.0f), FLinearColor(0.25f, 0.28f, 0.3f, 1.0f));
-	EquipmentTab.Button->OnClicked.AddDynamic(this, &UImmortalInventoryWidget::HandleEquipmentTabClicked);
-	EquipmentTabText = EquipmentTab.Text;
-	const FInventoryTextButton MaterialTab = AddTextButton(WidgetTree, Canvas, TEXT("MaterialTabButton"), TEXT("材料"), FVector2D(362.0f, 9.0f), FVector2D(80.0f, 32.0f), FLinearColor(0.21f, 0.3f, 0.25f, 1.0f));
-	MaterialTab.Button->OnClicked.AddDynamic(this, &UImmortalInventoryWidget::HandleMaterialTabClicked);
-	MaterialTabText = MaterialTab.Text;
-	const FInventoryTextButton PillTab = AddTextButton(WidgetTree, Canvas, TEXT("PillTabButton"), TEXT("丹药"), FVector2D(446.0f, 9.0f), FVector2D(80.0f, 32.0f), FLinearColor(0.29f, 0.22f, 0.32f, 1.0f));
-	PillTab.Button->OnClicked.AddDynamic(this, &UImmortalInventoryWidget::HandlePillTabClicked);
-	PillTabText = PillTab.Text;
-	const FInventoryTextButton ArtifactTab = AddTextButton(WidgetTree, Canvas, TEXT("ArtifactTabButton"), TEXT("法宝"), FVector2D(530.0f, 9.0f), FVector2D(80.0f, 32.0f), FLinearColor(0.28f, 0.2f, 0.34f, 1.0f));
-	ArtifactTab.Button->OnClicked.AddDynamic(this, &UImmortalInventoryWidget::HandleArtifactTabClicked);
-	ArtifactTabText = ArtifactTab.Text;
-	const FInventoryTextButton QuestTab = AddTextButton(WidgetTree, Canvas, TEXT("QuestItemTabButton"), TEXT("任务物品"), FVector2D(614.0f, 9.0f), FVector2D(96.0f, 32.0f), FLinearColor(0.33f, 0.27f, 0.16f, 1.0f));
-	QuestTab.Button->OnClicked.AddDynamic(this, &UImmortalInventoryWidget::HandleQuestItemTabClicked);
-	QuestItemTabText = QuestTab.Text;
-
-	FInventoryTextButton Threshold = AddTextButton(WidgetTree, Canvas, TEXT("InventoryQualityButton"), TEXT("筛选≤凡品"), FVector2D(718.0f, 9.0f), FVector2D(100.0f, 32.0f), FLinearColor(0.23f, 0.28f, 0.34f, 1.0f), 12);
-	Threshold.Button->OnClicked.AddDynamic(this, &UImmortalInventoryWidget::HandleMaximumQualityClicked);
-	MaximumQualityButton = Threshold.Button;
-	MaximumQualityButtonText = Threshold.Text;
-	const FInventoryTextButton Organize = AddTextButton(WidgetTree, Canvas, TEXT("InventoryOrganizeButton"), TEXT("整理"), FVector2D(822.0f, 9.0f), FVector2D(70.0f, 32.0f), FLinearColor(0.18f, 0.38f, 0.42f, 1.0f));
-	Organize.Button->OnClicked.AddDynamic(this, &UImmortalInventoryWidget::HandleOrganizeClicked);
-	const FInventoryTextButton BulkSell = AddTextButton(WidgetTree, Canvas, TEXT("InventoryBulkSellButton"), TEXT("批量出售"), FVector2D(896.0f, 9.0f), FVector2D(94.0f, 32.0f), FLinearColor(0.18f, 0.43f, 0.28f, 1.0f), 12);
-	BulkSell.Button->OnClicked.AddDynamic(this, &UImmortalInventoryWidget::HandleBatchSellClicked);
-	BatchSellButton = BulkSell.Button;
-	const FInventoryTextButton BulkDismantle = AddTextButton(WidgetTree, Canvas, TEXT("InventoryBulkDismantleButton"), TEXT("批量分解"), FVector2D(994.0f, 9.0f), FVector2D(94.0f, 32.0f), FLinearColor(0.46f, 0.28f, 0.16f, 1.0f), 12);
-	BulkDismantle.Button->OnClicked.AddDynamic(this, &UImmortalInventoryWidget::HandleBatchDismantleClicked);
-	BatchDismantleButton = BulkDismantle.Button;
-
-	BackpackCountText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("BackpackCount"));
-	BackpackCountText->SetJustification(ETextJustify::Center);
-	SetTextAppearance(BackpackCountText, 13, FLinearColor(0.72f, 0.8f, 0.84f, 1.0f));
-	SetCanvasLayout(Canvas->AddChildToCanvas(BackpackCountText), FVector2D(1095.0f, 13.0f), FVector2D(170.0f, 26.0f));
-	CombatPowerText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("CombatPowerText"));
+	auto Tab = Button(TEXT("EquipmentTabButton"), TEXT("装备"), {210, 5}, {80, 30});
+	Tab.Button->OnClicked.AddDynamic(this, &UImmortalInventoryWidget::HandleEquipmentTabClicked); EquipmentTabText = Tab.Text;
+	Tab = Button(TEXT("MaterialTabButton"), TEXT("材料"), {296, 5}, {80, 30});
+	Tab.Button->OnClicked.AddDynamic(this, &UImmortalInventoryWidget::HandleMaterialTabClicked); MaterialTabText = Tab.Text;
+	Tab = Button(TEXT("PillTabButton"), TEXT("丹药"), {382, 5}, {80, 30});
+	Tab.Button->OnClicked.AddDynamic(this, &UImmortalInventoryWidget::HandlePillTabClicked); PillTabText = Tab.Text;
+	Tab = Button(TEXT("ArtifactTabButton"), TEXT("法宝"), {468, 5}, {80, 30});
+	Tab.Button->OnClicked.AddDynamic(this, &UImmortalInventoryWidget::HandleArtifactTabClicked); ArtifactTabText = Tab.Text;
+	Tab = Button(TEXT("QuestItemTabButton"), TEXT("任务"), {554, 5}, {80, 30});
+	Tab.Button->OnClicked.AddDynamic(this, &UImmortalInventoryWidget::HandleQuestItemTabClicked); QuestItemTabText = Tab.Text;
+	BackpackCountText = Text(TEXT("BackpackCount"), TEXT(""), {652, 8}, {310, 26}, 16);
+	CombatPowerText = Text(TEXT("CombatPowerText"), TEXT(""), {1000, 8}, {530, 26}, 16);
 	CombatPowerText->SetJustification(ETextJustify::Right);
-	SetTextAppearance(CombatPowerText, 15, FLinearColor(1.0f, 0.68f, 0.2f, 1.0f));
-	SetCanvasLayout(Canvas->AddChildToCanvas(CombatPowerText), FVector2D(1270.0f, 12.0f), FVector2D(265.0f, 27.0f));
-	const FInventoryTextButton Close = AddTextButton(WidgetTree, Canvas, TEXT("InventoryCloseButton"), TEXT("×"), FVector2D(1545.0f, 9.0f), FVector2D(36.0f, 32.0f), FLinearColor(0.48f, 0.17f, 0.14f, 1.0f), 20);
+	auto Close = Button(TEXT("InventoryCloseButton"), TEXT("×"), {1546, 5}, {34, 30});
 	Close.Button->OnClicked.AddDynamic(this, &UImmortalInventoryWidget::HandleCloseClicked);
 
-	EquipmentTitleText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("EquipmentTitle"));
-	SetTextAppearance(EquipmentTitleText, 15, FLinearColor(0.9f, 0.92f, 0.94f, 1.0f));
-	SetCanvasLayout(Canvas->AddChildToCanvas(EquipmentTitleText), FVector2D(20.0f, 56.0f), FVector2D(360.0f, 24.0f));
-	EquipmentGrid = WidgetTree->ConstructWidget<UUniformGridPanel>(UUniformGridPanel::StaticClass(), TEXT("EquipmentGrid"));
-	EquipmentGrid->SetSlotPadding(FMargin(2.0f));
-	SetCanvasLayout(Canvas->AddChildToCanvas(EquipmentGrid), FVector2D(17.0f, 82.0f), FVector2D(376.0f, 150.0f));
-	CategoryOverviewText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("CategoryOverview"));
+	EquipmentGrid = WidgetTree->ConstructWidget<UCanvasPanel>(UCanvasPanel::StaticClass(), TEXT("EquipmentGrid"));
+	SetCanvasLayout(Canvas->AddChildToCanvas(EquipmentGrid), {24, 100}, {388, 480});
+	UScaleBox* PortraitScale = WidgetTree->ConstructWidget<UScaleBox>(UScaleBox::StaticClass(), TEXT("InventoryPortraitScale"));
+	PortraitScale->SetStretch(EStretch::ScaleToFit);
+	PortraitScale->SetVisibility(ESlateVisibility::HitTestInvisible);
+	SetCanvasLayout(Canvas->AddChildToCanvas(PortraitScale), {112, 100}, {200, 320});
+	PortraitImage = WidgetTree->ConstructWidget<UImage>(UImage::StaticClass(), TEXT("InventoryPortrait"));
+	PortraitScale->AddChild(PortraitImage);
+	PortraitPanel = PortraitScale;
+	EquipmentTitleText = Text(TEXT("EquipmentTitle"), TEXT("随身装备"), {24, 68}, {388, 28}, 20);
+	EquipmentTitleText->SetJustification(ETextJustify::Center);
+	CategoryOverviewText = Text(TEXT("CategoryOverview"), TEXT(""), {24, 100}, {388, 474}, 18);
 	CategoryOverviewText->SetAutoWrapText(true);
-	SetTextAppearance(CategoryOverviewText, 13, FLinearColor(0.76f, 0.82f, 0.85f, 1.0f));
-	SetCanvasLayout(Canvas->AddChildToCanvas(CategoryOverviewText), FVector2D(20.0f, 84.0f), FVector2D(365.0f, 190.0f));
+	ImmortalFeaturePageLayout::MakeScrollable(WidgetTree, CategoryOverviewText);
 
-	UScrollBox* BackpackScroll = WidgetTree->ConstructWidget<UScrollBox>(UScrollBox::StaticClass(), TEXT("BackpackScroll"));
-	BackpackScroll->SetScrollBarVisibility(ESlateVisibility::Visible);
-	SetCanvasLayout(Canvas->AddChildToCanvas(BackpackScroll), FVector2D(414.0f, 57.0f), FVector2D(680.0f, 226.0f));
+	Text(TEXT("BackpackSectionTitle"), TEXT("物品"), {452, 68}, {620, 28}, 20);
+	UScrollBox* BackpackScroll = Scroll(TEXT("BackpackScroll"), {448, 100}, {634, 440});
 	BackpackGrid = WidgetTree->ConstructWidget<UUniformGridPanel>(UUniformGridPanel::StaticClass(), TEXT("BackpackGrid"));
-	BackpackGrid->SetSlotPadding(FMargin(2.0f));
+	BackpackGrid->SetSlotPadding(FMargin(2));
 	BackpackScroll->AddChild(BackpackGrid);
+	auto Threshold = Button(TEXT("InventoryQualityButton"), TEXT("批量≤凡品"), {448, 550}, {182, 36});
+	Threshold.Button->OnClicked.AddDynamic(this, &UImmortalInventoryWidget::HandleMaximumQualityClicked);
+	MaximumQualityButton = Threshold.Button; MaximumQualityButtonText = Threshold.Text;
+	auto Organize = Button(TEXT("InventoryOrganizeButton"), TEXT("整理"), {638, 550}, {90, 36});
+	Organize.Button->OnClicked.AddDynamic(this, &UImmortalInventoryWidget::HandleOrganizeClicked);
+	auto BulkSell = Button(TEXT("InventoryBulkSellButton"), TEXT("批量出售"), {736, 550}, {165, 36});
+	BulkSell.Button->OnClicked.AddDynamic(this, &UImmortalInventoryWidget::HandleBatchSellClicked); BatchSellButton = BulkSell.Button;
+	auto BulkDismantle = Button(TEXT("InventoryBulkDismantleButton"), TEXT("批量分解"), {909, 550}, {165, 36});
+	BulkDismantle.Button->OnClicked.AddDynamic(this, &UImmortalInventoryWidget::HandleBatchDismantleClicked); BatchDismantleButton = BulkDismantle.Button;
 
-	ItemNameText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("SelectedItemName"));
-	SetTextAppearance(ItemNameText, 17, FLinearColor::White);
-	SetCanvasLayout(Canvas->AddChildToCanvas(ItemNameText), FVector2D(1122.0f, 58.0f), FVector2D(450.0f, 27.0f));
-	UScrollBox* DetailScroll = WidgetTree->ConstructWidget<UScrollBox>(UScrollBox::StaticClass(), TEXT("SelectedItemDetailScroll"));
-	DetailScroll->SetScrollBarVisibility(ESlateVisibility::Visible);
-	SetCanvasLayout(Canvas->AddChildToCanvas(DetailScroll), FVector2D(1122.0f, 87.0f), FVector2D(450.0f, 98.0f));
+	ItemNameText = Text(TEXT("SelectedItemName"), TEXT("请选择物品"), {1120, 68}, {456, 30}, 21);
 	ItemDetailsText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("SelectedItemDetails"));
 	ItemDetailsText->SetAutoWrapText(true);
-	SetTextAppearance(ItemDetailsText, 12, FLinearColor(0.86f, 0.88f, 0.9f, 1.0f));
-	DetailScroll->AddChild(ItemDetailsText);
-	ComparisonText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("SelectedItemComparison"));
-	SetTextAppearance(ComparisonText, 12, FLinearColor(0.45f, 1.0f, 0.45f, 1.0f));
-	SetCanvasLayout(Canvas->AddChildToCanvas(ComparisonText), FVector2D(1122.0f, 188.0f), FVector2D(450.0f, 24.0f));
-	OperationMessageText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("InventoryOperationMessage"));
+	SetTextAppearance(ItemDetailsText, 17, FLinearColor(0.89f, 0.9f, 0.86f));
+	Scroll(TEXT("SelectedItemDetailScroll"), {1120, 105}, {456, 220})->AddChild(ItemDetailsText);
+	ComparisonText = Text(TEXT("SelectedItemComparison"), TEXT(""), {1120, 335}, {456, 156}, 16);
+	ComparisonText->SetAutoWrapText(true);
+	ImmortalFeaturePageLayout::MakeScrollable(WidgetTree, ComparisonText);
+	OperationMessageText = Text(TEXT("InventoryOperationMessage"), TEXT(""), {1120, 498}, {456, 40}, 16);
 	OperationMessageText->SetAutoWrapText(true);
-	SetTextAppearance(OperationMessageText, 12, FLinearColor(1.0f, 0.78f, 0.3f, 1.0f));
-	SetCanvasLayout(Canvas->AddChildToCanvas(OperationMessageText), FVector2D(1122.0f, 214.0f), FVector2D(450.0f, 32.0f));
-
-	FInventoryTextButton Lock = AddTextButton(WidgetTree, Canvas, TEXT("InventoryLockButton"), TEXT("锁定"), FVector2D(1122.0f, 251.0f), FVector2D(100.0f, 31.0f), FLinearColor(0.42f, 0.34f, 0.13f, 1.0f), 12);
-	Lock.Button->OnClicked.AddDynamic(this, &UImmortalInventoryWidget::HandleLockClicked);
-	LockButton = Lock.Button;
-	LockButtonText = Lock.Text;
-	FInventoryTextButton SellSelected = AddTextButton(WidgetTree, Canvas, TEXT("InventorySellSelectedButton"), TEXT("出售此件"), FVector2D(1228.0f, 251.0f), FVector2D(104.0f, 31.0f), FLinearColor(0.16f, 0.4f, 0.25f, 1.0f), 12);
-	SellSelected.Button->OnClicked.AddDynamic(this, &UImmortalInventoryWidget::HandleSellSelectedClicked);
-	SellSelectedButton = SellSelected.Button;
-	FInventoryTextButton DismantleSelected = AddTextButton(WidgetTree, Canvas, TEXT("InventoryDismantleSelectedButton"), TEXT("分解此件"), FVector2D(1338.0f, 251.0f), FVector2D(104.0f, 31.0f), FLinearColor(0.44f, 0.25f, 0.14f, 1.0f), 12);
-	DismantleSelected.Button->OnClicked.AddDynamic(this, &UImmortalInventoryWidget::HandleDismantleSelectedClicked);
-	DismantleSelectedButton = DismantleSelected.Button;
-
+	ImmortalFeaturePageLayout::MakeScrollable(WidgetTree, OperationMessageText);
+	auto Lock = Button(TEXT("InventoryLockButton"), TEXT("锁定"), {1120, 550}, {120, 36});
+	Lock.Button->OnClicked.AddDynamic(this, &UImmortalInventoryWidget::HandleLockClicked); LockButton = Lock.Button; LockButtonText = Lock.Text;
+	auto Sell = Button(TEXT("InventorySellSelectedButton"), TEXT("出售此件"), {1248, 550}, {156, 36});
+	Sell.Button->OnClicked.AddDynamic(this, &UImmortalInventoryWidget::HandleSellSelectedClicked); SellSelectedButton = Sell.Button;
+	auto Dismantle = Button(TEXT("InventoryDismantleSelectedButton"), TEXT("分解此件"), {1412, 550}, {164, 36});
+	Dismantle.Button->OnClicked.AddDynamic(this, &UImmortalInventoryWidget::HandleDismantleSelectedClicked); DismantleSelectedButton = Dismantle.Button;
 	RefreshFromPlayer();
 }
 
@@ -372,6 +355,7 @@ void UImmortalInventoryWidget::RefreshFromPlayer()
 	RefreshCategoryOverview();
 	RefreshDetails();
 	RefreshActionState();
+	ForceLayoutPrepass();
 }
 
 void UImmortalInventoryWidget::RebuildEquipmentSlots()
@@ -379,18 +363,24 @@ void UImmortalInventoryWidget::RebuildEquipmentSlots()
 	EquipmentGrid->ClearChildren();
 	const bool bEquipment = ActiveCategory == EImmortalInventoryCategory::Equipment;
 	EquipmentGrid->SetVisibility(bEquipment ? ESlateVisibility::SelfHitTestInvisible : ESlateVisibility::Collapsed);
-	CategoryOverviewText->SetVisibility(bEquipment ? ESlateVisibility::Collapsed : ESlateVisibility::SelfHitTestInvisible);
+	CategoryOverviewText->GetParent()->SetVisibility(bEquipment ? ESlateVisibility::Collapsed : ESlateVisibility::SelfHitTestInvisible);
+	PortraitPanel->SetVisibility(bEquipment ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Collapsed);
+	EquipmentTitleText->SetVisibility(bEquipment ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Collapsed);
 	if (!bEquipment) return;
+	if (UPaperFlipbook* Idle = Player->GetInventoryPortraitFlipbook())
+	{
+		PortraitImage->SetBrushFromAtlasInterface(Idle->GetSpriteAtFrame(0), true);
+	}
 	AddEquipmentSlot(EImmortalEquipmentSlot::Weapon, 0, 0);
-	AddEquipmentSlot(EImmortalEquipmentSlot::Head, 1, 0);
-	AddEquipmentSlot(EImmortalEquipmentSlot::Chest, 2, 0);
-	AddEquipmentSlot(EImmortalEquipmentSlot::Bracers, 3, 0);
-	AddEquipmentSlot(EImmortalEquipmentSlot::Belt, 4, 0);
-	AddEquipmentSlot(EImmortalEquipmentSlot::Boots, 0, 1);
-	AddEquipmentSlot(EImmortalEquipmentSlot::RingLeft, 1, 1);
-	AddEquipmentSlot(EImmortalEquipmentSlot::RingRight, 2, 1);
-	AddEquipmentSlot(EImmortalEquipmentSlot::Accessory, 3, 1);
-	AddArtifactEquipmentSlot(4, 1);
+	AddEquipmentSlot(EImmortalEquipmentSlot::Head, 5, 0);
+	AddEquipmentSlot(EImmortalEquipmentSlot::Chest, 0, 1);
+	AddEquipmentSlot(EImmortalEquipmentSlot::Bracers, 5, 1);
+	AddEquipmentSlot(EImmortalEquipmentSlot::Belt, 0, 2);
+	AddEquipmentSlot(EImmortalEquipmentSlot::Boots, 5, 2);
+	AddEquipmentSlot(EImmortalEquipmentSlot::RingLeft, 0, 3);
+	AddEquipmentSlot(EImmortalEquipmentSlot::RingRight, 1, 3);
+	AddEquipmentSlot(EImmortalEquipmentSlot::Accessory, 2, 3);
+	AddArtifactEquipmentSlot(3, 3);
 }
 
 void UImmortalInventoryWidget::AddEquipmentSlot(
@@ -402,11 +392,8 @@ void UImmortalInventoryWidget::AddEquipmentSlot(
 	const bool bHasItem = Player->GetEquippedItemForSlot(EquipmentSlot, Item);
 	UImmortalInventorySlotWidget* SlotWidget = CreateWidget<UImmortalInventorySlotWidget>(GetOwningPlayer(), UImmortalInventorySlotWidget::StaticClass());
 	SlotWidget->InitializeSlot(this, Item, bHasItem, bHasItem, bHasItem && SelectedItemId == Item.ItemId, EquipmentSlot);
-	if (UUniformGridSlot* GridSlot = EquipmentGrid->AddChildToUniformGrid(SlotWidget, Row, Column))
-	{
-		GridSlot->SetHorizontalAlignment(HAlign_Center);
-		GridSlot->SetVerticalAlignment(VAlign_Center);
-	}
+	SetCanvasLayout(EquipmentGrid->AddChildToCanvas(SlotWidget),
+		ImmortalInventoryPresentation::EquipmentPosition(Column, Row), FVector2D(ImmortalInventoryPresentation::SlotSize));
 }
 
 void UImmortalInventoryWidget::AddArtifactEquipmentSlot(const int32 Column, const int32 Row)
@@ -417,17 +404,14 @@ void UImmortalInventoryWidget::AddArtifactEquipmentSlot(const int32 Column, cons
 		GetOwningPlayer(), UImmortalInventorySlotWidget::StaticClass());
 	SlotWidget->InitializeArtifactSlot(this, Artifact, bHasEquipped,
 		bHasEquipped && Artifact.InstanceId == SelectedArtifactInstanceId);
-	if (UUniformGridSlot* GridSlot = EquipmentGrid->AddChildToUniformGrid(SlotWidget, Row, Column))
-	{
-		GridSlot->SetHorizontalAlignment(HAlign_Center);
-		GridSlot->SetVerticalAlignment(VAlign_Center);
-	}
+	SetCanvasLayout(EquipmentGrid->AddChildToCanvas(SlotWidget),
+		ImmortalInventoryPresentation::EquipmentPosition(Column, Row), FVector2D(ImmortalInventoryPresentation::SlotSize));
 }
 
 void UImmortalInventoryWidget::RebuildBackpackSlots()
 {
 	BackpackGrid->ClearChildren();
-	constexpr int32 Columns = 9;
+	constexpr int32 Columns = ImmortalInventoryPresentation::BackpackColumns;
 	if (ActiveCategory == EImmortalInventoryCategory::Equipment)
 	{
 		const TArray<FImmortalEquipmentItem> Inventory = Player->GetInventoryItems();
@@ -506,6 +490,8 @@ void UImmortalInventoryWidget::RebuildBackpackSlots()
 
 void UImmortalInventoryWidget::RefreshDetails()
 {
+	ItemNameText->SetToolTipText(FText::GetEmpty());
+	ComparisonText->SetColorAndOpacity(FLinearColor(0.87f, 0.88f, 0.79f));
 	if (ActiveCategory == EImmortalInventoryCategory::Material)
 	{
 		FImmortalMaterialDefinition Definition;
@@ -605,6 +591,7 @@ void UImmortalInventoryWidget::RefreshDetails()
 		return;
 	}
 	ItemNameText->SetText(FText::FromName(Item->DisplayName));
+	ItemNameText->SetToolTipText(ItemNameText->GetText());
 	ItemNameText->SetColorAndOpacity(FSlateColor(UImmortalEquipmentLibrary::GetQualityColor(Item->Quality)));
 	const float ItemPower = UImmortalEquipmentLibrary::CalculateEquipmentPower(*Item);
 	FString Details = FString::Printf(
@@ -642,12 +629,8 @@ void UImmortalInventoryWidget::RefreshDetails()
 	else
 	{
 		FImmortalEquipmentItem Current;
-		const float CurrentPower = Player->GetEquippedItemForSlot(Item->Slot, Current)
-			? UImmortalEquipmentLibrary::CalculateEquipmentPower(Current) : 0.0f;
-		const float Difference = ItemPower - CurrentPower;
-		ComparisonText->SetText(FText::FromString(FString::Printf(TEXT("相对当前装备 %+.1f 战力"), Difference)));
-		ComparisonText->SetColorAndOpacity(FSlateColor(Difference >= 0.0f
-			? FLinearColor(0.4f, 1.0f, 0.4f, 1.0f) : FLinearColor(1.0f, 0.4f, 0.35f, 1.0f)));
+		const bool bHasCurrent = Player->GetEquippedItemForSlot(Item->Slot, Current);
+		ComparisonText->SetText(FText::FromString(ImmortalInventoryPresentation::Compare(*Item, Current, bHasCurrent)));
 	}
 }
 
@@ -664,7 +647,7 @@ void UImmortalInventoryWidget::RefreshTabAppearance()
 	ColorTab(ArtifactTabText, EImmortalInventoryCategory::Artifact, FLinearColor(0.77f, 0.42f, 1.0f, 1.0f));
 	ColorTab(QuestItemTabText, EImmortalInventoryCategory::QuestItem, FLinearColor(1.0f, 0.76f, 0.3f, 1.0f));
 	EquipmentTitleText->SetText(FText::FromString(ActiveCategory == EImmortalInventoryCategory::Equipment
-		? TEXT("战斗位 · 9件装备 + 1件独立法宝")
+		? TEXT("随身装备 · 独立法宝")
 		: FString::Printf(TEXT("%s概览"), *UImmortalInventoryLibrary::GetCategoryText(ActiveCategory).ToString())));
 }
 
@@ -718,7 +701,7 @@ void UImmortalInventoryWidget::RefreshActionState()
 	MaximumQualityButton->SetVisibility(bEquipmentCategory ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
 	BatchSellButton->SetVisibility(bEquipmentCategory ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
 	BatchDismantleButton->SetVisibility(bEquipmentCategory ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
-	MaximumQualityButtonText->SetText(FText::FromString(FString::Printf(TEXT("筛选%s"),
+	MaximumQualityButtonText->SetText(FText::FromString(FString::Printf(TEXT("批量%s"),
 		*UImmortalInventoryLibrary::GetMaximumQualityText(MaximumBulkQuality).ToString())));
 	const int32 BulkCount = bEquipmentCategory ? Player->GetBulkEquipmentCount(MaximumBulkQuality) : 0;
 	BatchSellButton->SetIsEnabled(BulkCount > 0);
@@ -761,6 +744,8 @@ void UImmortalInventoryWidget::SetOperationMessage(const FText& Message, const b
 {
 	if (!OperationMessageText) return;
 	OperationMessageText->SetText(Message);
+	OperationMessageText->SetToolTipText(Message);
+	if (UScrollBox* Scroll = Cast<UScrollBox>(OperationMessageText->GetParent())) Scroll->ScrollToStart();
 	OperationMessageText->SetColorAndOpacity(FSlateColor(bSuccess
 		? FLinearColor(0.42f, 1.0f, 0.56f, 1.0f)
 		: FLinearColor(1.0f, 0.74f, 0.28f, 1.0f)));
@@ -780,6 +765,7 @@ void UImmortalInventoryWidget::ShowCategory(const EImmortalInventoryCategory Cat
 		return;
 	}
 	ActiveCategory = Category;
+	if (UScrollBox* Scroll = Cast<UScrollBox>(BackpackGrid->GetParent())) Scroll->ScrollToStart();
 	ResetPendingAction();
 	SetOperationMessage(FText::GetEmpty());
 	RefreshFromPlayer();
@@ -797,6 +783,8 @@ void UImmortalInventoryWidget::HandleQuestItemTabClicked() { ShowQuestItemTab();
 
 void UImmortalInventoryWidget::HandleSlotSelected(const FGuid& ItemId)
 {
+	if (UScrollBox* Scroll = Cast<UScrollBox>(ItemDetailsText->GetParent())) Scroll->ScrollToStart();
+	if (UScrollBox* Scroll = Cast<UScrollBox>(ComparisonText->GetParent())) Scroll->ScrollToStart();
 	SelectedItemId = ItemId;
 	ResetTransientInteraction();
 	RefreshFromPlayer();

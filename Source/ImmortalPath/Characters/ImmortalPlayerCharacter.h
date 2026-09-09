@@ -693,6 +693,9 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Immortal Path|Equipment")
 	bool GetEquippedItemForSlot(EImmortalEquipmentSlot Slot, FImmortalEquipmentItem& OutItem) const;
 
+	/** Read-only portrait source from the currently selected animation family. */
+	UPaperFlipbook* GetInventoryPortraitFlipbook() const { return MortalRealmIdleFlipbook; }
+
 	UFUNCTION(BlueprintPure, Category = "Immortal Path|Attributes")
 	bool IsDead() const { return bDead; }
 

@@ -4,13 +4,16 @@
 /** Pixel-space layout shared by native docking, UMG and world projection. */
 namespace ImmortalDesktopPanelLayout
 {
+	inline const FVector2D ManagementSize(1707, 680);
+	inline const FVector2D ContentPosition(12, 58);
+	inline const FVector2D ContentSize(1683, 610);
 	inline int32 BattleHeight(int32 Requested, int32 WorkHeight)
 	{
 		return FMath::Clamp(Requested, 180, FMath::Max(WorkHeight / 2, 180));
 	}
 	inline int32 WindowHeight(int32 Battle, int32 WorkHeight, bool bExpanded)
 	{
-		return bExpanded ? FMath::Min(Battle + 360, WorkHeight) : Battle;
+		return bExpanded ? FMath::Min(Battle + int32(ManagementSize.Y) + 24, WorkHeight) : Battle;
 	}
 	struct FPanel { FVector2D Position; float Scale; };
 	inline FPanel Fit(FVector2D Viewport, FVector2D Logical, int32 Battle)

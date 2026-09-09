@@ -13,13 +13,17 @@ bool FImmortalDesktopPanelLayoutTest::RunTest(const FString& Parameters)
 		{
 			const int32 Battle = BattleHeight(Requested, Work.Y);
 			const int32 Height = WindowHeight(Battle, Work.Y, true);
-			const auto Panel = Fit(FVector2D(Work.X, Height), FVector2D(1707, 320), Battle);
+			const auto Panel = Fit(FVector2D(Work.X, Height), ManagementSize, Battle);
 			TestTrue(TEXT("Expanded native window stays in work area"), Height <= Work.Y);
 			TestEqual(TEXT("Closing restores battle height"), WindowHeight(Battle, Work.Y, false), Battle);
 			TestTrue(TEXT("Panel leaves battle and side margins visible"), Panel.Position.X >= 24
-				&& Panel.Position.Y + 320 * Panel.Scale <= Height - Battle - 12 + 0.01f);
+				&& Panel.Position.Y + ManagementSize.Y * Panel.Scale <= Height - Battle - 12 + 0.01f);
 		}
 	}
+	TestTrue(TEXT("Large desktop has a full-height management area"),
+		Fit(FVector2D(1920, WindowHeight(320,1080,true)), ManagementSize,320).Scale >= .99f);
+	TestTrue(TEXT("Content fits below navigation inside enlarged shell"),
+		ContentPosition.Y >= 42 && ContentPosition.Y + ContentSize.Y <= ManagementSize.Y);
 	FMatrix Projection = FMatrix::Identity;
 	AnchorBattleProjection(Projection, 680, 320);
 	TestTrue(TEXT("Orthographic shift equals half of extra window height in pixels"),

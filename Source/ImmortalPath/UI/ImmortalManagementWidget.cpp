@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "ImmortalManagementWidget.h"
+#include "ImmortalDesktopPanelLayout.h"
 #include "ImmortalUITheme.h"
 #include "ImmortalManagementArt.h"
 
@@ -364,7 +365,7 @@ void UImmortalManagementWidget::NativeOnInitialized()
 	USizeBox* RootSize = WidgetTree->ConstructWidget<USizeBox>(
 		USizeBox::StaticClass(), TEXT("ManagementLogicalSize"));
 	RootSize->SetWidthOverride(1707.0f);
-	RootSize->SetHeightOverride(320.0f);
+	RootSize->SetHeightOverride(ImmortalDesktopPanelLayout::ManagementSize.Y);
 	WidgetTree->RootWidget = RootSize;
 
 	UCanvasPanel* RootCanvas = WidgetTree->ConstructWidget<UCanvasPanel>(
@@ -379,15 +380,15 @@ void UImmortalManagementWidget::NativeOnInitialized()
 	SetManagementLayout(
 		RootCanvas->AddChildToCanvas(ThemePlaceholder),
 		FVector2D::ZeroVector,
-		FVector2D(1707.0f, 320.0f));
+		ImmortalDesktopPanelLayout::ManagementSize);
 
 	ThemeImage = WidgetTree->ConstructWidget<UImage>(
 		UImage::StaticClass(), TEXT("ManagementThemeImage"));
 	ThemeImage->SetVisibility(ESlateVisibility::Collapsed);
 	SetManagementLayout(
 		RootCanvas->AddChildToCanvas(ThemeImage),
-		FVector2D(8.0f, 46.0f),
-		FVector2D(1691.0f, 266.0f));
+		FVector2D(8.0f, 58.0f),
+		FVector2D(1691.0f, 610.0f));
 
 	UBorder* ReadabilityOverlay = WidgetTree->ConstructWidget<UBorder>(
 		UBorder::StaticClass(), TEXT("ManagementReadabilityOverlay"));
@@ -398,7 +399,7 @@ void UImmortalManagementWidget::NativeOnInitialized()
 	SetManagementLayout(
 		RootCanvas->AddChildToCanvas(ReadabilityOverlay),
 		FVector2D::ZeroVector,
-		FVector2D(1707.0f, 320.0f));
+		ImmortalDesktopPanelLayout::ManagementSize);
 
 	PageTitleText = WidgetTree->ConstructWidget<UTextBlock>(
 		UTextBlock::StaticClass(), TEXT("ManagementPageTitle"));
@@ -410,7 +411,7 @@ void UImmortalManagementWidget::NativeOnInitialized()
 	SetManagementLayout(
 		RootCanvas->AddChildToCanvas(PageSwitcher),
 		FVector2D::ZeroVector,
-		FVector2D(1707.0f, 320.0f));
+		ImmortalDesktopPanelLayout::ManagementSize);
 	UWidget* HomePage = BuildHomePage();
 	PageSwitcher->AddChild(HomePage);
 	RegisteredPages.Add(EImmortalManagementFeature::Home, HomePage);
@@ -526,7 +527,7 @@ void UImmortalManagementWidget::NativeOnInitialized()
 	NotificationBar->SetVisibility(ESlateVisibility::Collapsed);
 	SetManagementLayout(
 		RootCanvas->AddChildToCanvas(NotificationBar),
-		FVector2D(400.0f, 328.0f),
+		FVector2D(400.0f, 636.0f),
 		FVector2D(907.0f, 27.0f));
 
 	NotificationText = WidgetTree->ConstructWidget<UTextBlock>(
@@ -603,7 +604,7 @@ void UImmortalManagementWidget::RegisterFeaturePage(
 		UCanvasPanel::StaticClass());
 	SetManagementLayout(
 		PageContainer->AddChildToCanvas(PageScale),
-		FVector2D(12.0f, 46.0f), FVector2D(1683.0f, 270.0f));
+		ImmortalDesktopPanelLayout::ContentPosition, ImmortalDesktopPanelLayout::ContentSize);
 	PageSwitcher->AddChild(PageContainer);
 	RegisteredPages.Add(Feature, PageContainer);
 	RegisteredPageSources.Add(Feature, Page);
@@ -891,7 +892,7 @@ UWidget* UImmortalManagementWidget::BuildHomePage()
 	SetManagementLayout(
 		Page->AddChildToCanvas(SceneHubSwitcher),
 		FVector2D::ZeroVector,
-		FVector2D(1707.0f, 320.0f));
+		ImmortalDesktopPanelLayout::ManagementSize);
 
 	const EImmortalManagementScene Scenes[] =
 	{
@@ -950,7 +951,8 @@ UWidget* UImmortalManagementWidget::BuildSceneHub(
 		FVector2D(590.0f, 24.0f));
 	SceneHint->SetVisibility(ESlateVisibility::Collapsed);
 
-	auto Place = [this, Hub](
+	int32 HotspotIndex = 0;
+	auto Place = [this, Hub, Scene, &HotspotIndex](
 		const EImmortalManagementFeature Feature,
 		const TCHAR* Label,
 		const float X,
@@ -958,15 +960,22 @@ UWidget* UImmortalManagementWidget::BuildSceneHub(
 		const float Width,
 		const float Height)
 	{
+		const int32 Columns = Scene == EImmortalManagementScene::AdventureHall ? 2 : 3;
+		const float CardWidth = Scene == EImmortalManagementScene::MarketTown ? 650.0f
+			: Scene == EImmortalManagementScene::AdventureHall ? 808.0f : 530.0f;
+		const FVector2D Position = Scene == EImmortalManagementScene::MarketTown ? FVector2D(528, 126)
+			: FVector2D(30 + (HotspotIndex % Columns) * (CardWidth + 24), 70 + (HotspotIndex / Columns) * 294);
+		const FVector2D CardSize(CardWidth, Scene == EImmortalManagementScene::MarketTown ? 460 : 272);
+		++HotspotIndex;
 		UButton* Hotspot = AddSceneHotspot(
 			Feature,
 			FText::FromString(Label),
-			FVector2D(X, Y),
-			FVector2D(Width, Height));
+			Position,
+			CardSize);
 		SetManagementLayout(
 			Hub->AddChildToCanvas(Hotspot),
-			FVector2D(X, Y),
-			FVector2D(Width, Height));
+			Position,
+			CardSize);
 	};
 
 	switch (Scene)
