@@ -156,7 +156,10 @@ void AImmortalPlayerCharacter::RunDesktopPanelFixture()
 					{
 						const auto Start = Slot->GetPosition(), End = Start + Slot->GetSize();
 						const auto ParentSize = Widget->GetParent()->GetCachedGeometry().GetLocalSize();
-						bBounded &= Start.X >= 0 && Start.Y >= 0 && End.X <= ParentSize.X + 1 && End.Y <= ParentSize.Y + 1;
+						const bool bInside = Start.X >= 0 && Start.Y >= 0 && End.X <= ParentSize.X + 1 && End.Y <= ParentSize.Y + 1;
+						if (!bInside) UE_LOG(LogTemp, Display, TEXT("Feature layout overflow: %s end=%s parent=%s"),
+							*Widget->GetName(), *End.ToString(), *ParentSize.ToString());
+						bBounded &= bInside;
 					}
 					if (const UTextBlock* Text = Cast<UTextBlock>(Widget)) bReadable &= Text->GetFont().Size >= 18;
 				});
@@ -242,7 +245,18 @@ void AImmortalPlayerCharacter::RunDesktopPanelFixture()
 				UUserWidget* ReflowPage = Page == EImmortalManagementFeature::Sect
 					? static_cast<UUserWidget*>(PlayerSectWidget.Get()) : static_cast<UUserWidget*>(PlayerFarmingWidget.Get());
 				USizeBox* Root = Cast<USizeBox>(ReflowPage->WidgetTree->RootWidget);
-				Check(TEXT("reflow page matches 270px management content height"), Root && Root->GetHeightOverride() == 270);
+				Check(TEXT("feature page matches authored content height"), Root && Root->GetHeightOverride()
+					== (Page == EImmortalManagementFeature::Farming ? 600 : 270));
+				if (Page == EImmortalManagementFeature::Farming)
+				{
+					bool bImages = true;
+					for (int32 Plot = 0; Plot < 6; ++Plot)
+					{
+						const UImage* Art = Cast<UImage>(ReflowPage->WidgetTree->FindWidget(FName(*FString::Printf(TEXT("FarmingPlotImage%d"), Plot))));
+						bImages &= Art && Art->GetBrush().GetResourceObject() && Art->GetVisibility() == ESlateVisibility::HitTestInvisible;
+					}
+					Check(TEXT("all six farming cards render imported state art"), bImages);
+				}
 				bool bBounded = true;
 				bool bReadable = true;
 				ReflowPage->WidgetTree->ForEachWidget([&](UWidget* Widget)
@@ -253,7 +267,10 @@ void AImmortalPlayerCharacter::RunDesktopPanelFixture()
 					{
 						const FVector2D ParentSize = Widget->GetParent()->GetCachedGeometry().GetLocalSize();
 						const FVector2D Start = Slot->GetPosition(), End = Start + Slot->GetSize();
-						bBounded &= Start.X >= 0 && Start.Y >= 0 && End.X <= ParentSize.X + 1 && End.Y <= ParentSize.Y + 1;
+						const bool bInside = Start.X >= 0 && Start.Y >= 0 && End.X <= ParentSize.X + 1 && End.Y <= ParentSize.Y + 1;
+						if (!bInside) UE_LOG(LogTemp, Display, TEXT("Feature layout overflow: %s end=%s parent=%s"),
+							*Widget->GetName(), *End.ToString(), *ParentSize.ToString());
+						bBounded &= bInside;
 					}
 				});
 				Check(TEXT("reflow text uses at least 14pt without out-of-bounds controls"), bReadable && bBounded);

@@ -3,6 +3,9 @@
 #include "ImmortalFarmingWidget.h"
 #include "ImmortalFeaturePageLayout.h"
 #include "ImmortalUITheme.h"
+#include "ImmortalFarmingArt.h"
+#include "Components/Image.h"
+#include "Components/ButtonSlot.h"
 
 #include "../Characters/ImmortalPlayerCharacter.h"
 #include "../Crafting/ImmortalCraftingTypes.h"
@@ -168,7 +171,7 @@ void UImmortalFarmingWidget::NativeOnInitialized()
 	USizeBox* RootSize = WidgetTree->ConstructWidget<USizeBox>(
 		USizeBox::StaticClass(), TEXT("FarmingScreenSize"));
 	RootSize->SetWidthOverride(1600.0f);
-	RootSize->SetHeightOverride(270.0f);
+	RootSize->SetHeightOverride(600.0f);
 	WidgetTree->RootWidget = RootSize;
 
 	UBorder* Background = WidgetTree->ConstructWidget<UBorder>(
@@ -185,13 +188,13 @@ void UImmortalFarmingWidget::NativeOnInitialized()
 		UTextBlock::StaticClass(), TEXT("FarmingScreenTitle"));
 	Title->SetText(FText::FromString(TEXT("洞府灵田")));
 	StyleFarmingText(Title, 28, FLinearColor(0.64f, 1.0f, 0.61f, 1.0f));
-	SetFarmingLayout(Canvas->AddChildToCanvas(Title), FVector2D(18.0f, 3.0f), FVector2D(170.0f, 36.0f));
+	SetFarmingLayout(Canvas->AddChildToCanvas(Title), FVector2D(18.0f, 8.0f), FVector2D(260.0f, 40.0f));
 
 	HeaderSummaryText = WidgetTree->ConstructWidget<UTextBlock>(
 		UTextBlock::StaticClass(), TEXT("FarmingHeaderSummary"));
 	HeaderSummaryText->SetAutoWrapText(true);
-	StyleFarmingText(HeaderSummaryText, 15, FLinearColor(0.92f, 0.91f, 0.69f, 1.0f), true);
-	SetFarmingLayout(Canvas->AddChildToCanvas(HeaderSummaryText), FVector2D(184.0f, 1.0f), FVector2D(1344.0f, 39.0f));
+	StyleFarmingText(HeaderSummaryText, 18, FLinearColor(0.92f, 0.91f, 0.69f, 1.0f), true);
+	SetFarmingLayout(Canvas->AddChildToCanvas(HeaderSummaryText), FVector2D(280.0f, 4.0f), FVector2D(1240.0f, 50.0f));
 
 	UButton* CloseButton = WidgetTree->ConstructWidget<UButton>(
 		UButton::StaticClass(), TEXT("FarmingScreenClose"));
@@ -205,7 +208,7 @@ void UImmortalFarmingWidget::NativeOnInitialized()
 		UBorder::StaticClass(), TEXT("FarmingCropPanel"));
 	CropPanel->SetBrushColor(FLinearColor(0.043f, 0.082f, 0.051f, 0.97f));
 	CropPanel->SetPadding(FMargin(0.0f));
-	SetFarmingLayout(Canvas->AddChildToCanvas(CropPanel), FVector2D(8.0f, 42.0f), FVector2D(312.0f, 220.0f));
+	SetFarmingLayout(Canvas->AddChildToCanvas(CropPanel), FVector2D(8.0f, 64.0f), FVector2D(320.0f, 528.0f));
 
 	UCanvasPanel* CropCanvas = WidgetTree->ConstructWidget<UCanvasPanel>(
 		UCanvasPanel::StaticClass(), TEXT("FarmingCropCanvas"));
@@ -239,37 +242,49 @@ void UImmortalFarmingWidget::NativeOnInitialized()
 		}
 		SetFarmingLayout(
 			CropCanvas->AddChildToCanvas(CropButton),
-			FVector2D(8.0f + CropIndex * 99.0f, 29.0f),
-			FVector2D(96.0f, 38.0f));
+			FVector2D(12.0f, 38.0f + CropIndex * 78.0f),
+			FVector2D(296.0f, 70.0f));
 		CropButtons.Add(CropButton);
-		CropButtonLabels.Add(AddFarmingButtonLabel(WidgetTree, CropButton, TEXT(""), 16));
+		UTextBlock* Label = AddFarmingButtonLabel(WidgetTree, CropButton, TEXT(""), 20);
+		CropButtonLabels.Add(Label);
+		Label->RemoveFromParent();
+		UCanvasPanel* ButtonCanvas = WidgetTree->ConstructWidget<UCanvasPanel>();
+		ButtonCanvas->SetVisibility(ESlateVisibility::HitTestInvisible);
+		UButtonSlot* ContentSlot = CastChecked<UButtonSlot>(CropButton->AddChild(ButtonCanvas));
+		ContentSlot->SetHorizontalAlignment(HAlign_Fill); ContentSlot->SetVerticalAlignment(VAlign_Fill);
+		ContentSlot->SetPadding(FMargin(0));
+		// The theme adds four pixels of button padding on each side.
+		SetFarmingLayout(ButtonCanvas->AddChildToCanvas(Label), {90, 16}, {184, 30});
+		UImage* CropImage = WidgetTree->ConstructWidget<UImage>();
+		CropImage->SetBrush(ImmortalFarmingArt::Brush(FarmingAtlas.LoadSynchronous(), CropIndex + 2));
+		SetFarmingLayout(ButtonCanvas->AddChildToCanvas(CropImage), {14, 2}, {58, 58});
 	}
 
 	SelectedCropText = WidgetTree->ConstructWidget<UTextBlock>(
 		UTextBlock::StaticClass(), TEXT("FarmingSelectedCrop"));
 	SelectedCropText->SetAutoWrapText(true);
-	StyleFarmingText(SelectedCropText, 16, FLinearColor(0.82f, 0.94f, 0.82f, 1.0f));
-	SetFarmingLayout(CropCanvas->AddChildToCanvas(SelectedCropText), FVector2D(8.0f, 73.0f), FVector2D(296.0f, 75.0f));
+	StyleFarmingText(SelectedCropText, 18, FLinearColor(0.82f, 0.94f, 0.82f, 1.0f));
+	SetFarmingLayout(CropCanvas->AddChildToCanvas(SelectedCropText), FVector2D(12.0f, 286.0f), FVector2D(296.0f, 130.0f));
 
 	PlantAllButton = WidgetTree->ConstructWidget<UButton>(
 		UButton::StaticClass(), TEXT("FarmingPlantAll"));
 	PlantAllButton->SetStyle(MakeFarmingButtonStyle(
 		FVector2D(296.0f, 34.0f), FLinearColor(0.18f, 0.49f, 0.27f, 1.0f)));
 	PlantAllButton->OnClicked.AddDynamic(this, &UImmortalFarmingWidget::HandlePlantAllClicked);
-	SetFarmingLayout(CropCanvas->AddChildToCanvas(PlantAllButton), FVector2D(8.0f, 154.0f), FVector2D(296.0f, 34.0f));
+	SetFarmingLayout(CropCanvas->AddChildToCanvas(PlantAllButton), FVector2D(12.0f, 426.0f), FVector2D(296.0f, 46.0f));
 	PlantAllButtonText = AddFarmingButtonLabel(WidgetTree, PlantAllButton, TEXT("播种所有空闲田块"), 16);
 
 	ResultText = WidgetTree->ConstructWidget<UTextBlock>(
 		UTextBlock::StaticClass(), TEXT("FarmingOperationResult"));
 	ResultText->SetAutoWrapText(true);
 	StyleFarmingText(ResultText, 14, FLinearColor(0.63f, 0.89f, 0.69f, 1.0f), true);
-	SetFarmingLayout(CropCanvas->AddChildToCanvas(ResultText), FVector2D(8.0f, 194.0f), FVector2D(296.0f, 22.0f));
+	SetFarmingLayout(CropCanvas->AddChildToCanvas(ResultText), FVector2D(12.0f, 480.0f), FVector2D(296.0f, 42.0f));
 
 	UBorder* PlotPanel = WidgetTree->ConstructWidget<UBorder>(
 		UBorder::StaticClass(), TEXT("FarmingPlotPanel"));
 	PlotPanel->SetBrushColor(FLinearColor(0.031f, 0.061f, 0.038f, 0.97f));
 	PlotPanel->SetPadding(FMargin(0.0f));
-	SetFarmingLayout(Canvas->AddChildToCanvas(PlotPanel), FVector2D(328.0f, 42.0f), FVector2D(1264.0f, 220.0f));
+	SetFarmingLayout(Canvas->AddChildToCanvas(PlotPanel), FVector2D(340.0f, 64.0f), FVector2D(1252.0f, 528.0f));
 
 	UCanvasPanel* PlotCanvas = WidgetTree->ConstructWidget<UCanvasPanel>(
 		UCanvasPanel::StaticClass(), TEXT("FarmingPlotCanvas"));
@@ -278,17 +293,18 @@ void UImmortalFarmingWidget::NativeOnInitialized()
 	UTextBlock* PlotPanelTitle = WidgetTree->ConstructWidget<UTextBlock>(
 		UTextBlock::StaticClass(), TEXT("FarmingPlotPanelTitle"));
 	PlotPanelTitle->SetText(FText::FromString(TEXT("六方灵田 · 离线亦会成长")));
-	PlotPanelTitle->SetVisibility(ESlateVisibility::Collapsed);
+	StyleFarmingText(PlotPanelTitle, 20, FLinearColor(0.9f, 0.91f, 0.72f));
+	SetFarmingLayout(PlotCanvas->AddChildToCanvas(PlotPanelTitle), {14, 5}, {900, 30});
 
 	for (int32 PlotIndex = 0; PlotIndex < VisiblePlotCount; ++PlotIndex)
 	{
-		const FVector2D PlotPosition(6.0f + PlotIndex * 208.0f, 5.0f);
+		const FVector2D PlotPosition(8.0f + (PlotIndex % 3) * 414.0f, 40.0f + (PlotIndex / 3) * 224.0f);
 
 		UBorder* PlotBorder = WidgetTree->ConstructWidget<UBorder>(
 			UBorder::StaticClass(), *FString::Printf(TEXT("FarmingPlotBorder%d"), PlotIndex));
 		PlotBorder->SetBrushColor(FLinearColor(0.075f, 0.13f, 0.085f, 0.98f));
 		PlotBorder->SetPadding(FMargin(0.0f));
-		SetFarmingLayout(PlotCanvas->AddChildToCanvas(PlotBorder), PlotPosition, FVector2D(202.0f, 176.0f));
+		SetFarmingLayout(PlotCanvas->AddChildToCanvas(PlotBorder), PlotPosition, FVector2D(408.0f, 216.0f));
 		PlotBorders.Add(PlotBorder);
 
 		UCanvasPanel* CardCanvas = WidgetTree->ConstructWidget<UCanvasPanel>(
@@ -297,27 +313,31 @@ void UImmortalFarmingWidget::NativeOnInitialized()
 
 		UTextBlock* PlotTitle = WidgetTree->ConstructWidget<UTextBlock>(
 			UTextBlock::StaticClass(), *FString::Printf(TEXT("FarmingPlotTitle%d"), PlotIndex));
-		StyleFarmingText(PlotTitle, 16, FLinearColor::White);
-		SetFarmingLayout(CardCanvas->AddChildToCanvas(PlotTitle), FVector2D(7.0f, 4.0f), FVector2D(88.0f, 21.0f));
+		StyleFarmingText(PlotTitle, 20, FLinearColor::White);
+		SetFarmingLayout(CardCanvas->AddChildToCanvas(PlotTitle), FVector2D(12.0f, 8.0f), FVector2D(150.0f, 28.0f));
 		PlotTitleTexts.Add(PlotTitle);
 
 		UTextBlock* PlotStatus = WidgetTree->ConstructWidget<UTextBlock>(
 			UTextBlock::StaticClass(), *FString::Printf(TEXT("FarmingPlotStatus%d"), PlotIndex));
-		StyleFarmingText(PlotStatus, 14, FLinearColor::White, true);
-		SetFarmingLayout(CardCanvas->AddChildToCanvas(PlotStatus), FVector2D(96.0f, 4.0f), FVector2D(99.0f, 21.0f));
+		StyleFarmingText(PlotStatus, 18, FLinearColor::White, true);
+		SetFarmingLayout(CardCanvas->AddChildToCanvas(PlotStatus), FVector2D(230.0f, 8.0f), FVector2D(164.0f, 28.0f));
 		PlotStatusTexts.Add(PlotStatus);
 
 		UTextBlock* PlotGlyph = WidgetTree->ConstructWidget<UTextBlock>(
 			UTextBlock::StaticClass(), *FString::Printf(TEXT("FarmingPlotGlyph%d"), PlotIndex));
 		StyleFarmingText(PlotGlyph, 32, FLinearColor(0.62f, 1.0f, 0.62f, 1.0f), true);
-		SetFarmingLayout(CardCanvas->AddChildToCanvas(PlotGlyph), FVector2D(8.0f, 28.0f), FVector2D(186.0f, 40.0f));
+		SetFarmingLayout(CardCanvas->AddChildToCanvas(PlotGlyph), FVector2D(20.0f, 76.0f), FVector2D(122.0f, 52.0f));
 		PlotGlyphTexts.Add(PlotGlyph);
+		UImage* PlotImage = WidgetTree->ConstructWidget<UImage>(UImage::StaticClass(), *FString::Printf(TEXT("FarmingPlotImage%d"), PlotIndex));
+		PlotImage->SetVisibility(ESlateVisibility::HitTestInvisible);
+		SetFarmingLayout(CardCanvas->AddChildToCanvas(PlotImage), {20, 38}, {122, 122});
+		PlotImages.Add(PlotImage);
 
 		UTextBlock* PlotDetail = WidgetTree->ConstructWidget<UTextBlock>(
 			UTextBlock::StaticClass(), *FString::Printf(TEXT("FarmingPlotDetail%d"), PlotIndex));
 		PlotDetail->SetAutoWrapText(true);
-		StyleFarmingText(PlotDetail, 14, FLinearColor(0.84f, 0.89f, 0.84f, 1.0f), true);
-		SetFarmingLayout(CardCanvas->AddChildToCanvas(PlotDetail), FVector2D(7.0f, 73.0f), FVector2D(188.0f, 51.0f));
+		StyleFarmingText(PlotDetail, 17, FLinearColor(0.84f, 0.89f, 0.84f, 1.0f));
+		SetFarmingLayout(CardCanvas->AddChildToCanvas(PlotDetail), FVector2D(158.0f, 46.0f), FVector2D(238.0f, 98.0f));
 		PlotDetailTexts.Add(PlotDetail);
 
 		UProgressBar* Progress = WidgetTree->ConstructWidget<UProgressBar>(
@@ -331,7 +351,7 @@ void UImmortalFarmingWidget::NativeOnInitialized()
 			FVector2D(186.0f, 8.0f), FLinearColor::Transparent));
 		Progress->SetWidgetStyle(ProgressStyle);
 		Progress->SetBarFillType(EProgressBarFillType::LeftToRight);
-		SetFarmingLayout(CardCanvas->AddChildToCanvas(Progress), FVector2D(8.0f, 127.0f), FVector2D(186.0f, 8.0f));
+		SetFarmingLayout(CardCanvas->AddChildToCanvas(Progress), FVector2D(158.0f, 148.0f), FVector2D(238.0f, 12.0f));
 		PlotProgressBars.Add(Progress);
 
 		UButton* PlotButton = WidgetTree->ConstructWidget<UButton>(
@@ -348,7 +368,7 @@ void UImmortalFarmingWidget::NativeOnInitialized()
 		case 5: PlotButton->OnClicked.AddDynamic(this, &UImmortalFarmingWidget::HandlePlot5Clicked); break;
 		default: break;
 		}
-		SetFarmingLayout(CardCanvas->AddChildToCanvas(PlotButton), FVector2D(8.0f, 141.0f), FVector2D(186.0f, 30.0f));
+		SetFarmingLayout(CardCanvas->AddChildToCanvas(PlotButton), FVector2D(12.0f, 172.0f), FVector2D(384.0f, 36.0f));
 		PlotActionButtons.Add(PlotButton);
 		PlotActionLabels.Add(AddFarmingButtonLabel(WidgetTree, PlotButton, TEXT(""), 15));
 	}
@@ -358,7 +378,7 @@ void UImmortalFarmingWidget::NativeOnInitialized()
 	HarvestAllButton->SetStyle(MakeFarmingButtonStyle(
 		FVector2D(240.0f, 30.0f), FLinearColor(0.52f, 0.38f, 0.09f, 1.0f)));
 	HarvestAllButton->OnClicked.AddDynamic(this, &UImmortalFarmingWidget::HandleHarvestAllClicked);
-	SetFarmingLayout(PlotCanvas->AddChildToCanvas(HarvestAllButton), FVector2D(1008.0f, 184.0f), FVector2D(240.0f, 30.0f));
+	SetFarmingLayout(PlotCanvas->AddChildToCanvas(HarvestAllButton), FVector2D(994.0f, 486.0f), FVector2D(246.0f, 36.0f));
 	HarvestAllButtonText = AddFarmingButtonLabel(WidgetTree, HarvestAllButton, TEXT("一键收获"), 16);
 
 	UTextBlock* FooterNote = WidgetTree->ConstructWidget<UTextBlock>(
@@ -366,7 +386,7 @@ void UImmortalFarmingWidget::NativeOnInitialized()
 	FooterNote->SetText(FText::FromString(TEXT("灵田等级会解锁田块并提高成长速度与收成")));
 	FooterNote->SetAutoWrapText(true);
 	StyleFarmingText(FooterNote, 14, FLinearColor(0.63f, 0.78f, 0.65f, 1.0f));
-	SetFarmingLayout(PlotCanvas->AddChildToCanvas(FooterNote), FVector2D(8.0f, 187.0f), FVector2D(985.0f, 26.0f));
+	SetFarmingLayout(PlotCanvas->AddChildToCanvas(FooterNote), FVector2D(14.0f, 488.0f), FVector2D(966.0f, 30.0f));
 
 	RefreshFromPlayer();
 	ImmortalFeaturePageLayout::MakeScrollable(WidgetTree, SelectedCropText);
@@ -529,6 +549,7 @@ void UImmortalFarmingWidget::RefreshPlotCards()
 		if (!PlotBorders.IsValidIndex(PlotIndex)
 			|| !PlotTitleTexts.IsValidIndex(PlotIndex)
 			|| !PlotGlyphTexts.IsValidIndex(PlotIndex)
+			|| !PlotImages.IsValidIndex(PlotIndex)
 			|| !PlotStatusTexts.IsValidIndex(PlotIndex)
 			|| !PlotDetailTexts.IsValidIndex(PlotIndex)
 			|| !PlotProgressBars.IsValidIndex(PlotIndex)
@@ -540,6 +561,10 @@ void UImmortalFarmingWidget::RefreshPlotCards()
 
 		const FImmortalFarmingPlotView View = UImmortalFarmingLibrary::GetPlotView(
 			State, PlotIndex, SpiritFieldLevel, CurrentUtcTicks);
+		UTexture2D* Atlas = FarmingAtlas.LoadSynchronous();
+		PlotImages[PlotIndex]->SetBrush(ImmortalFarmingArt::Brush(Atlas, ImmortalFarmingArt::Cell(View)));
+		PlotImages[PlotIndex]->SetVisibility(Atlas ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Collapsed);
+		PlotGlyphTexts[PlotIndex]->SetVisibility(Atlas ? ESlateVisibility::Collapsed : ESlateVisibility::HitTestInvisible);
 		PlotTitleTexts[PlotIndex]->SetText(FText::FromString(FString::Printf(TEXT("灵田 %d"), PlotIndex + 1)));
 
 		if (!View.bValidPlot || !View.bUnlocked)

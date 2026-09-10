@@ -11,8 +11,10 @@ class UBorder;
 class UButton;
 class UProgressBar;
 class UTextBlock;
+class UImage;
+class UTexture2D;
 
-/** Native 1600x300 TBH spirit-field strip reached through the player's cave. */
+/** Large illustrated spirit-field page; growth remains independent of the visible page. */
 UCLASS()
 class IMMORTALPATH_API UImmortalFarmingWidget : public UUserWidget
 {
@@ -27,6 +29,13 @@ protected:
 	virtual void NativeTick(const FGeometry& MyGeometry, float InDeltaTime) override;
 
 private:
+	UPROPERTY(EditDefaultsOnly, Category = "Immortal Path|Farming Art")
+	TSoftObjectPtr<UTexture2D> FarmingAtlas = TSoftObjectPtr<UTexture2D>(FSoftObjectPath(
+		TEXT("/Game/GAME/Asset/DesktopPixelV2/UI/T_FarmingAtlas.T_FarmingAtlas")));
+
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UImage>> PlotImages;
+
 	void SelectCrop(FName CropId);
 	void RefreshCropCards();
 	void RefreshPlotCards();

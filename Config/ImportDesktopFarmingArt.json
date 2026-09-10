@@ -1,0 +1,15 @@
+{
+  "ImportGroups": [
+    {
+      "GroupName": "DesktopFarmingAtlas",
+      "Filenames": ["ArtSource/MortalRealm/DesktopPixelV2/Farming/farming-atlas-v1.png"],
+      "DestinationPath": "/Game/GAME/Asset/DesktopPixelV2/UI",
+      "DestinationName": "T_FarmingAtlas",
+      "TextureUsage": "Sprite",
+      "ExpectedWidth": 1536,
+      "ExpectedHeight": 1024,
+      "bReplaceExisting": false,
+      "bCreateSprites": false
+    }
+  ]
+}
