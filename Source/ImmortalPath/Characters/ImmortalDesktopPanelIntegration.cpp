@@ -245,8 +245,24 @@ void AImmortalPlayerCharacter::RunDesktopPanelFixture()
 				UUserWidget* ReflowPage = Page == EImmortalManagementFeature::Sect
 					? static_cast<UUserWidget*>(PlayerSectWidget.Get()) : static_cast<UUserWidget*>(PlayerFarmingWidget.Get());
 				USizeBox* Root = Cast<USizeBox>(ReflowPage->WidgetTree->RootWidget);
-				Check(TEXT("feature page matches authored content height"), Root && Root->GetHeightOverride()
-					== (Page == EImmortalManagementFeature::Farming ? 600 : 270));
+				Check(TEXT("feature page matches authored content height"), Root && Root->GetHeightOverride() == 600);
+				if (Page == EImmortalManagementFeature::Sect)
+				{
+					bool bEmblems = true;
+					for (int32 Sect = 0; Sect < 4; ++Sect)
+					{
+						const UImage* Art = Cast<UImage>(ReflowPage->WidgetTree->FindWidget(FName(*FString::Printf(TEXT("SectEmblem%d"), Sect))));
+						bEmblems &= Art && Art->GetBrush().GetResourceObject() && Art->GetBrush().DrawAs == ESlateBrushDrawType::Image;
+					}
+					Check(TEXT("all four sect emblems use the imported atlas"), bEmblems);
+					bool bProgress = true;
+					for (int32 Task = 0; Task < 3; ++Task)
+					{
+						const UProgressBar* Bar = Cast<UProgressBar>(ReflowPage->WidgetTree->FindWidget(FName(*FString::Printf(TEXT("SectTaskProgress%d"), Task))));
+						bProgress &= Bar && Bar->GetCachedGeometry().GetLocalSize().X >= 300 && Bar->GetPercent() >= 0 && Bar->GetPercent() <= 1;
+					}
+					Check(TEXT("sect tasks have three bounded visible progress bars"), bProgress);
+				}
 				if (Page == EImmortalManagementFeature::Farming)
 				{
 					bool bImages = true;

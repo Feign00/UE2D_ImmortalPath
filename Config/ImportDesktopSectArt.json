@@ -1,0 +1,15 @@
+{
+  "ImportGroups": [
+    {
+      "GroupName": "DesktopSectAtlas",
+      "Filenames": ["ArtSource/MortalRealm/DesktopPixelV2/Sect/sect-emblems-v1.png"],
+      "DestinationPath": "/Game/GAME/Asset/DesktopPixelV2/UI",
+      "DestinationName": "T_SectAtlas",
+      "TextureUsage": "Sprite",
+      "ExpectedWidth": 1254,
+      "ExpectedHeight": 1254,
+      "bReplaceExisting": false,
+      "bCreateSprites": false
+    }
+  ]
+}

@@ -3,6 +3,10 @@
 #include "ImmortalSectWidget.h"
 #include "ImmortalFeaturePageLayout.h"
 #include "ImmortalUITheme.h"
+#include "ImmortalSectArt.h"
+#include "Components/Image.h"
+#include "Components/ButtonSlot.h"
+#include "Components/ProgressBar.h"
 
 #include "../Characters/ImmortalPlayerCharacter.h"
 #include "../Maps/ImmortalMapTypes.h"
@@ -135,7 +139,7 @@ void UImmortalSectWidget::NativeOnInitialized()
 	USizeBox* RootSize = WidgetTree->ConstructWidget<USizeBox>(
 		USizeBox::StaticClass(), TEXT("SectScreenSize"));
 	RootSize->SetWidthOverride(1600.0f);
-	RootSize->SetHeightOverride(270.0f);
+	RootSize->SetHeightOverride(600.0f);
 	WidgetTree->RootWidget = RootSize;
 
 	UBorder* Background = WidgetTree->ConstructWidget<UBorder>(
@@ -150,18 +154,18 @@ void UImmortalSectWidget::NativeOnInitialized()
 
 	UTextBlock* Title = WidgetTree->ConstructWidget<UTextBlock>(
 		UTextBlock::StaticClass(), TEXT("SectScreenTitle"));
-	Title->SetText(FText::FromString(TEXT("宗门 [J]")));
+	Title->SetText(FText::FromString(TEXT("四方仙门")));
 	StyleSectText(Title, 28, FLinearColor(0.87f, 0.71f, 1.0f, 1.0f));
 	SetSectLayout(Canvas->AddChildToCanvas(Title), FVector2D(18.0f, 3.0f), FVector2D(170.0f, 36.0f));
 
 	HeaderSummaryText = WidgetTree->ConstructWidget<UTextBlock>(
 		UTextBlock::StaticClass(), TEXT("SectHeaderSummary"));
 	HeaderSummaryText->SetAutoWrapText(true);
-	StyleSectText(HeaderSummaryText, 15, FLinearColor(0.93f, 0.88f, 0.70f, 1.0f), true);
+	StyleSectText(HeaderSummaryText, 18, FLinearColor(0.93f, 0.88f, 0.70f, 1.0f), true);
 	SetSectLayout(
 		Canvas->AddChildToCanvas(HeaderSummaryText),
-		FVector2D(184.0f, 1.0f),
-		FVector2D(1344.0f, 39.0f));
+		FVector2D(220.0f, 3.0f),
+		FVector2D(1308.0f, 52.0f));
 
 	UButton* CloseButton = WidgetTree->ConstructWidget<UButton>(
 		UButton::StaticClass(), TEXT("SectScreenClose"));
@@ -180,8 +184,8 @@ void UImmortalSectWidget::NativeOnInitialized()
 	ChoicePanel->SetPadding(FMargin(0.0f));
 	SetSectLayout(
 		Canvas->AddChildToCanvas(ChoicePanel),
-		FVector2D(8.0f, 42.0f),
-		FVector2D(330.0f, 220.0f));
+		FVector2D(8.0f, 64.0f),
+		FVector2D(400.0f, 528.0f));
 
 	UCanvasPanel* ChoiceCanvas = WidgetTree->ConstructWidget<UCanvasPanel>(
 		UCanvasPanel::StaticClass(), TEXT("SectChoiceCanvas"));
@@ -214,20 +218,34 @@ void UImmortalSectWidget::NativeOnInitialized()
 		const int32 Row = SectIndex / 2;
 		SetSectLayout(
 			ChoiceCanvas->AddChildToCanvas(SectButton),
-			FVector2D(8.0f + Column * 155.0f, 29.0f + Row * 42.0f),
-			FVector2D(149.0f, 38.0f));
+			FVector2D(12.0f + Column * 190.0f, 34.0f + Row * 118.0f),
+			FVector2D(184.0f, 112.0f));
 		SectButtons.Add(SectButton);
-		SectButtonLabels.Add(AddSectButtonLabel(WidgetTree, SectButton, TEXT("宗门"), 15));
+		UTextBlock* Label = AddSectButtonLabel(WidgetTree, SectButton, TEXT("宗门"), 18);
+		SectButtonLabels.Add(Label);
+		Label->RemoveFromParent();
+		UCanvasPanel* ButtonCanvas = WidgetTree->ConstructWidget<UCanvasPanel>();
+		ButtonCanvas->SetVisibility(ESlateVisibility::HitTestInvisible);
+		UButtonSlot* ContentSlot = CastChecked<UButtonSlot>(SectButton->AddChild(ButtonCanvas));
+		ContentSlot->SetHorizontalAlignment(HAlign_Fill);
+		ContentSlot->SetVerticalAlignment(VAlign_Fill);
+		ContentSlot->SetPadding(FMargin(0));
+		SetSectLayout(ButtonCanvas->AddChildToCanvas(Label), {4, 78}, {168, 24});
+		UImage* Emblem = WidgetTree->ConstructWidget<UImage>(UImage::StaticClass(),
+			*FString::Printf(TEXT("SectEmblem%d"), SectIndex));
+		Emblem->SetVisibility(ESlateVisibility::HitTestInvisible);
+		SetSectLayout(ButtonCanvas->AddChildToCanvas(Emblem), {52, 2}, {72, 72});
+		SectImages.Add(Emblem);
 	}
 
 	SelectedSectText = WidgetTree->ConstructWidget<UTextBlock>(
 		UTextBlock::StaticClass(), TEXT("SectSelectedDescription"));
 	SelectedSectText->SetAutoWrapText(true);
-	StyleSectText(SelectedSectText, 16, FLinearColor(0.85f, 0.87f, 0.96f, 1.0f));
+	StyleSectText(SelectedSectText, 18, FLinearColor(0.85f, 0.87f, 0.96f, 1.0f));
 	SetSectLayout(
 		ChoiceCanvas->AddChildToCanvas(SelectedSectText),
-		FVector2D(8.0f, 113.0f),
-		FVector2D(314.0f, 47.0f));
+		FVector2D(12.0f, 278.0f),
+		FVector2D(376.0f, 146.0f));
 
 	JoinButton = WidgetTree->ConstructWidget<UButton>(
 		UButton::StaticClass(), TEXT("SectJoinButton"));
@@ -236,8 +254,8 @@ void UImmortalSectWidget::NativeOnInitialized()
 	JoinButton->OnClicked.AddDynamic(this, &UImmortalSectWidget::HandleJoinClicked);
 	SetSectLayout(
 		ChoiceCanvas->AddChildToCanvas(JoinButton),
-		FVector2D(8.0f, 164.0f),
-		FVector2D(314.0f, 32.0f));
+		FVector2D(12.0f, 432.0f),
+		FVector2D(376.0f, 46.0f));
 	JoinButtonText = AddSectButtonLabel(WidgetTree, JoinButton, TEXT("加入所选宗门"), 16);
 
 	ResultText = WidgetTree->ConstructWidget<UTextBlock>(
@@ -246,8 +264,8 @@ void UImmortalSectWidget::NativeOnInitialized()
 	StyleSectText(ResultText, 14, FLinearColor(0.66f, 0.91f, 0.73f, 1.0f), true);
 	SetSectLayout(
 		ChoiceCanvas->AddChildToCanvas(ResultText),
-		FVector2D(8.0f, 198.0f),
-		FVector2D(314.0f, 20.0f));
+		FVector2D(12.0f, 484.0f),
+		FVector2D(376.0f, 36.0f));
 
 	UBorder* TaskPanel = WidgetTree->ConstructWidget<UBorder>(
 		UBorder::StaticClass(), TEXT("SectTaskPanel"));
@@ -255,8 +273,8 @@ void UImmortalSectWidget::NativeOnInitialized()
 	TaskPanel->SetPadding(FMargin(0.0f));
 	SetSectLayout(
 		Canvas->AddChildToCanvas(TaskPanel),
-		FVector2D(346.0f, 42.0f),
-		FVector2D(600.0f, 220.0f));
+		FVector2D(416.0f, 64.0f),
+		FVector2D(566.0f, 528.0f));
 
 	UCanvasPanel* TaskCanvas = WidgetTree->ConstructWidget<UCanvasPanel>(
 		UCanvasPanel::StaticClass(), TEXT("SectTaskCanvas"));
@@ -264,21 +282,21 @@ void UImmortalSectWidget::NativeOnInitialized()
 
 	UTextBlock* TaskPanelTitle = WidgetTree->ConstructWidget<UTextBlock>(
 		UTextBlock::StaticClass(), TEXT("SectTaskPanelTitle"));
-	TaskPanelTitle->SetText(FText::FromString(TEXT("每日宗门任务 · 完成后领取贡献")));
+	TaskPanelTitle->SetText(FText::FromString(TEXT("每日任务 · 完成后领取贡献")));
 	StyleSectText(TaskPanelTitle, 18, FLinearColor(0.70f, 0.89f, 1.0f, 1.0f));
 	SetSectLayout(
 		TaskCanvas->AddChildToCanvas(TaskPanelTitle),
 		FVector2D(8.0f, 3.0f),
-		FVector2D(560.0f, 24.0f));
+		FVector2D(550.0f, 28.0f));
 
 	for (int32 TaskIndex = 0; TaskIndex < VisibleTaskCount; ++TaskIndex)
 	{
-		const FVector2D CardPosition(6.0f, 30.0f + TaskIndex * 62.0f);
+		const FVector2D CardPosition(6.0f, 38.0f + TaskIndex * 160.0f);
 		UBorder* TaskBorder = WidgetTree->ConstructWidget<UBorder>(
 			UBorder::StaticClass(), *FString::Printf(TEXT("SectTaskBorder%d"), TaskIndex));
 		TaskBorder->SetBrushColor(FLinearColor(0.074f, 0.086f, 0.13f, 0.98f));
 		TaskBorder->SetPadding(FMargin(0.0f));
-		SetSectLayout(TaskCanvas->AddChildToCanvas(TaskBorder), CardPosition, FVector2D(588.0f, 60.0f));
+		SetSectLayout(TaskCanvas->AddChildToCanvas(TaskBorder), CardPosition, FVector2D(554.0f, 154.0f));
 		TaskBorders.Add(TaskBorder);
 
 		UCanvasPanel* CardCanvas = WidgetTree->ConstructWidget<UCanvasPanel>(
@@ -287,22 +305,35 @@ void UImmortalSectWidget::NativeOnInitialized()
 
 		UTextBlock* TaskTitle = WidgetTree->ConstructWidget<UTextBlock>(
 			UTextBlock::StaticClass(), *FString::Printf(TEXT("SectTaskTitle%d"), TaskIndex));
-		StyleSectText(TaskTitle, 16, FLinearColor::White);
+		StyleSectText(TaskTitle, 20, FLinearColor::White);
 		SetSectLayout(
 			CardCanvas->AddChildToCanvas(TaskTitle),
-			FVector2D(8.0f, 4.0f),
-			FVector2D(430.0f, 22.0f));
+			FVector2D(90.0f, 8.0f),
+			FVector2D(452.0f, 28.0f));
 		TaskTitleTexts.Add(TaskTitle);
 
 		UTextBlock* TaskDetail = WidgetTree->ConstructWidget<UTextBlock>(
 			UTextBlock::StaticClass(), *FString::Printf(TEXT("SectTaskDetail%d"), TaskIndex));
 		TaskDetail->SetAutoWrapText(true);
-		StyleSectText(TaskDetail, 14, FLinearColor(0.78f, 0.82f, 0.92f, 1.0f));
+		StyleSectText(TaskDetail, 18, FLinearColor(0.78f, 0.82f, 0.92f, 1.0f));
 		SetSectLayout(
 			CardCanvas->AddChildToCanvas(TaskDetail),
-			FVector2D(8.0f, 25.0f),
-			FVector2D(430.0f, 34.0f));
+			FVector2D(90.0f, 40.0f),
+			FVector2D(452.0f, 64.0f));
 		TaskDetailTexts.Add(TaskDetail);
+		UImmortalIconWidget* TaskIcon = CreateWidget<UImmortalIconWidget>(this);
+		const int32 TaskIcons[] = {4, 8, 13};
+		TaskIcon->SetIcon(TaskIcons[TaskIndex]);
+		SetSectLayout(CardCanvas->AddChildToCanvas(TaskIcon), {12, 16}, {64, 64});
+		UProgressBar* ProgressBar = WidgetTree->ConstructWidget<UProgressBar>(UProgressBar::StaticClass(),
+			*FString::Printf(TEXT("SectTaskProgress%d"), TaskIndex));
+		FProgressBarStyle ProgressStyle;
+		ProgressStyle.SetBackgroundImage(MakeSectBrush({320, 14}, FLinearColor(0.018f, 0.025f, 0.031f)));
+		ProgressStyle.SetFillImage(MakeSectBrush({320, 14}, FLinearColor::White));
+		ProgressBar->SetWidgetStyle(ProgressStyle);
+		ProgressBar->SetFillColorAndOpacity(FLinearColor(0.30f, 0.75f, 0.53f));
+		SetSectLayout(CardCanvas->AddChildToCanvas(ProgressBar), {90, 122}, {316, 14});
+		TaskProgressBars.Add(ProgressBar);
 
 		UButton* TaskButton = WidgetTree->ConstructWidget<UButton>(
 			UButton::StaticClass(), *FString::Printf(TEXT("SectTaskAction%d"), TaskIndex));
@@ -317,8 +348,8 @@ void UImmortalSectWidget::NativeOnInitialized()
 		}
 		SetSectLayout(
 			CardCanvas->AddChildToCanvas(TaskButton),
-			FVector2D(448.0f, 10.0f),
-			FVector2D(132.0f, 38.0f));
+			FVector2D(420.0f, 110.0f),
+			FVector2D(122.0f, 36.0f));
 		TaskActionButtons.Add(TaskButton);
 		TaskActionLabels.Add(AddSectButtonLabel(WidgetTree, TaskButton, TEXT("领取"), 15));
 	}
@@ -329,8 +360,8 @@ void UImmortalSectWidget::NativeOnInitialized()
 	OfferPanel->SetPadding(FMargin(0.0f));
 	SetSectLayout(
 		Canvas->AddChildToCanvas(OfferPanel),
-		FVector2D(954.0f, 42.0f),
-		FVector2D(638.0f, 220.0f));
+		FVector2D(990.0f, 64.0f),
+		FVector2D(602.0f, 528.0f));
 
 	UCanvasPanel* OfferCanvas = WidgetTree->ConstructWidget<UCanvasPanel>(
 		UCanvasPanel::StaticClass(), TEXT("SectOfferCanvas"));
@@ -338,7 +369,7 @@ void UImmortalSectWidget::NativeOnInitialized()
 
 	UTextBlock* OfferPanelTitle = WidgetTree->ConstructWidget<UTextBlock>(
 		UTextBlock::StaticClass(), TEXT("SectOfferPanelTitle"));
-	OfferPanelTitle->SetText(FText::FromString(TEXT("宗门宝库 · 贡献兑换 · 功法奖励")));
+	OfferPanelTitle->SetText(FText::FromString(TEXT("宗门宝库 · 贡献兑换")));
 	StyleSectText(OfferPanelTitle, 18, FLinearColor(1.0f, 0.80f, 0.48f, 1.0f));
 	SetSectLayout(
 		OfferCanvas->AddChildToCanvas(OfferPanelTitle),
@@ -349,7 +380,7 @@ void UImmortalSectWidget::NativeOnInitialized()
 	{
 		const int32 Column = OfferIndex % 2;
 		const int32 Row = OfferIndex / 2;
-		const FVector2D CardPosition(6.0f + Column * 313.0f, 30.0f + Row * 94.0f);
+		const FVector2D CardPosition(6.0f + Column * 296.0f, 38.0f + Row * 244.0f);
 
 		UBorder* OfferBorder = WidgetTree->ConstructWidget<UBorder>(
 			UBorder::StaticClass(), *FString::Printf(TEXT("SectOfferBorder%d"), OfferIndex));
@@ -358,7 +389,7 @@ void UImmortalSectWidget::NativeOnInitialized()
 		SetSectLayout(
 			OfferCanvas->AddChildToCanvas(OfferBorder),
 			CardPosition,
-			FVector2D(306.0f, 90.0f));
+			FVector2D(289.0f, 238.0f));
 		OfferBorders.Add(OfferBorder);
 
 		UCanvasPanel* CardCanvas = WidgetTree->ConstructWidget<UCanvasPanel>(
@@ -367,21 +398,26 @@ void UImmortalSectWidget::NativeOnInitialized()
 
 		UTextBlock* OfferTitle = WidgetTree->ConstructWidget<UTextBlock>(
 			UTextBlock::StaticClass(), *FString::Printf(TEXT("SectOfferTitle%d"), OfferIndex));
-		StyleSectText(OfferTitle, 16, FLinearColor::White);
+		OfferTitle->SetAutoWrapText(true);
+		StyleSectText(OfferTitle, 18, FLinearColor::White);
 		SetSectLayout(
 			CardCanvas->AddChildToCanvas(OfferTitle),
-			FVector2D(8.0f, 4.0f),
-			FVector2D(290.0f, 22.0f));
+			FVector2D(90.0f, 12.0f),
+			FVector2D(185.0f, 62.0f));
 		OfferTitleTexts.Add(OfferTitle);
+		UImmortalIconWidget* OfferIcon = CreateWidget<UImmortalIconWidget>(this);
+		const int32 OfferIcons[] = {7, 19, 6, 5};
+		OfferIcon->SetIcon(OfferIcons[OfferIndex]);
+		SetSectLayout(CardCanvas->AddChildToCanvas(OfferIcon), {12, 12}, {64, 64});
 
 		UTextBlock* OfferDetail = WidgetTree->ConstructWidget<UTextBlock>(
 			UTextBlock::StaticClass(), *FString::Printf(TEXT("SectOfferDetail%d"), OfferIndex));
 		OfferDetail->SetAutoWrapText(true);
-		StyleSectText(OfferDetail, 14, FLinearColor(0.86f, 0.80f, 0.92f, 1.0f));
+		StyleSectText(OfferDetail, 17, FLinearColor(0.86f, 0.80f, 0.92f, 1.0f));
 		SetSectLayout(
 			CardCanvas->AddChildToCanvas(OfferDetail),
-			FVector2D(8.0f, 25.0f),
-			FVector2D(290.0f, 28.0f));
+			FVector2D(12.0f, 86.0f),
+			FVector2D(265.0f, 88.0f));
 		OfferDetailTexts.Add(OfferDetail);
 
 		UButton* OfferButton = WidgetTree->ConstructWidget<UButton>(
@@ -398,8 +434,8 @@ void UImmortalSectWidget::NativeOnInitialized()
 		}
 		SetSectLayout(
 			CardCanvas->AddChildToCanvas(OfferButton),
-			FVector2D(166.0f, 57.0f),
-			FVector2D(132.0f, 29.0f));
+			FVector2D(12.0f, 186.0f),
+			FVector2D(265.0f, 40.0f));
 		OfferActionButtons.Add(OfferButton);
 		OfferActionLabels.Add(AddSectButtonLabel(WidgetTree, OfferButton, TEXT("兑换"), 15));
 	}
@@ -585,6 +621,8 @@ void UImmortalSectWidget::RefreshSectChoices()
 			continue;
 		}
 
+		if (SectImages.IsValidIndex(SectIndex))
+			SectImages[SectIndex]->SetBrush(ImmortalSectArt::Brush(SectAtlas.LoadSynchronous(), Definition.SectId));
 		const bool bSelected = Definition.SectId == SelectedSectId;
 		const bool bJoinedSect = State.HasJoined() && State.SectId == Definition.SectId;
 		SectButtons[SectIndex]->SetStyle(MakeSectButtonStyle(
@@ -681,12 +719,14 @@ void UImmortalSectWidget::RefreshTaskCards()
 		if (!TaskBorders.IsValidIndex(TaskIndex)
 			|| !TaskTitleTexts.IsValidIndex(TaskIndex)
 			|| !TaskDetailTexts.IsValidIndex(TaskIndex)
+			|| !TaskProgressBars.IsValidIndex(TaskIndex)
 			|| !TaskActionButtons.IsValidIndex(TaskIndex)
 			|| !TaskActionLabels.IsValidIndex(TaskIndex))
 		{
 			continue;
 		}
 
+		TaskProgressBars[TaskIndex]->SetPercent(0.0f);
 		if (!DisplayedTaskIds.IsValidIndex(TaskIndex))
 		{
 			TaskBorders[TaskIndex]->SetBrushColor(FLinearColor(0.055f, 0.058f, 0.075f, 0.98f));
@@ -717,6 +757,9 @@ void UImmortalSectWidget::RefreshTaskCards()
 		UImmortalSectLibrary::GetTaskProgress(State, TaskId, Progress);
 		const int32 TargetAmount = FMath::Max(Definition->TargetAmount, 1);
 		const int32 VisibleProgress = FMath::Clamp(Progress.Progress, 0, TargetAmount);
+		TaskProgressBars[TaskIndex]->SetPercent(ImmortalSectArt::ProgressFraction(VisibleProgress, TargetAmount, State.HasJoined()));
+		TaskProgressBars[TaskIndex]->SetFillColorAndOpacity(Progress.bClaimed
+			? FLinearColor(0.50f, 0.45f, 0.28f) : FLinearColor(0.30f, 0.75f, 0.53f));
 		TaskTitleTexts[TaskIndex]->SetText(FText::FromString(FString::Printf(
 			TEXT("%d. %s"), TaskIndex + 1, *Definition->DisplayName.ToString())));
 		TaskDetailTexts[TaskIndex]->SetText(FText::FromString(FString::Printf(

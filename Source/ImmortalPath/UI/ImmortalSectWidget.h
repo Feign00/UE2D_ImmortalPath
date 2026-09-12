@@ -10,8 +10,11 @@ class AImmortalPlayerCharacter;
 class UBorder;
 class UButton;
 class UTextBlock;
+class UImage;
+class UTexture2D;
+class UProgressBar;
 
-/** Native 1600x300 TBH strip for joining a sect, completing tasks and exchanging contribution. */
+/** Illustrated full-height sect management page; opening it does not pause combat. */
 UCLASS()
 class IMMORTALPATH_API UImmortalSectWidget : public UUserWidget
 {
@@ -26,6 +29,16 @@ protected:
 	virtual void NativeTick(const FGeometry& MyGeometry, float InDeltaTime) override;
 
 private:
+	UPROPERTY(EditDefaultsOnly, Category = "Immortal Path|Sect Art")
+	TSoftObjectPtr<UTexture2D> SectAtlas = TSoftObjectPtr<UTexture2D>(FSoftObjectPath(
+		TEXT("/Game/GAME/Asset/DesktopPixelV2/UI/T_SectAtlas.T_SectAtlas")));
+
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UImage>> SectImages;
+
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UProgressBar>> TaskProgressBars;
+
 	void SelectSectByIndex(int32 SectIndex);
 	void HandleTaskClaimByIndex(int32 TaskIndex);
 	void HandleOfferExchangeByIndex(int32 OfferIndex);
