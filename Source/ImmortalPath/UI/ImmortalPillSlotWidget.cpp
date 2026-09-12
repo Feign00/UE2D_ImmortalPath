@@ -3,27 +3,17 @@
 #include "ImmortalPillSlotWidget.h"
 
 #include "ImmortalAlchemyWidget.h"
+#include "ImmortalAlchemyArt.h"
+#include "ImmortalUITheme.h"
 #include "Blueprint/WidgetTree.h"
 #include "Components/Button.h"
+#include "Components/Image.h"
 #include "Components/Overlay.h"
 #include "Components/OverlaySlot.h"
 #include "Components/SizeBox.h"
 #include "Components/TextBlock.h"
 #include "Engine/Texture2D.h"
 #include "Styling/SlateTypes.h"
-
-namespace
-{
-	FSlateBrush MakePillBrush(const TCHAR* AssetPath, const FLinearColor& Tint)
-	{
-		FSlateBrush Brush;
-		Brush.DrawAs = ESlateBrushDrawType::Image;
-		Brush.ImageSize = FVector2D(92.0f);
-		Brush.TintColor = FSlateColor(Tint);
-		if (UTexture2D* Texture = LoadObject<UTexture2D>(nullptr, AssetPath)) Brush.SetResourceObject(Texture);
-		return Brush;
-	}
-}
 
 void UImmortalPillSlotWidget::NativeOnInitialized()
 {
@@ -38,6 +28,18 @@ void UImmortalPillSlotWidget::NativeOnInitialized()
 	UOverlay* Layers = WidgetTree->ConstructWidget<UOverlay>(UOverlay::StaticClass(), TEXT("PillLayers"));
 	Layers->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
 	Button->AddChild(Layers);
+	PillArt = WidgetTree->ConstructWidget<UImage>(UImage::StaticClass(), TEXT("PillArt"));
+	USizeBox* ArtSize = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass(), TEXT("PillArtSize"));
+	ArtSize->SetWidthOverride(64);
+	ArtSize->SetHeightOverride(64);
+	ArtSize->AddChild(PillArt);
+	if (UOverlaySlot* ArtSlot = Layers->AddChildToOverlay(ArtSize))
+	{
+		ArtSlot->SetHorizontalAlignment(HAlign_Center);
+		ArtSlot->SetVerticalAlignment(VAlign_Center);
+		ArtSlot->SetPadding(FMargin(0, 0, 0, 14));
+	}
+	PillArt->SetVisibility(ESlateVisibility::HitTestInvisible);
 
 	GlyphText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("PillGlyph"));
 	GlyphText->SetJustification(ETextJustify::Center);
@@ -56,7 +58,7 @@ void UImmortalPillSlotWidget::NativeOnInitialized()
 	QuantityText->SetColorAndOpacity(FSlateColor(FLinearColor::White));
 	QuantityText->SetShadowOffset(FVector2D(1.0f, 1.0f));
 	FSlateFontInfo QuantityFont = QuantityText->GetFont();
-	QuantityFont.Size = 13;
+	QuantityFont.Size = 15;
 	QuantityText->SetFont(QuantityFont);
 	if (UOverlaySlot* QuantitySlot = Layers->AddChildToOverlay(QuantityText))
 	{
@@ -81,18 +83,11 @@ void UImmortalPillSlotWidget::InitializePill(
 void UImmortalPillSlotWidget::RefreshAppearance()
 {
 	if (!Button || !GlyphText || !QuantityText) return;
-	const TCHAR* Path = bPillSelected
-		? TEXT("/Game/GAME/Asset/ui/inventory/slots/selected.selected")
-		: TEXT("/Game/GAME/Asset/ui/inventory/slots/normal.normal");
 	const FLinearColor QualityColor = UImmortalAlchemyLibrary::GetQualityColor(Stack.Quality);
-	const FSlateBrush Brush = MakePillBrush(Path, Stack.IsValid() ? QualityColor.CopyWithNewOpacity(0.95f) : FLinearColor::White);
-	FButtonStyle Style;
-	Style.SetNormal(Brush);
-	Style.SetHovered(Brush);
-	Style.SetPressed(Brush);
-	Style.SetDisabled(Brush);
-	Button->SetStyle(Style);
+	Button->SetStyle(ImmortalUITheme::ButtonStyle(bPillSelected));
 	Button->SetIsEnabled(Stack.IsValid());
+	const FSlateBrush ArtBrush = ImmortalAlchemyArt::Brush(OwnerAlchemy.IsValid() ? OwnerAlchemy->GetAlchemyAtlas() : nullptr, Stack.IsValid() ? Stack.PillId : NAME_None);
+	PillArt->SetBrush(ArtBrush);
 
 	FImmortalPillDefinition Definition;
 	if (Stack.IsValid() && UImmortalAlchemyLibrary::GetPillDefinition(Stack.PillId, Definition))
@@ -100,8 +95,11 @@ void UImmortalPillSlotWidget::RefreshAppearance()
 		GlyphText->SetText(Definition.IconGlyph);
 		GlyphText->SetColorAndOpacity(FSlateColor(QualityColor));
 		GlyphText->SetShadowColorAndOpacity(QualityColor.CopyWithNewOpacity(0.65f));
-		GlyphText->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
-		QuantityText->SetText(FText::FromString(FString::Printf(TEXT("×%d"), Stack.Quantity)));
+		GlyphText->SetVisibility(ArtBrush.DrawAs == ESlateBrushDrawType::Image ? ESlateVisibility::Collapsed : ESlateVisibility::HitTestInvisible);
+		Button->SetToolTipText(FText::FromString(FString::Printf(TEXT("%s · %s"), *Definition.DisplayName.ToString(), *UImmortalAlchemyLibrary::GetQualityText(Stack.Quality).ToString())));
+		QuantityText->SetColorAndOpacity(FSlateColor(QualityColor));
+		QuantityText->SetText(FText::FromString(FString::Printf(TEXT("%s ×%d"),
+			Stack.Quality == EImmortalPillQuality::Exceptional ? TEXT("极") : TEXT("普"), Stack.Quantity)));
 		QuantityText->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
 	}
 	else
@@ -115,4 +113,3 @@ void UImmortalPillSlotWidget::HandleClicked()
 {
 	if (Stack.IsValid() && OwnerAlchemy.IsValid()) OwnerAlchemy->SelectPill(Stack.PillId, Stack.Quality);
 }
-

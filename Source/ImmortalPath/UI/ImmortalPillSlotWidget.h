@@ -10,6 +10,7 @@
 class UButton;
 class UImmortalAlchemyWidget;
 class UTextBlock;
+class UImage;
 
 UCLASS()
 class IMMORTALPATH_API UImmortalPillSlotWidget : public UUserWidget
@@ -38,9 +39,11 @@ private:
 	TObjectPtr<UTextBlock> GlyphText;
 
 	UPROPERTY(Transient)
+	TObjectPtr<UImage> PillArt;
+
+	UPROPERTY(Transient)
 	TObjectPtr<UTextBlock> QuantityText;
 
 	FImmortalPillStack Stack;
 	bool bPillSelected = false;
 };
-

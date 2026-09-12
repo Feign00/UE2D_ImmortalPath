@@ -1,0 +1,15 @@
+{
+  "ImportGroups": [
+    {
+      "GroupName": "DesktopAlchemyAtlas",
+      "Filenames": ["ArtSource/MortalRealm/DesktopPixelV2/Alchemy/alchemy-atlas-v1.png"],
+      "DestinationPath": "/Game/GAME/Asset/DesktopPixelV2/UI",
+      "DestinationName": "T_AlchemyAtlas",
+      "TextureUsage": "Sprite",
+      "ExpectedWidth": 1536,
+      "ExpectedHeight": 1024,
+      "bReplaceExisting": false,
+      "bCreateSprites": false
+    }
+  ]
+}

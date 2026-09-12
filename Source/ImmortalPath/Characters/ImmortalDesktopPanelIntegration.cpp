@@ -240,12 +240,35 @@ void AImmortalPlayerCharacter::RunDesktopPanelFixture()
 				InventoryItems = Before; ++EquipmentInventoryRevision;
 				PlayerInventoryWidget->RefreshFromPlayer();
 			}
-			if (Page == EImmortalManagementFeature::Sect || Page == EImmortalManagementFeature::Farming)
+			if (Page == EImmortalManagementFeature::Sect || Page == EImmortalManagementFeature::Farming || Page == EImmortalManagementFeature::Alchemy)
 			{
 				UUserWidget* ReflowPage = Page == EImmortalManagementFeature::Sect
-					? static_cast<UUserWidget*>(PlayerSectWidget.Get()) : static_cast<UUserWidget*>(PlayerFarmingWidget.Get());
+					? static_cast<UUserWidget*>(PlayerSectWidget.Get()) : (Page == EImmortalManagementFeature::Alchemy
+						? static_cast<UUserWidget*>(PlayerAlchemyWidget.Get()) : static_cast<UUserWidget*>(PlayerFarmingWidget.Get()));
 				USizeBox* Root = Cast<USizeBox>(ReflowPage->WidgetTree->RootWidget);
 				Check(TEXT("feature page matches authored content height"), Root && Root->GetHeightOverride() == 600);
+				if (Page == EImmortalManagementFeature::Alchemy)
+				{
+					const UImage* Art = Cast<UImage>(ReflowPage->WidgetTree->FindWidget(TEXT("AlchemyFurnaceArt")));
+					Check(TEXT("alchemy cauldron uses imported art"), Art && Art->GetBrush().GetResourceObject());
+					const UVerticalBox* Recipes = Cast<UVerticalBox>(ReflowPage->WidgetTree->FindWidget(TEXT("RecipeList")));
+					bool bIcons = Recipes && Recipes->GetChildrenCount() == UImmortalAlchemyLibrary::GetKnownRecipeIds().Num();
+					if (Recipes) for (UWidget* Entry : Recipes->GetAllChildren())
+					{
+						const UUserWidget* Row = Cast<UUserWidget>(Entry);
+						const UImage* Icon = Row ? Cast<UImage>(Row->WidgetTree->FindWidget(TEXT("RecipeArt"))) : nullptr;
+						bIcons &= Icon && Icon->GetBrush().GetResourceObject() && Entry->GetDesiredSize().Y >= 90;
+					}
+					Check(TEXT("alchemy recipes have illustrated large rows"), bIcons);
+					const auto SavedPills = PillInventory;
+					PillInventory.Reset(); ++PillInventoryRevision;
+					PlayerAlchemyWidget->RefreshFromPlayer();
+					const UUniformGridPanel* EmptyGrid = Cast<UUniformGridPanel>(ReflowPage->WidgetTree->FindWidget(TEXT("PillGrid")));
+					const UButton* Use = Cast<UButton>(ReflowPage->WidgetTree->FindWidget(TEXT("UsePillButton")));
+					Check(TEXT("empty alchemy inventory keeps five slots and disables use"), EmptyGrid && EmptyGrid->GetChildrenCount() == 5 && Use && !Use->GetIsEnabled());
+					PillInventory = SavedPills; ++PillInventoryRevision;
+					PlayerAlchemyWidget->RefreshFromPlayer();
+				}
 				if (Page == EImmortalManagementFeature::Sect)
 				{
 					bool bEmblems = true;

@@ -12,8 +12,9 @@ class UButton;
 class UTextBlock;
 class UUniformGridPanel;
 class UVerticalBox;
+class UTexture2D;
 
-/** Native 900x600 furnace: data-driven recipes, result feedback and pill inventory/use. */
+/** Native 1600x600 furnace: illustrated recipes, result feedback and pill inventory/use. */
 UCLASS()
 class IMMORTALPATH_API UImmortalAlchemyWidget : public UUserWidget
 {
@@ -24,8 +25,15 @@ public:
 	void RefreshFromPlayer();
 	void SelectRecipe(FName RecipeId);
 	void SelectPill(FName PillId, EImmortalPillQuality Quality);
+	UTexture2D* GetAlchemyAtlas() const;
+	UTexture2D* GetMaterialAtlas() const;
 
 protected:
+	UPROPERTY(EditDefaultsOnly, Category="Art")
+	TSoftObjectPtr<UTexture2D> AlchemyAtlas = TSoftObjectPtr<UTexture2D>(FSoftObjectPath(TEXT("/Game/GAME/Asset/DesktopPixelV2/UI/T_AlchemyAtlas.T_AlchemyAtlas")));
+	UPROPERTY(EditDefaultsOnly, Category="Art")
+	TSoftObjectPtr<UTexture2D> MaterialAtlas = TSoftObjectPtr<UTexture2D>(FSoftObjectPath(TEXT("/Game/GAME/Asset/DesktopPixelV2/UI/T_MaterialAtlas.T_MaterialAtlas")));
+
 	virtual void NativeOnInitialized() override;
 	virtual void NativeTick(const FGeometry& MyGeometry, float InDeltaTime) override;
 
@@ -61,6 +69,9 @@ private:
 
 	UPROPERTY(Transient)
 	TObjectPtr<UTextBlock> IngredientText;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UVerticalBox> IngredientList;
 
 	UPROPERTY(Transient)
 	TObjectPtr<UTextBlock> ChanceText;

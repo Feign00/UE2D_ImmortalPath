@@ -9,6 +9,7 @@
 class UButton;
 class UImmortalAlchemyWidget;
 class UTextBlock;
+class UImage;
 
 UCLASS()
 class IMMORTALPATH_API UImmortalAlchemyRecipeSlotWidget : public UUserWidget
@@ -41,6 +42,9 @@ private:
 
 	UPROPERTY(Transient)
 	TObjectPtr<UTextBlock> Label;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UImage> RecipeArt;
 
 	FName RecipeId = NAME_None;
 	bool bRecipeUnlocked = false;
