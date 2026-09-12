@@ -22,3 +22,7 @@ Releases/
 # OS files
 .DS_Store
 Thumbs.db
+
+# Art preparation script caches
+__pycache__/
+*.pyc
