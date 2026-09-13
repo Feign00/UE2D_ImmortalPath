@@ -1,0 +1,14 @@
+Use case: stylized-concept.
+Asset type: production sprite atlas for an original Chinese xianxia idle RPG's ascension management UI, not a screenshot or UI mockup.
+Primary request: Create a single 1536 x 1024 RGBA PNG atlas, exactly 3 columns by 2 rows of equally sized 512 x 512 cells, six original isolated game illustrations with no drawn cell borders.
+Scene/backdrop: genuinely transparent alpha background, including all space between illustrations. No checkerboard pixels, no colored matte, no scenery filling the canvas.
+Subjects in exact row-major order:
+Top left: Battle Dao emblem — one upright jade-hilt silver sword, with a small restrained crimson-gold flame curling around its blade.
+Top middle: Enlightenment Dao emblem — an open ivory cultivation scroll with a turquoise luminous pearl above it, two small stylized cloud curls.
+Top right: Fortune Dao emblem — a golden koi fish curling around one jade coin with a square hole.
+Bottom left: Immortal Seal currency — a chunky antique golden square seal block, with a small jade crane-shaped handle on top, three-quarter view, no text on the seal.
+Bottom middle: Ascension platform — a compact pale jade stepped circular altar with a slender golden ceremonial arch and a turquoise luminous opening; a few compact cloud curls underneath; no humanoid figure.
+Bottom right: Rebirth cycle emblem — two intertwined jade and gold cloud ribbons forming a clear circular loop around a small white pearl.
+Style/medium: polished original pixel-inspired painted game icons, crisp stepped silhouettes, restrained clusters of shading, warm gold and muted jade, strong dark outlines, soft cream highlights. Match a cozy desktop idle RPG with readable silhouettes at 72 to 160 pixels; no photorealism or 3D render.
+Composition: Each subject is centered in its own square cell, occupies about 65 to 75 percent of that cell, entirely contained with at least 56 pixels of transparent padding on every side. Consistent visual weight. No objects overlap cells. No large diffuse glow.
+Constraints: exactly six subjects in that specified order; all isolated on true transparent alpha; no labels, letters, numbers, watermark, logos, UI chrome, extra objects, or copied game assets. Do not draw a checkerboard to simulate transparency.
