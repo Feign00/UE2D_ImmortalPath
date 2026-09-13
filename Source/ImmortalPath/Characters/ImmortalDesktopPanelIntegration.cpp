@@ -4,8 +4,10 @@
 #include "../UI/ImmortalDesktopPanelLayout.h"
 #include "../UI/ImmortalAlchemyWidget.h"
 #include "../UI/ImmortalCraftingWidget.h"
+#include "../UI/ImmortalShopWidget.h"
 #include "../UI/ImmortalCultivationWidget.h"
 #include "Components/ProgressBar.h"
+#include "Components/ScrollBox.h"
 #include "../UI/ImmortalSectWidget.h"
 #include "../UI/ImmortalFarmingWidget.h"
 #include "../UI/ImmortalInventoryWidget.h"
@@ -320,6 +322,74 @@ void AImmortalPlayerCharacter::RunDesktopPanelFixture()
 				InventoryItems = SavedItems; EquippedItems = SavedEquipped; MaterialInventory = SavedMaterials; CurrentGold = SavedGold;
 				++EquipmentInventoryRevision; ++MaterialInventoryRevision;
 				PlayerCraftingWidget->RefreshFromPlayer();
+			}
+			if (Page == EImmortalManagementFeature::Shop)
+			{
+				UWidgetTree* Tree = PlayerShopWidget->WidgetTree;
+				const USizeBox* Root = Cast<USizeBox>(Tree->RootWidget);
+				Check(TEXT("shop uses a full 1600x600 page"), Root && Root->GetWidthOverride() == 1600 && Root->GetHeightOverride() == 600);
+				const UVerticalBox* List = Cast<UVerticalBox>(Tree->FindWidget(TEXT("ShopOfferList")));
+				bool bIllustrated = List && List->GetChildrenCount() == ShopState.Listings.Num();
+				if (List) for (int32 RowIndex = 0; RowIndex < List->GetChildrenCount(); ++RowIndex)
+				{
+					const UUserWidget* Row = Cast<UUserWidget>(List->GetChildAt(RowIndex));
+					const UImage* Art = Row ? Cast<UImage>(Row->WidgetTree->FindWidget(TEXT("ShopEntryArt"))) : nullptr;
+					bIllustrated &= Art && Row->GetDesiredSize().Y >= 90
+						&& (ShopState.Listings[RowIndex].ProductType == EImmortalShopProductType::Artifact || Art->GetBrush().GetResourceObject());
+				}
+				Check(TEXT("shop catalog has large illustrated equipment material and pill rows"), bIllustrated);
+				const auto SavedShop = ShopState;
+				const auto SavedInventory = InventoryItems;
+				const auto SavedMaterials = MaterialInventory;
+				const int32 SavedGold = CurrentGold;
+				UButton* Buy = Cast<UButton>(Tree->FindWidget(TEXT("ShopBuyButton")));
+				UButton* Sell = Cast<UButton>(Tree->FindWidget(TEXT("ShopSellOneButton")));
+				UButton* SellAll = Cast<UButton>(Tree->FindWidget(TEXT("ShopSellAllButton")));
+				const UTextBlock* Result = Cast<UTextBlock>(Tree->FindWidget(TEXT("ShopResult")));
+				CurrentGold = 0;
+				if (!ShopState.Listings.IsEmpty())
+				{
+					ShopState.Listings[0].bSoldOut = false;
+					ShopState.Listings[0].BundlePrice = 100;
+					++ShopRevision;
+					PlayerShopWidget->RefreshFromPlayer();
+					PlayerShopWidget->SelectOffer(ShopState.Listings[0].ListingId);
+					if (Buy) Buy->OnClicked.Broadcast();
+					Check(TEXT("shop unaffordable purchase reports failure without selling stock"), Buy && Buy->GetIsEnabled()
+						&& CurrentGold == 0 && !ShopState.Listings[0].bSoldOut && Result && !Result->GetText().IsEmpty());
+					ShopState.Listings[0].bSoldOut = true; ++ShopRevision;
+					PlayerShopWidget->RefreshFromPlayer();
+					PlayerShopWidget->SelectOffer(ShopState.Listings[0].ListingId);
+					Check(TEXT("sold-out shop offer remains inspectable but cannot be purchased"), Buy && !Buy->GetIsEnabled());
+				}
+				if (!InventoryItems.IsEmpty())
+				{
+					InventoryItems[0].bLocked = true; ++EquipmentInventoryRevision;
+					PlayerShopWidget->RefreshFromPlayer();
+					PlayerShopWidget->SelectEquipmentForSale(InventoryItems[0].ItemId);
+					PlayerShopWidget->RefreshFromPlayer();
+					const UImage* Art = Cast<UImage>(Tree->FindWidget(TEXT("ShopSaleIcon")));
+					Check(TEXT("locked shop equipment keeps its illustrated detail and disables both sale controls"), Art && Art->GetBrush().GetResourceObject()
+						&& Sell && !Sell->GetIsEnabled() && SellAll && !SellAll->GetIsEnabled());
+				}
+				InventoryItems.Reset(); MaterialInventory.Reset();
+				++EquipmentInventoryRevision; ++MaterialInventoryRevision;
+				PlayerShopWidget->RefreshFromPlayer();
+				const UImage* EmptyArt = Cast<UImage>(Tree->FindWidget(TEXT("ShopSaleIcon")));
+				Check(TEXT("empty shop sale inventory hides stale art and disables sale"), EmptyArt && EmptyArt->GetVisibility() == ESlateVisibility::Hidden
+					&& Sell && !Sell->GetIsEnabled() && SellAll && !SellAll->GetIsEnabled());
+				ShopState = SavedShop; InventoryItems = SavedInventory; MaterialInventory = SavedMaterials; CurrentGold = SavedGold;
+				++ShopRevision; ++EquipmentInventoryRevision; ++MaterialInventoryRevision;
+				PlayerShopWidget->RefreshFromPlayer();
+				UScrollBox* Catalog = Cast<UScrollBox>(Tree->FindWidget(TEXT("ShopOfferScroll")));
+				UButton* Refresh = Cast<UButton>(Tree->FindWidget(TEXT("ShopRefreshButton")));
+				if (Catalog) Catalog->SetScrollOffset(300);
+				CurrentGold = 100000;
+				if (Refresh) Refresh->OnClicked.Broadcast();
+				Check(TEXT("manual shop refresh reveals the first new offer"), Catalog && Refresh
+					&& Catalog->GetScrollOffset() == 0 && ShopState.RefreshSerial > SavedShop.RefreshSerial);
+				ShopState = SavedShop; CurrentGold = SavedGold; ++ShopRevision;
+				PlayerShopWidget->RefreshFromPlayer();
 			}
 			if (Page == EImmortalManagementFeature::Sect || Page == EImmortalManagementFeature::Farming || Page == EImmortalManagementFeature::Alchemy)
 			{

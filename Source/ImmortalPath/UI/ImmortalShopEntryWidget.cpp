@@ -4,6 +4,11 @@
 
 #include "ImmortalShopWidget.h"
 #include "ImmortalUITheme.h"
+#include "ImmortalFeaturePageLayout.h"
+#include "Components/ButtonSlot.h"
+#include "Components/Image.h"
+#include "Components/Overlay.h"
+#include "Components/OverlaySlot.h"
 #include "../Items/ImmortalEquipmentTypes.h"
 #include "../Items/ImmortalMaterialTypes.h"
 #include "../Shop/ImmortalShopTypes.h"
@@ -14,30 +19,13 @@
 #include "Engine/Texture2D.h"
 #include "Styling/SlateTypes.h"
 
-namespace
-{
-	FSlateBrush MakeShopEntryBrush(const FLinearColor& Tint)
-	{
-		FSlateBrush Brush;
-		Brush.DrawAs = ESlateBrushDrawType::Image;
-		Brush.ImageSize = FVector2D(270.0f, 56.0f);
-		Brush.TintColor = FSlateColor(Tint);
-		if (UTexture2D* Texture = LoadObject<UTexture2D>(nullptr,
-			TEXT("/Game/GAME/Asset/ui/inventory/slots/normal.normal")))
-		{
-			Brush.SetResourceObject(Texture);
-		}
-		return Brush;
-	}
-}
-
 void UImmortalShopEntryWidget::NativeOnInitialized()
 {
 	Super::NativeOnInitialized();
 
 	USizeBox* Root = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass(), TEXT("ShopEntrySize"));
-	Root->SetWidthOverride(270.0f);
-	Root->SetHeightOverride(56.0f);
+	Root->SetWidthOverride(292.0f);
+	Root->SetHeightOverride(92.0f);
 	WidgetTree->RootWidget = Root;
 
 	EntryButton = WidgetTree->ConstructWidget<UButton>(UButton::StaticClass(), TEXT("ShopEntryButton"));
@@ -51,14 +39,25 @@ void UImmortalShopEntryWidget::NativeOnInitialized()
 	EntryText->SetShadowOffset(FVector2D(1.0f));
 	EntryText->SetShadowColorAndOpacity(FLinearColor::Black);
 	FSlateFontInfo Font = EntryText->GetFont();
-	Font.Size = 11;
+	Font.Size = 18;
 	EntryText->SetFont(Font);
 	UHorizontalBox* Row = WidgetTree->ConstructWidget<UHorizontalBox>();
-	EntryButton->AddChild(Row);
+	Row->SetVisibility(ESlateVisibility::HitTestInvisible);
+	UButtonSlot* ContentSlot = Cast<UButtonSlot>(EntryButton->AddChild(Row));
+	ContentSlot->SetHorizontalAlignment(HAlign_Fill);
+	ContentSlot->SetVerticalAlignment(VAlign_Fill);
+	ContentSlot->SetPadding(FMargin(6));
 	USizeBox* IconBox = WidgetTree->ConstructWidget<USizeBox>();
-	IconBox->SetWidthOverride(44); IconBox->SetHeightOverride(44);
+	IconBox->SetWidthOverride(68); IconBox->SetHeightOverride(68);
 	ProductIcon = CreateWidget<UImmortalIconWidget>(this);
-	IconBox->AddChild(ProductIcon);
+	UOverlay* Layers = WidgetTree->ConstructWidget<UOverlay>();
+	IconBox->AddChild(Layers);
+	ProductArt = WidgetTree->ConstructWidget<UImage>(UImage::StaticClass(), TEXT("ShopEntryArt"));
+	UOverlaySlot* ArtSlot = Layers->AddChildToOverlay(ProductArt);
+	ArtSlot->SetHorizontalAlignment(HAlign_Fill);
+	ArtSlot->SetVerticalAlignment(VAlign_Fill);
+
+	Layers->AddChildToOverlay(ProductIcon);
 	Row->AddChildToHorizontalBox(IconBox)->SetVerticalAlignment(VAlign_Center);
 	UHorizontalBoxSlot* TextSlot = Row->AddChildToHorizontalBox(EntryText);
 	TextSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
@@ -74,9 +73,7 @@ void UImmortalShopEntryWidget::InitializeOfferEntry(
 {
 	OwnerShop = InOwner;
 	EntryMode = EEntryMode::Offer;
-	ProductIconIndex = InListing.ProductType == EImmortalShopProductType::Equipment ? 4
-		: InListing.ProductType == EImmortalShopProductType::Pill ? 2
-		: InListing.ProductType == EImmortalShopProductType::Artifact ? 4 : 19;
+	ArtBrush = InOwner->GetOfferArt(InListing);
 	EntryId = InListing.ListingId;
 	MaterialId = NAME_None;
 	bSelected = bInSelected;
@@ -99,7 +96,7 @@ void UImmortalShopEntryWidget::InitializeEquipmentSaleEntry(
 {
 	OwnerShop = InOwner;
 	EntryMode = EEntryMode::EquipmentSale;
-	ProductIconIndex = 4;
+	ArtBrush = InOwner->GetEquipmentArt(InItem.Slot);
 	EntryId = InItem.ItemId;
 	MaterialId = NAME_None;
 	bSelected = bInSelected;
@@ -109,10 +106,9 @@ void UImmortalShopEntryWidget::InitializeEquipmentSaleEntry(
 		? UImmortalEquipmentLibrary::GetSlotText(InItem.Slot).ToString()
 		: InItem.DisplayName.ToString();
 	DisplayText = FText::FromString(FString::Printf(
-		TEXT("%s%s  +%d\n%s  ·  %s"),
+		TEXT("%s%s\n%s  ·  %s"),
 		InItem.bLocked ? TEXT("[已锁定] ") : TEXT(""),
 		*ItemName,
-		InItem.EnhancementLevel,
 		*UImmortalEquipmentLibrary::GetQualityText(InItem.Quality).ToString(),
 		InItem.bLocked ? TEXT("不可出售") : *FString::Printf(TEXT("售 %d"), SellPrice)));
 	RefreshAppearance();
@@ -126,7 +122,7 @@ void UImmortalShopEntryWidget::InitializeMaterialSaleEntry(
 {
 	OwnerShop = InOwner;
 	EntryMode = EEntryMode::MaterialSale;
-	ProductIconIndex = InStack.MaterialId.ToString().Contains(TEXT("Herb")) ? 11 : 19;
+	ArtBrush = InOwner->GetMaterialArt(InStack.MaterialId);
 	EntryId.Invalidate();
 	MaterialId = InStack.MaterialId;
 	bSelected = bInSelected;
@@ -150,22 +146,13 @@ void UImmortalShopEntryWidget::RefreshAppearance()
 		return;
 	}
 
-	const FLinearColor NormalTint = bSoldOut
-		? FLinearColor(0.2f, 0.2f, 0.22f, 0.68f)
-		: (bSelected
-			? FLinearColor(0.52f, 0.36f, 0.12f, 1.0f)
-			: FLinearColor(0.31f, 0.28f, 0.24f, 0.9f));
-	const FLinearColor HoverTint = bSoldOut
-		? FLinearColor(0.28f, 0.27f, 0.28f, 0.78f)
-		: FLinearColor(0.64f, 0.45f, 0.15f, 1.0f);
-	FButtonStyle Style;
-	Style.SetNormal(MakeShopEntryBrush(NormalTint));
-	Style.SetHovered(MakeShopEntryBrush(HoverTint));
-	Style.SetPressed(MakeShopEntryBrush(FLinearColor(0.75f, 0.54f, 0.2f, 1.0f)));
 	EntryButton->SetStyle(ImmortalUITheme::ButtonStyle(bSelected));
-	ProductIcon->SetIcon(ProductIconIndex);
+	ProductArt->SetBrush(ArtBrush);
+	ProductIcon->SetIcon(4);
+	ProductIcon->SetVisibility(ArtBrush.GetResourceObject() ? ESlateVisibility::Hidden : ESlateVisibility::HitTestInvisible);
 	EntryButton->SetToolTipText(DisplayText);
-	EntryButton->SetIsEnabled(!bSoldOut);
+	// Unavailable entries remain inspectable; the transaction controls enforce availability.
+	EntryButton->SetIsEnabled(true);
 	EntryText->SetText(DisplayText);
 	EntryText->SetColorAndOpacity(FSlateColor(bSoldOut
 		? FLinearColor(0.55f, 0.55f, 0.58f, 1.0f)

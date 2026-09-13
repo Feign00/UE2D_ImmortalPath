@@ -2,6 +2,9 @@
 
 #include "ImmortalShopWidget.h"
 #include "ImmortalFeaturePageLayout.h"
+#include "ImmortalCraftingArt.h"
+#include "ImmortalUITheme.h"
+#include "ImmortalIconWidget.h"
 
 #include "ImmortalShopEntryWidget.h"
 #include "../Characters/ImmortalPlayerCharacter.h"
@@ -22,19 +25,6 @@
 
 namespace
 {
-	FSlateBrush MakeShopBrush(const TCHAR* AssetPath, const FVector2D Size, const FLinearColor Tint = FLinearColor::White)
-	{
-		FSlateBrush Brush;
-		Brush.DrawAs = ESlateBrushDrawType::Image;
-		Brush.ImageSize = Size;
-		Brush.TintColor = FSlateColor(Tint);
-		if (UTexture2D* Texture = LoadObject<UTexture2D>(nullptr, AssetPath))
-		{
-			Brush.SetResourceObject(Texture);
-		}
-		return Brush;
-	}
-
 	void SetShopLayout(UCanvasPanelSlot* Slot, const FVector2D Position, const FVector2D Size)
 	{
 		if (!Slot)
@@ -56,19 +46,6 @@ namespace
 		Text->SetFont(Font);
 	}
 
-	FButtonStyle MakeShopButtonStyle(const FVector2D Size, const FLinearColor& Tint)
-	{
-		FButtonStyle Style;
-		Style.SetNormal(MakeShopBrush(TEXT("/Game/GAME/Asset/ui/inventory/slots/normal.normal"), Size, Tint));
-		Style.SetHovered(MakeShopBrush(TEXT("/Game/GAME/Asset/ui/inventory/slots/normal.normal"), Size,
-			Tint + FLinearColor(0.12f, 0.1f, 0.04f, 0.0f)));
-		Style.SetPressed(MakeShopBrush(TEXT("/Game/GAME/Asset/ui/inventory/slots/normal.normal"), Size,
-			Tint * FLinearColor(0.78f, 0.78f, 0.78f, 1.0f)));
-		Style.SetDisabled(MakeShopBrush(TEXT("/Game/GAME/Asset/ui/inventory/slots/normal.normal"), Size,
-			FLinearColor(0.2f, 0.2f, 0.2f, 0.55f)));
-		return Style;
-	}
-
 	UTextBlock* AddShopButtonLabel(UWidgetTree* Tree, UButton* Button, const TCHAR* Label, const int32 FontSize = 15)
 	{
 		UTextBlock* Text = Tree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass());
@@ -76,6 +53,7 @@ namespace
 		Text->SetJustification(ETextJustify::Center);
 		StyleShopText(Text, FontSize, FLinearColor::White);
 		Button->AddChild(Text);
+		ImmortalFeaturePageLayout::StabilizeButtonLabel(Button, Text);
 		return Text;
 	}
 
@@ -95,126 +73,126 @@ void UImmortalShopWidget::InitializeForPlayer(AImmortalPlayerCharacter* InPlayer
 	RefreshFromPlayer();
 }
 
+FSlateBrush UImmortalShopWidget::GetEquipmentArt(EImmortalEquipmentSlot EquipmentSlot)
+{
+	return ImmortalCraftingArt::EquipmentBrush(EquipmentAtlas.LoadSynchronous(), EquipmentSlot);
+}
+
+FSlateBrush UImmortalShopWidget::GetMaterialArt(FName Id)
+{
+	return ImmortalCraftingArt::MaterialBrush(ForgeAtlas.LoadSynchronous(), MaterialAtlas.LoadSynchronous(), Id);
+}
+
+FSlateBrush UImmortalShopWidget::GetOfferArt(const FImmortalShopListing& Listing)
+{
+	switch (Listing.ProductType)
+	{
+	case EImmortalShopProductType::Equipment: return GetEquipmentArt(Listing.EquipmentItem.Slot);
+	case EImmortalShopProductType::Material: return GetMaterialArt(Listing.ProductId);
+	case EImmortalShopProductType::Pill: return ImmortalAlchemyArt::Brush(AlchemyAtlas.LoadSynchronous(), Listing.ProductId);
+	default:
+		// Artifact-specific illustrations belong to the artifact art pass. Keep the existing
+		// generic sword symbol visible rather than misrepresenting a material as an artifact.
+		FSlateBrush Empty;
+		Empty.DrawAs = ESlateBrushDrawType::NoDrawType;
+		return Empty;
+	}
+}
+
 void UImmortalShopWidget::NativeOnInitialized()
 {
 	Super::NativeOnInitialized();
-
 	USizeBox* Root = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass(), TEXT("ShopPanelSize"));
-	Root->SetWidthOverride(1600.0f);
-	Root->SetHeightOverride(270.0f);
+	Root->SetWidthOverride(1600);
+	Root->SetHeightOverride(600);
 	WidgetTree->RootWidget = Root;
-
 	UCanvasPanel* Canvas = WidgetTree->ConstructWidget<UCanvasPanel>(UCanvasPanel::StaticClass(), TEXT("ShopCanvas"));
 	Root->AddChild(Canvas);
 	ImmortalFeaturePageLayout::AddReadabilityBackground(WidgetTree, Canvas);
 
-	UImage* Background = WidgetTree->ConstructWidget<UImage>(UImage::StaticClass(), TEXT("ShopBackground"));
-	Background->SetBrush(MakeShopBrush(
-		TEXT("/Game/GAME/Asset/ui/inventory/panel_background.panel_background"),
-		FVector2D(1600.0f, 270.0f),
-		FLinearColor(0.92f, 0.84f, 0.64f, 0.98f)));
-	SetShopLayout(Canvas->AddChildToCanvas(Background), FVector2D::ZeroVector, FVector2D(1600.0f, 270.0f));
+	const auto Card = [&](const TCHAR* Name, float X, float Width)
+	{
+		UImage* Background = WidgetTree->ConstructWidget<UImage>(UImage::StaticClass(), Name);
+		Background->SetBrush(ImmortalUITheme::PanelBrush(FLinearColor(0.055f, 0.095f, 0.09f, 0.98f)));
+		Background->SetVisibility(ESlateVisibility::HitTestInvisible);
+		SetShopLayout(Canvas->AddChildToCanvas(Background), FVector2D(X, 52), FVector2D(Width, 484));
+	};
+	Card(TEXT("ShopCatalogCard"), 8, 332);
+	Card(TEXT("ShopPurchaseCard"), 348, 440);
+	Card(TEXT("ShopInventoryCard"), 796, 332);
+	Card(TEXT("ShopSaleCard"), 1136, 456);
+	const auto Text = [&](const TCHAR* Name, const TCHAR* Label, float X, float Y, float W, float H, int32 Font)
+	{
+		UTextBlock* Result = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), Name);
+		Result->SetText(FText::FromString(Label));
+		StyleShopText(Result, Font, FLinearColor(0.9f, 0.94f, 0.91f));
+		SetShopLayout(Canvas->AddChildToCanvas(Result), FVector2D(X, Y), FVector2D(W, H));
+		return Result;
+	};
+	const auto Button = [&](const TCHAR* Name, const TCHAR* Label, float X, float Y, float W, float H)
+	{
+		UButton* Result = WidgetTree->ConstructWidget<UButton>(UButton::StaticClass(), Name);
+		Result->SetStyle(ImmortalUITheme::ButtonStyle());
+		SetShopLayout(Canvas->AddChildToCanvas(Result), FVector2D(X, Y), FVector2D(W, H));
+		AddShopButtonLabel(WidgetTree, Result, Label, 18);
+		return Result;
+	};
+	const auto List = [&](const TCHAR* ScrollName, const TCHAR* ListName, float X)
+	{
+		UScrollBox* Scroll = WidgetTree->ConstructWidget<UScrollBox>(UScrollBox::StaticClass(), ScrollName);
+		SetShopLayout(Canvas->AddChildToCanvas(Scroll), FVector2D(X, 106), FVector2D(312, 416));
+		ImmortalFeaturePageLayout::StyleScrollBox(Scroll);
+		UVerticalBox* Items = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass(), ListName);
+		Scroll->AddChild(Items);
+		return Items;
+	};
+	const auto Art = [&](const TCHAR* Name, float X, float Y, float Size)
+	{
+		UImage* Result = WidgetTree->ConstructWidget<UImage>(UImage::StaticClass(), Name);
+		Result->SetVisibility(ESlateVisibility::HitTestInvisible);
+		SetShopLayout(Canvas->AddChildToCanvas(Result), FVector2D(X, Y), FVector2D(Size));
+		return Result;
+	};
 
-	UTextBlock* Title = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("ShopTitle"));
-	Title->SetText(FText::FromString(TEXT("百宝阁 · 每日珍品")));
-	StyleShopText(Title, 28, FLinearColor(1.0f, 0.78f, 0.28f, 1.0f));
-	SetShopLayout(Canvas->AddChildToCanvas(Title), FVector2D(16.0f, 4.0f), FVector2D(450.0f, 36.0f));
-
-	CurrencyText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("ShopCurrency"));
+	Text(TEXT("ShopTitle"), TEXT("百宝阁 · 每日珍品"), 18, 4, 460, 38, 28);
+	CurrencyText = Text(TEXT("ShopCurrency"), TEXT(""), 700, 9, 810, 30, 19);
 	CurrencyText->SetJustification(ETextJustify::Right);
-	StyleShopText(CurrencyText, 15, FLinearColor(0.72f, 0.95f, 1.0f, 1.0f));
-	SetShopLayout(Canvas->AddChildToCanvas(CurrencyText), FVector2D(930.0f, 7.0f), FVector2D(580.0f, 28.0f));
+	UButton* Close = Button(TEXT("ShopClose"), TEXT("×"), 1540, 3, 44, 36);
+	Close->OnClicked.AddDynamic(this, &UImmortalShopWidget::HandleCloseClicked);
+	Text(TEXT("ShopOfferTitle"), TEXT("今日商品"), 22, 64, 300, 32, 22);
+	Text(TEXT("ShopSaleTitle"), TEXT("背包 · 可售物品"), 810, 64, 300, 32, 22);
+	OfferList = List(TEXT("ShopOfferScroll"), TEXT("ShopOfferList"), 18);
+	SaleList = List(TEXT("ShopSaleScroll"), TEXT("ShopSaleList"), 806);
 
-	UButton* CloseButton = WidgetTree->ConstructWidget<UButton>(UButton::StaticClass(), TEXT("ShopClose"));
-	CloseButton->OnClicked.AddDynamic(this, &UImmortalShopWidget::HandleCloseClicked);
-	CloseButton->SetStyle(MakeShopButtonStyle(FVector2D(64.0f), FLinearColor(0.44f, 0.22f, 0.12f, 1.0f)));
-	SetShopLayout(Canvas->AddChildToCanvas(CloseButton), FVector2D(1540.0f, 3.0f), FVector2D(44.0f, 32.0f));
-	AddShopButtonLabel(WidgetTree, CloseButton, TEXT("×"), 22);
-
-	UTextBlock* OfferTitle = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("ShopOfferTitle"));
-	OfferTitle->SetText(FText::FromString(TEXT("今日商品")));
-	StyleShopText(OfferTitle, 20, FLinearColor(1.0f, 0.88f, 0.55f, 1.0f));
-	SetShopLayout(Canvas->AddChildToCanvas(OfferTitle), FVector2D(16.0f, 42.0f), FVector2D(270.0f, 26.0f));
-	UScrollBox* OfferScroll = WidgetTree->ConstructWidget<UScrollBox>(UScrollBox::StaticClass(), TEXT("ShopOfferScroll"));
-	SetShopLayout(Canvas->AddChildToCanvas(OfferScroll), FVector2D(12.0f, 72.0f), FVector2D(280.0f, 185.0f));
-	OfferList = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass(), TEXT("ShopOfferList"));
-	OfferScroll->AddChild(OfferList);
-
-	UTextBlock* DetailTitle = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("ShopDetailTitle"));
-	DetailTitle->SetText(FText::FromString(TEXT("商品详情")));
-	StyleShopText(DetailTitle, 20, FLinearColor(1.0f, 0.88f, 0.55f, 1.0f));
-	SetShopLayout(Canvas->AddChildToCanvas(DetailTitle), FVector2D(310.0f, 42.0f), FVector2D(300.0f, 26.0f));
-
-	OfferNameText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("ShopOfferName"));
-	OfferNameText->SetAutoWrapText(true);
-	StyleShopText(OfferNameText, 22, FLinearColor::White);
-	SetShopLayout(Canvas->AddChildToCanvas(OfferNameText), FVector2D(310.0f, 72.0f), FVector2D(410.0f, 32.0f));
-	OfferMetaText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("ShopOfferMeta"));
-	StyleShopText(OfferMetaText, 14, FLinearColor(0.66f, 0.9f, 1.0f, 1.0f));
-	SetShopLayout(Canvas->AddChildToCanvas(OfferMetaText), FVector2D(310.0f, 106.0f), FVector2D(410.0f, 28.0f));
-	OfferDetailText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("ShopOfferDetail"));
-	OfferDetailText->SetAutoWrapText(true);
-	StyleShopText(OfferDetailText, 14, FLinearColor(0.9f, 0.9f, 0.86f, 1.0f));
-	SetShopLayout(Canvas->AddChildToCanvas(OfferDetailText), FVector2D(310.0f, 136.0f), FVector2D(410.0f, 120.0f));
-	OfferPriceText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("ShopOfferPrice"));
-	OfferPriceText->SetJustification(ETextJustify::Center);
-	StyleShopText(OfferPriceText, 17, FLinearColor(1.0f, 0.8f, 0.32f, 1.0f));
-	SetShopLayout(Canvas->AddChildToCanvas(OfferPriceText), FVector2D(740.0f, 42.0f), FVector2D(260.0f, 30.0f));
-
-	BuyButton = WidgetTree->ConstructWidget<UButton>(UButton::StaticClass(), TEXT("ShopBuyButton"));
+	OfferIcon = Art(TEXT("ShopOfferIcon"), 626, 68, 144);
+	OfferFallback = CreateWidget<UImmortalIconWidget>(this);
+	OfferFallback->SetIcon(4);
+	SetShopLayout(Canvas->AddChildToCanvas(OfferFallback), FVector2D(650, 92), FVector2D(96));
+	OfferFallback->SetVisibility(ESlateVisibility::Hidden);
+	OfferNameText = Text(TEXT("ShopOfferName"), TEXT(""), 364, 68, 250, 92, 24);
+	OfferMetaText = Text(TEXT("ShopOfferMeta"), TEXT(""), 364, 172, 250, 32, 18);
+	OfferDetailText = Text(TEXT("ShopOfferDetail"), TEXT(""), 364, 218, 408, 134, 19);
+	Art(TEXT("ShopPriceIcon"), 370, 358, 44)->SetBrush(GetMaterialArt(TEXT("SpiritStones")));
+	OfferPriceText = Text(TEXT("ShopOfferPrice"), TEXT(""), 426, 365, 342, 32, 21);
+	BuyButton = Button(TEXT("ShopBuyButton"), TEXT("购买整份"), 364, 408, 408, 48);
 	BuyButton->OnClicked.AddDynamic(this, &UImmortalShopWidget::HandleBuyClicked);
-	BuyButton->SetStyle(MakeShopButtonStyle(FVector2D(170.0f, 46.0f), FLinearColor(0.55f, 0.37f, 0.08f, 1.0f)));
-	SetShopLayout(Canvas->AddChildToCanvas(BuyButton), FVector2D(760.0f, 76.0f), FVector2D(220.0f, 36.0f));
-	AddShopButtonLabel(WidgetTree, BuyButton, TEXT("购买"), 17);
-
-	RefreshCostText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("ShopRefreshCost"));
-	RefreshCostText->SetJustification(ETextJustify::Center);
-	StyleShopText(RefreshCostText, 13, FLinearColor(0.76f, 0.82f, 0.88f, 1.0f));
-	SetShopLayout(Canvas->AddChildToCanvas(RefreshCostText), FVector2D(740.0f, 122.0f), FVector2D(260.0f, 40.0f));
-	RefreshButton = WidgetTree->ConstructWidget<UButton>(UButton::StaticClass(), TEXT("ShopRefreshButton"));
+	RefreshCostText = Text(TEXT("ShopRefreshCost"), TEXT(""), 364, 472, 244, 52, 16);
+	RefreshCostText->SetAutoWrapText(true);
+	RefreshButton = Button(TEXT("ShopRefreshButton"), TEXT("刷新商品"), 622, 474, 150, 48);
 	RefreshButton->OnClicked.AddDynamic(this, &UImmortalShopWidget::HandleRefreshClicked);
-	RefreshButton->SetStyle(MakeShopButtonStyle(FVector2D(170.0f, 42.0f), FLinearColor(0.2f, 0.38f, 0.5f, 1.0f)));
-	SetShopLayout(Canvas->AddChildToCanvas(RefreshButton), FVector2D(760.0f, 166.0f), FVector2D(220.0f, 36.0f));
-	AddShopButtonLabel(WidgetTree, RefreshButton, TEXT("手动刷新"), 15);
 
-	ResultText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("ShopResult"));
-	ResultText->SetAutoWrapText(true);
-	ResultText->SetJustification(ETextJustify::Center);
-	StyleShopText(ResultText, 14, FLinearColor(1.0f, 0.78f, 0.35f, 1.0f));
-	SetShopLayout(Canvas->AddChildToCanvas(ResultText), FVector2D(730.0f, 210.0f), FVector2D(280.0f, 46.0f));
-
-	UTextBlock* SaleTitle = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("ShopSaleTitle"));
-	SaleTitle->SetText(FText::FromString(TEXT("出售背包物品")));
-	StyleShopText(SaleTitle, 20, FLinearColor(0.55f, 1.0f, 0.72f, 1.0f));
-	SetShopLayout(Canvas->AddChildToCanvas(SaleTitle), FVector2D(1030.0f, 42.0f), FVector2D(260.0f, 26.0f));
-	UScrollBox* SaleScroll = WidgetTree->ConstructWidget<UScrollBox>(UScrollBox::StaticClass(), TEXT("ShopSaleScroll"));
-	SetShopLayout(Canvas->AddChildToCanvas(SaleScroll), FVector2D(1025.0f, 72.0f), FVector2D(265.0f, 185.0f));
-	SaleList = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass(), TEXT("ShopSaleList"));
-	SaleScroll->AddChild(SaleList);
-
-	SaleNameText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("ShopSaleName"));
-	SaleNameText->SetAutoWrapText(true);
-	StyleShopText(SaleNameText, 18, FLinearColor(0.65f, 1.0f, 0.78f, 1.0f));
-	SetShopLayout(Canvas->AddChildToCanvas(SaleNameText), FVector2D(1310.0f, 44.0f), FVector2D(270.0f, 50.0f));
-	SaleDetailText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("ShopSaleDetail"));
-	SaleDetailText->SetAutoWrapText(true);
-	StyleShopText(SaleDetailText, 14, FLinearColor(0.88f, 0.9f, 0.92f, 1.0f));
-	SetShopLayout(Canvas->AddChildToCanvas(SaleDetailText), FVector2D(1310.0f, 98.0f), FVector2D(270.0f, 106.0f));
-
-	SellOneButton = WidgetTree->ConstructWidget<UButton>(UButton::StaticClass(), TEXT("ShopSellOneButton"));
+	SaleIcon = Art(TEXT("ShopSaleIcon"), 1148, 70, 136);
+	SaleNameText = Text(TEXT("ShopSaleName"), TEXT(""), 1296, 78, 278, 124, 23);
+	SaleDetailText = Text(TEXT("ShopSaleDetail"), TEXT(""), 1154, 224, 420, 152, 20);
+	Text(TEXT("ShopSaleHint"), TEXT("锁定装备不能出售\n已穿戴的装备不会列入此处"), 1154, 390, 420, 62, 17);
+	SellOneButton = Button(TEXT("ShopSellOneButton"), TEXT("出售 1 个"), 1154, 474, 190, 48);
 	SellOneButton->OnClicked.AddDynamic(this, &UImmortalShopWidget::HandleSellOneClicked);
-	SellOneButton->SetStyle(MakeShopButtonStyle(FVector2D(126.0f, 44.0f), FLinearColor(0.18f, 0.5f, 0.3f, 1.0f)));
-	SetShopLayout(Canvas->AddChildToCanvas(SellOneButton), FVector2D(1310.0f, 216.0f), FVector2D(126.0f, 38.0f));
-	AddShopButtonLabel(WidgetTree, SellOneButton, TEXT("出售 1 个"), 14);
-	SellAllButton = WidgetTree->ConstructWidget<UButton>(UButton::StaticClass(), TEXT("ShopSellAllButton"));
+	SellAllButton = Button(TEXT("ShopSellAllButton"), TEXT("出售此种全部"), 1356, 474, 218, 48);
 	SellAllButton->OnClicked.AddDynamic(this, &UImmortalShopWidget::HandleSellAllClicked);
-	SellAllButton->SetStyle(MakeShopButtonStyle(FVector2D(134.0f, 44.0f), FLinearColor(0.15f, 0.42f, 0.27f, 1.0f)));
-	SetShopLayout(Canvas->AddChildToCanvas(SellAllButton), FVector2D(1446.0f, 216.0f), FVector2D(134.0f, 38.0f));
-	AddShopButtonLabel(WidgetTree, SellAllButton, TEXT("材料全部出售"), 13);
-
-	ImmortalFeaturePageLayout::MakeScrollable(WidgetTree, OfferDetailText);
-	ImmortalFeaturePageLayout::MakeScrollable(WidgetTree, SaleDetailText);
-	ImmortalFeaturePageLayout::MakeScrollable(WidgetTree, ResultText);
+	SellAllButton->SetToolTipText(FText::FromString(TEXT("只出售当前选中的这一种材料，不会出售其他材料。")));
+	ResultText = Text(TEXT("ShopResult"), TEXT("选择商品查看详情；购买和刷新不会暂停自动历练。"), 18, 546, 1560, 44, 19);
+	for (UTextBlock* Detail : {OfferNameText.Get(), OfferDetailText.Get(), SaleNameText.Get(), SaleDetailText.Get(), ResultText.Get()})
+		ImmortalFeaturePageLayout::MakeScrollable(WidgetTree, Detail);
 	RefreshFromPlayer();
 }
 
@@ -252,6 +230,9 @@ void UImmortalShopWidget::RefreshFromPlayer()
 		return;
 	}
 
+	const bool bOffersChanged = LastShopRevision != Player->GetShopRevision() || OfferList->GetChildrenCount() == 0;
+	const bool bSalesChanged = LastEquipmentRevision != Player->GetEquipmentInventoryRevision()
+		|| LastMaterialRevision != Player->GetMaterialInventoryRevision() || SaleList->GetChildrenCount() == 0;
 	LastShopRevision = Player->GetShopRevision();
 	LastEquipmentRevision = Player->GetEquipmentInventoryRevision();
 	LastMaterialRevision = Player->GetMaterialInventoryRevision();
@@ -268,7 +249,7 @@ void UImmortalShopWidget::RefreshFromPlayer()
 	const TArray<FImmortalEquipmentItem> Equipment = Player->GetInventoryItems();
 	const TArray<FImmortalMaterialStack> Materials = Player->GetMaterialInventory();
 	const bool bEquipmentStillExists = Equipment.ContainsByPredicate([this](const FImmortalEquipmentItem& Item)
-		{ return Item.ItemId == SelectedEquipmentId && !Item.bLocked; });
+		{ return Item.ItemId == SelectedEquipmentId; });
 	const bool bMaterialStillExists = Materials.ContainsByPredicate([this](const FImmortalMaterialStack& Stack)
 		{ return Stack.MaterialId == SelectedMaterialId && Stack.Quantity > 0; });
 	if (SaleSelection == ESaleSelection::Equipment && !bEquipmentStillExists)
@@ -299,8 +280,8 @@ void UImmortalShopWidget::RefreshFromPlayer()
 	}
 
 	RefreshHeader();
-	RebuildOfferEntries();
-	RebuildSaleEntries();
+	if (bOffersChanged) RebuildOfferEntries();
+	if (bSalesChanged) RebuildSaleEntries();
 	RefreshOfferDetails();
 	RefreshSaleDetails();
 }
@@ -327,6 +308,7 @@ void UImmortalShopWidget::RebuildOfferEntries()
 		StyleShopText(Empty, 15, FLinearColor(0.58f, 0.58f, 0.6f, 1.0f));
 		OfferList->AddChildToVerticalBox(Empty);
 	}
+	OfferList->ForceLayoutPrepass();
 }
 
 void UImmortalShopWidget::RebuildSaleEntries()
@@ -339,7 +321,7 @@ void UImmortalShopWidget::RebuildSaleEntries()
 		UTextBlock* EquipmentHeader = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass());
 		EquipmentHeader->SetText(FText::FromString(TEXT("— 背包装备 —")));
 		EquipmentHeader->SetJustification(ETextJustify::Center);
-		StyleShopText(EquipmentHeader, 13, FLinearColor(0.8f, 0.7f, 0.42f, 1.0f));
+		StyleShopText(EquipmentHeader, 18, FLinearColor(0.8f, 0.7f, 0.42f, 1.0f));
 		SaleList->AddChildToVerticalBox(EquipmentHeader);
 	}
 	for (const FImmortalEquipmentItem& Item : EquipmentItems)
@@ -361,7 +343,7 @@ void UImmortalShopWidget::RebuildSaleEntries()
 		UTextBlock* MaterialHeader = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass());
 		MaterialHeader->SetText(FText::FromString(TEXT("— 材料 —")));
 		MaterialHeader->SetJustification(ETextJustify::Center);
-		StyleShopText(MaterialHeader, 13, FLinearColor(0.48f, 0.9f, 0.68f, 1.0f));
+		StyleShopText(MaterialHeader, 18, FLinearColor(0.48f, 0.9f, 0.68f, 1.0f));
 		SaleList->AddChildToVerticalBox(MaterialHeader);
 	}
 	for (const FImmortalMaterialStack& Stack : MaterialStacks)
@@ -391,6 +373,7 @@ void UImmortalShopWidget::RebuildSaleEntries()
 		StyleShopText(Empty, 15, FLinearColor(0.58f, 0.6f, 0.62f, 1.0f));
 		SaleList->AddChildToVerticalBox(Empty);
 	}
+	SaleList->ForceLayoutPrepass();
 }
 
 void UImmortalShopWidget::RefreshHeader()
@@ -421,10 +404,16 @@ void UImmortalShopWidget::RefreshOfferDetails()
 		OfferMetaText->SetText(FText::GetEmpty());
 		OfferDetailText->SetText(FText::GetEmpty());
 		OfferPriceText->SetText(FText::GetEmpty());
+		OfferIcon->SetVisibility(ESlateVisibility::Hidden);
+		OfferFallback->SetVisibility(ESlateVisibility::Hidden);
 		BuyButton->SetIsEnabled(false);
 	}
 	else
 	{
+		OfferIcon->SetVisibility(ESlateVisibility::HitTestInvisible);
+		const FSlateBrush Brush = GetOfferArt(*Listing);
+		OfferIcon->SetBrush(Brush);
+		OfferFallback->SetVisibility(Brush.DrawAs == ESlateBrushDrawType::NoDrawType ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Hidden);
 		OfferNameText->SetText(UImmortalShopLibrary::GetListingDisplayName(*Listing));
 		OfferNameText->SetColorAndOpacity(FSlateColor(UImmortalShopLibrary::GetListingColor(*Listing)));
 		OfferMetaText->SetText(FText::FromString(FString::Printf(TEXT("%s  ·  数量 %d"),
@@ -465,6 +454,8 @@ void UImmortalShopWidget::RefreshSaleDetails()
 			const FString Name = Item->DisplayName.IsNone()
 				? UImmortalEquipmentLibrary::GetSlotText(Item->Slot).ToString()
 				: Item->DisplayName.ToString();
+			SaleIcon->SetVisibility(ESlateVisibility::HitTestInvisible);
+			SaleIcon->SetBrush(GetEquipmentArt(Item->Slot));
 			SaleNameText->SetText(FText::FromString(Name));
 			SaleNameText->SetColorAndOpacity(FSlateColor(UImmortalEquipmentLibrary::GetQualityColor(Item->Quality)));
 			SaleDetailText->SetText(FText::FromString(FString::Printf(
@@ -491,6 +482,8 @@ void UImmortalShopWidget::RefreshSaleDetails()
 		{
 			FImmortalMaterialDefinition Definition;
 			const bool bHasDefinition = UImmortalMaterialLibrary::GetMaterialDefinition(Stack->MaterialId, Definition);
+			SaleIcon->SetVisibility(ESlateVisibility::HitTestInvisible);
+			SaleIcon->SetBrush(GetMaterialArt(Stack->MaterialId));
 			SaleNameText->SetText(bHasDefinition ? Definition.DisplayName : FText::FromName(Stack->MaterialId));
 			SaleNameText->SetColorAndOpacity(FSlateColor(bHasDefinition
 				? Definition.DisplayColor
@@ -506,6 +499,7 @@ void UImmortalShopWidget::RefreshSaleDetails()
 		}
 	}
 
+	SaleIcon->SetVisibility(ESlateVisibility::Hidden);
 	SaleNameText->SetText(FText::FromString(TEXT("请选择出售物品")));
 	SaleNameText->SetColorAndOpacity(FSlateColor(FLinearColor(0.7f, 0.72f, 0.74f, 1.0f)));
 	SaleDetailText->SetText(FText::FromString(TEXT("只会出售背包中的装备；已装备物品不会出现在列表中。")));
@@ -571,6 +565,9 @@ void UImmortalShopWidget::HandleRefreshClicked()
 	if (Result.bSucceeded)
 	{
 		SelectedListingId.Invalidate();
+		// The next refresh selects the first new offer; keep that selection visible.
+		if (UScrollBox* Catalog = Cast<UScrollBox>(WidgetTree->FindWidget(TEXT("ShopOfferScroll"))))
+			Catalog->ScrollToStart();
 	}
 	SetResultMessage(Result.Message, Result.bSucceeded);
 	RefreshFromPlayer();

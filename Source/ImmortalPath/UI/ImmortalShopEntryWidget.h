@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Blueprint/UserWidget.h"
+#include "Styling/SlateBrush.h"
 #include "ImmortalShopEntryWidget.generated.h"
 
 class UButton;
@@ -62,7 +63,8 @@ private:
 
 	UPROPERTY(Transient)
 	TObjectPtr<class UImmortalIconWidget> ProductIcon;
-	int32 ProductIconIndex = 7;
+	UPROPERTY(Transient) TObjectPtr<class UImage> ProductArt;
+	UPROPERTY(Transient) FSlateBrush ArtBrush;
 
 	EEntryMode EntryMode = EEntryMode::Offer;
 	FGuid EntryId;
