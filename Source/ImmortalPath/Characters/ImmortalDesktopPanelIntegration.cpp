@@ -240,6 +240,87 @@ void AImmortalPlayerCharacter::RunDesktopPanelFixture()
 				InventoryItems = Before; ++EquipmentInventoryRevision;
 				PlayerInventoryWidget->RefreshFromPlayer();
 			}
+			if (Page == EImmortalManagementFeature::Crafting)
+			{
+				UWidgetTree* Tree = PlayerCraftingWidget->WidgetTree;
+				const USizeBox* Root = Cast<USizeBox>(Tree->RootWidget);
+				Check(TEXT("crafting uses a full 1600x600 page"), Root && Root->GetWidthOverride() == 1600 && Root->GetHeightOverride() == 600);
+				bool bArt = true;
+				for (const TCHAR* Name : {TEXT("CraftingRecipeIcon"), TEXT("CraftingForgeArt"), TEXT("CraftingItemIcon")})
+				{
+					const UImage* Image = Cast<UImage>(Tree->FindWidget(FName(Name)));
+					bArt &= Image && Image->GetBrush().GetResourceObject() && Image->GetBrush().DrawAs == ESlateBrushDrawType::Image;
+				}
+				Check(TEXT("crafting product furnace and selected item art load"), bArt);
+				const UVerticalBox* Recipes = Cast<UVerticalBox>(Tree->FindWidget(TEXT("CraftingRecipeList")));
+				bool bRows = Recipes && Recipes->GetChildrenCount() == UImmortalCraftingLibrary::GetKnownRecipeIds().Num();
+				if (Recipes) for (UWidget* Entry : Recipes->GetAllChildren())
+				{
+					const UUserWidget* Row = Cast<UUserWidget>(Entry);
+					const UImage* Icon = Row ? Cast<UImage>(Row->WidgetTree->FindWidget(TEXT("CraftingEntryIcon"))) : nullptr;
+					bRows &= Icon && Icon->GetBrush().GetResourceObject() && Entry->GetDesiredSize().Y >= 88;
+				}
+				Check(TEXT("crafting recipes have large illustrated rows"), bRows);
+				bool bBounded = true, bReadable = true;
+				Tree->ForEachWidget([&](UWidget* Widget)
+				{
+					if (const UTextBlock* Text = Cast<UTextBlock>(Widget)) bReadable &= Text->GetFont().Size >= 18;
+					if (const UCanvasPanelSlot* CanvasSlot = Cast<UCanvasPanelSlot>(Widget->Slot))
+					{
+						const auto Start = CanvasSlot->GetPosition(), End = Start + CanvasSlot->GetSize();
+						const auto ParentSize = Widget->GetParent()->GetCachedGeometry().GetLocalSize();
+						bBounded &= Start.X >= 0 && Start.Y >= 0 && End.X <= ParentSize.X + 1 && End.Y <= ParentSize.Y + 1;
+					}
+				});
+				Check(TEXT("crafting text is at least 18pt and controls bounded"), bBounded && bReadable);
+				const auto SavedItems = InventoryItems, SavedEquipped = EquippedItems;
+				const auto SavedMaterials = MaterialInventory;
+				const int32 SavedGold = CurrentGold;
+				InventoryItems.Reset(); EquippedItems.Reset(); ++EquipmentInventoryRevision;
+				PlayerCraftingWidget->RefreshFromPlayer();
+				const UButton* Enhance = Cast<UButton>(Tree->FindWidget(TEXT("EnhanceEquipmentButton")));
+				const UButton* Refine = Cast<UButton>(Tree->FindWidget(TEXT("RefineEquipmentButton")));
+				const UImage* ItemArt = Cast<UImage>(Tree->FindWidget(TEXT("CraftingItemIcon")));
+				Check(TEXT("empty equipment hides stale art and disables forge actions"), Enhance && Refine && ItemArt
+					&& !Enhance->GetIsEnabled() && !Refine->GetIsEnabled() && ItemArt->GetBrush().DrawAs == ESlateBrushDrawType::NoDrawType);
+				CurrentGold = 0; MaterialInventory.Reset(); ++MaterialInventoryRevision;
+				PlayerCraftingWidget->SelectRecipe(TEXT("QingyunSword"));
+				const UButton* Craft = Cast<UButton>(Tree->FindWidget(TEXT("CraftEquipmentButton")));
+				Check(TEXT("missing crafting resources disables craft action"), Craft && !Craft->GetIsEnabled());
+				FImmortalEquipmentItem MaxItem = UImmortalEquipmentLibrary::GenerateCraftedEquipment(1,
+					EImmortalEquipmentSlot::Weapon, EImmortalEquipmentQuality::Rare);
+				MaxItem.EnhancementLevel = 15;
+				InventoryItems.Add(MaxItem); ++EquipmentInventoryRevision;
+				PlayerCraftingWidget->SelectEquipment(MaxItem.ItemId);
+				const UTextBlock* MaxLabel = Cast<UTextBlock>(Tree->FindWidget(TEXT("EnhancementCost")));
+				Check(TEXT("max enhancement visibly disabled and labeled"), Enhance && !Enhance->GetIsEnabled()
+					&& MaxLabel && MaxLabel->GetText().ToString().Contains(TEXT("满级")));
+				const bool SavedAutoEquip = bAutoEquipNewItems;
+				bAutoEquipNewItems = false;
+				InventoryItems.Reset();
+				for (int32 SlotIndex = 0; SlotIndex < GetInventoryCapacity(); ++SlotIndex)
+				{
+					auto LockedItem = UImmortalEquipmentLibrary::GenerateCraftedEquipment(1,
+						EImmortalEquipmentSlot::Weapon, EImmortalEquipmentQuality::Common);
+					LockedItem.bLocked = true;
+					InventoryItems.Add(LockedItem);
+				}
+				CurrentGold = 100000;
+				for (FName Id : {FName(TEXT("Ore")), FName(TEXT("DemonBone"))})
+				{
+					FImmortalMaterialStack Stack; Stack.MaterialId = Id; Stack.Quantity = 100;
+					MaterialInventory.Add(Stack);
+				}
+				++EquipmentInventoryRevision; ++MaterialInventoryRevision;
+				PlayerCraftingWidget->SelectRecipe(TEXT("QingyunSword"));
+				const UTextBlock* CraftLabel = Cast<UTextBlock>(Tree->FindWidget(TEXT("CraftEquipmentButtonText")));
+				Check(TEXT("full locked backpack shows inventory reason instead of material shortage"), Craft && !Craft->GetIsEnabled()
+					&& CraftLabel && CraftLabel->GetText().ToString().Contains(TEXT("储物戒已满")));
+				bAutoEquipNewItems = SavedAutoEquip;
+				InventoryItems = SavedItems; EquippedItems = SavedEquipped; MaterialInventory = SavedMaterials; CurrentGold = SavedGold;
+				++EquipmentInventoryRevision; ++MaterialInventoryRevision;
+				PlayerCraftingWidget->RefreshFromPlayer();
+			}
 			if (Page == EImmortalManagementFeature::Sect || Page == EImmortalManagementFeature::Farming || Page == EImmortalManagementFeature::Alchemy)
 			{
 				UUserWidget* ReflowPage = Page == EImmortalManagementFeature::Sect

@@ -9,6 +9,7 @@
 class UButton;
 class UImmortalCraftingWidget;
 class UTextBlock;
+class UImage;
 
 UCLASS()
 class IMMORTALPATH_API UImmortalCraftingEntryWidget : public UUserWidget
@@ -31,6 +32,8 @@ private:
 	UPROPERTY(Transient) TWeakObjectPtr<UImmortalCraftingWidget> OwnerCrafting;
 	UPROPERTY(Transient) TObjectPtr<UButton> EntryButton;
 	UPROPERTY(Transient) TObjectPtr<UTextBlock> EntryText;
+	UPROPERTY(Transient) TObjectPtr<UImage> EntryIcon;
+	int32 DisplaySlot = INDEX_NONE;
 	FName RecipeId = NAME_None;
 	FGuid ItemId;
 	FText DisplayText;
@@ -39,4 +42,3 @@ private:
 	bool bEnabled = true;
 	bool bSelected = false;
 };
-

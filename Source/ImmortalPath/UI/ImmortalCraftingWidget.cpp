@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "ImmortalCraftingWidget.h"
+#include "ImmortalCraftingArt.h"
 #include "ImmortalFeaturePageLayout.h"
 #include "ImmortalUITheme.h"
 
@@ -9,6 +10,9 @@
 #include "../Crafting/ImmortalCraftingTypes.h"
 #include "Blueprint/WidgetTree.h"
 #include "Components/Button.h"
+#include "Components/Border.h"
+#include "Components/HorizontalBox.h"
+#include "Components/HorizontalBoxSlot.h"
 #include "Components/CanvasPanel.h"
 #include "Components/CanvasPanelSlot.h"
 #include "Components/Image.h"
@@ -39,11 +43,11 @@ namespace
 		Text->SetFont(Font);
 	}
 
-	FButtonStyle MakeCraftingButtonStyle(const FVector2D Size, const FLinearColor& Tint)
-	{
-		return ImmortalUITheme::ButtonStyle();
-	}
 }
+
+UTexture2D* UImmortalCraftingWidget::GetEquipmentAtlas() const { return EquipmentAtlas.LoadSynchronous(); }
+UTexture2D* UImmortalCraftingWidget::GetForgeAtlas() const { return ForgeAtlas.LoadSynchronous(); }
+UTexture2D* UImmortalCraftingWidget::GetMaterialAtlas() const { return MaterialAtlas.LoadSynchronous(); }
 
 void UImmortalCraftingWidget::InitializeForPlayer(AImmortalPlayerCharacter* InPlayer)
 {
@@ -55,130 +59,106 @@ void UImmortalCraftingWidget::NativeOnInitialized()
 {
 	Super::NativeOnInitialized();
 	USizeBox* Root = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass(), TEXT("CraftingPanelSize"));
-	Root->SetWidthOverride(1600.0f);
-	Root->SetHeightOverride(270.0f);
+	Root->SetWidthOverride(1600);
+	Root->SetHeightOverride(600);
 	WidgetTree->RootWidget = Root;
 	UCanvasPanel* Canvas = WidgetTree->ConstructWidget<UCanvasPanel>(UCanvasPanel::StaticClass(), TEXT("CraftingCanvas"));
 	Root->AddChild(Canvas);
 	ImmortalFeaturePageLayout::AddReadabilityBackground(WidgetTree, Canvas);
+	for (int32 Index = 0; Index < 4; ++Index)
+	{
+		const float X[] = {8, 304, 744, 1024};
+		const float Width[] = {288, 432, 272, 568};
+		UBorder* Card = WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass(),
+			FName(*FString::Printf(TEXT("CraftingSection%d"), Index)));
+		Card->SetBrush(ImmortalUITheme::PanelBrush(FLinearColor(0.035f, 0.055f, 0.058f)));
+		Card->SetVisibility(ESlateVisibility::HitTestInvisible);
+		SetCraftingCanvasLayout(Canvas->AddChildToCanvas(Card), FVector2D(X[Index], 52), FVector2D(Width[Index], 536));
+	}
+	const auto Text = [this, Canvas](const TCHAR* Name, const TCHAR* Label, FVector2D Position, FVector2D Size, int32 Font = 18)
+	{
+		UTextBlock* Widget = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), FName(Name));
+		Widget->SetText(FText::FromString(Label));
+		StyleCraftingText(Widget, Font, FLinearColor(0.9f, 0.94f, 0.91f));
+		SetCraftingCanvasLayout(Canvas->AddChildToCanvas(Widget), Position, Size);
+		return Widget;
+	};
+	const auto Button = [this, Canvas](const TCHAR* Name, const TCHAR* Label, FVector2D Position, FVector2D Size)
+	{
+		UButton* Widget = WidgetTree->ConstructWidget<UButton>(UButton::StaticClass(), FName(Name));
+		Widget->SetStyle(ImmortalUITheme::ButtonStyle());
+		SetCraftingCanvasLayout(Canvas->AddChildToCanvas(Widget), Position, Size);
+		UTextBlock* Caption = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(),
+			FName(*(FString(Name) + TEXT("Text"))));
+		Caption->SetText(FText::FromString(Label));
+		Caption->SetJustification(ETextJustify::Center);
+		StyleCraftingText(Caption, 20, FLinearColor(0.9f, 0.94f, 0.91f));
+		Widget->AddChild(Caption);
+		ImmortalFeaturePageLayout::StabilizeButtonLabel(Widget, Caption);
+		return Widget;
+	};
+	const auto List = [this, Canvas](const TCHAR* Name, FVector2D Position, FVector2D Size)
+	{
+		UScrollBox* Scroll = WidgetTree->ConstructWidget<UScrollBox>(UScrollBox::StaticClass(),
+			FName(*(FString(Name) + TEXT("Scroll"))));
+		ImmortalFeaturePageLayout::StyleScrollBox(Scroll);
+		SetCraftingCanvasLayout(Canvas->AddChildToCanvas(Scroll), Position, Size);
+		UVerticalBox* Box = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass(), FName(Name));
+		Scroll->AddChild(Box);
+		return Box;
+	};
+	const auto Art = [this, Canvas](const TCHAR* Name, const FSlateBrush& Brush, FVector2D Position, float Size)
+	{
+		UImage* Image = WidgetTree->ConstructWidget<UImage>(UImage::StaticClass(), FName(Name));
+		Image->SetBrush(Brush);
+		Image->SetVisibility(ESlateVisibility::HitTestInvisible);
+		SetCraftingCanvasLayout(Canvas->AddChildToCanvas(Image), Position, FVector2D(Size));
+		return Image;
+	};
+	Text(TEXT("CraftingTitle"), TEXT("青云炼器坊"), {22, 6}, {290, 38}, 28);
+	UButton* Artifact = Button(TEXT("OpenArtifactFurnace"), TEXT("法宝炉 [F]"), {342, 6}, {180, 38});
+	Artifact->OnClicked.AddDynamic(this, &ThisClass::HandleArtifactFurnaceClicked);
+	CurrencyText = Text(TEXT("CraftingCurrency"), TEXT(""), {950, 10}, {572, 30}, 18);
+	CurrencyText->SetJustification(ETextJustify::Right);
+	UButton* Close = Button(TEXT("CraftingClose"), TEXT("×"), {1538, 6}, {44, 38});
+	Close->OnClicked.AddDynamic(this, &ThisClass::HandleCloseClicked);
 
-	UTextBlock* Title = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("CraftingTitle"));
-	Title->SetText(FText::FromString(TEXT("青云炼器炉")));
-	StyleCraftingText(Title, 28, FLinearColor(1.0f, 0.72f, 0.25f));
-	SetCraftingCanvasLayout(Canvas->AddChildToCanvas(Title), FVector2D(16.0f, 4.0f), FVector2D(300.0f, 36.0f));
-	UButton* ArtifactFurnaceButton = WidgetTree->ConstructWidget<UButton>(UButton::StaticClass(), TEXT("OpenArtifactFurnace"));
-	ArtifactFurnaceButton->OnClicked.AddDynamic(this, &UImmortalCraftingWidget::HandleArtifactFurnaceClicked);
-	ArtifactFurnaceButton->SetStyle(MakeCraftingButtonStyle(FVector2D(145.0f, 40.0f), FLinearColor(0.48f, 0.25f, 0.68f)));
-	SetCraftingCanvasLayout(Canvas->AddChildToCanvas(ArtifactFurnaceButton), FVector2D(340.0f, 4.0f), FVector2D(150.0f, 32.0f));
-	UTextBlock* ArtifactFurnaceText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("OpenArtifactFurnaceText"));
-	ArtifactFurnaceText->SetText(FText::FromString(TEXT("法宝炉 [F]")));
-	ArtifactFurnaceText->SetJustification(ETextJustify::Center);
-	StyleCraftingText(ArtifactFurnaceText, 16, FLinearColor(0.94f, 0.76f, 1.0f));
-	ArtifactFurnaceButton->AddChild(ArtifactFurnaceText);
-	CurrencyText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("CraftingCurrency"));
-	StyleCraftingText(CurrencyText, 17, FLinearColor(0.65f, 0.95f, 1.0f));
-	SetCraftingCanvasLayout(Canvas->AddChildToCanvas(CurrencyText), FVector2D(1060.0f, 7.0f), FVector2D(440.0f, 28.0f));
-
-	UButton* CloseButton = WidgetTree->ConstructWidget<UButton>(UButton::StaticClass(), TEXT("CraftingClose"));
-	CloseButton->OnClicked.AddDynamic(this, &UImmortalCraftingWidget::HandleCloseClicked);
-	CloseButton->SetStyle(MakeCraftingButtonStyle(FVector2D(64.0f), FLinearColor::White));
-	SetCraftingCanvasLayout(Canvas->AddChildToCanvas(CloseButton), FVector2D(1540.0f, 3.0f), FVector2D(44.0f, 32.0f));
-	UTextBlock* CloseText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("CraftingCloseText"));
-	CloseText->SetText(FText::FromString(TEXT("×")));
-	CloseText->SetJustification(ETextJustify::Center);
-	StyleCraftingText(CloseText, 28, FLinearColor(1.0f, 0.72f, 0.25f));
-	CloseButton->AddChild(CloseText);
-
-	UTextBlock* RecipeTitle = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("CraftingRecipeTitle"));
-	RecipeTitle->SetText(FText::FromString(TEXT("打造配方")));
-	StyleCraftingText(RecipeTitle, 20, FLinearColor::White);
-	SetCraftingCanvasLayout(Canvas->AddChildToCanvas(RecipeTitle), FVector2D(16.0f, 42.0f), FVector2D(240.0f, 26.0f));
-	UScrollBox* RecipeScroll = WidgetTree->ConstructWidget<UScrollBox>(UScrollBox::StaticClass(), TEXT("CraftingRecipeScroll"));
-	SetCraftingCanvasLayout(Canvas->AddChildToCanvas(RecipeScroll), FVector2D(12.0f, 72.0f), FVector2D(245.0f, 185.0f));
-	RecipeList = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass(), TEXT("CraftingRecipeList"));
-	RecipeScroll->AddChild(RecipeList);
-
-	RecipeNameText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("CraftingRecipeName"));
-	StyleCraftingText(RecipeNameText, 22, FLinearColor(0.45f, 1.0f, 0.7f));
-	SetCraftingCanvasLayout(Canvas->AddChildToCanvas(RecipeNameText), FVector2D(280.0f, 42.0f), FVector2D(420.0f, 30.0f));
-	RecipeDescriptionText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("CraftingRecipeDescription"));
+	Text(TEXT("CraftingRecipeTitle"), TEXT("打造配方"), {22, 64}, {264, 30}, 22);
+	RecipeList = List(TEXT("CraftingRecipeList"), {18, 104}, {268, 470});
+	RecipeNameText = Text(TEXT("CraftingRecipeName"), TEXT(""), {322, 68}, {236, 64}, 24);
+	RecipeNameText->SetAutoWrapText(true);
+	RecipeIcon = Art(TEXT("CraftingRecipeIcon"), FSlateBrush(), {578, 72}, 136);
+	RecipeDescriptionText = Text(TEXT("CraftingRecipeDescription"), TEXT(""), {322, 142}, {238, 124});
 	RecipeDescriptionText->SetAutoWrapText(true);
-	StyleCraftingText(RecipeDescriptionText, 15, FLinearColor(0.86f, 0.88f, 0.92f));
-	SetCraftingCanvasLayout(Canvas->AddChildToCanvas(RecipeDescriptionText), FVector2D(280.0f, 75.0f), FVector2D(420.0f, 50.0f));
-	RecipeCostText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("CraftingRecipeCost"));
-	RecipeCostText->SetAutoWrapText(true);
-	StyleCraftingText(RecipeCostText, 16, FLinearColor(1.0f, 0.78f, 0.35f));
-	SetCraftingCanvasLayout(Canvas->AddChildToCanvas(RecipeCostText), FVector2D(280.0f, 128.0f), FVector2D(250.0f, 125.0f));
-	CraftButton = WidgetTree->ConstructWidget<UButton>(UButton::StaticClass(), TEXT("CraftEquipmentButton"));
-	CraftButton->OnClicked.AddDynamic(this, &UImmortalCraftingWidget::HandleCraftClicked);
-	CraftButton->SetStyle(MakeCraftingButtonStyle(FVector2D(220.0f, 52.0f), FLinearColor(0.3f, 0.72f, 0.46f)));
-	SetCraftingCanvasLayout(Canvas->AddChildToCanvas(CraftButton), FVector2D(540.0f, 145.0f), FVector2D(160.0f, 40.0f));
-	CraftButtonText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("CraftEquipmentButtonText"));
-	CraftButtonText->SetJustification(ETextJustify::Center);
-	StyleCraftingText(CraftButtonText, 19, FLinearColor::White);
-	CraftButton->AddChild(CraftButtonText);
+	Art(TEXT("CraftingForgeArt"), ImmortalCraftingArt::ForgeBrush(GetForgeAtlas(), TEXT("Forge")), {586, 224}, 120);
+	RecipeCostText = Text(TEXT("CraftingRecipeCost"), TEXT("打造消耗"), {322, 286}, {236, 30}, 20);
+	RecipeCostList = List(TEXT("CraftingRecipeCosts"), {322, 326}, {392, 176});
+	CraftButton = Button(TEXT("CraftEquipmentButton"), TEXT("打造装备"), {322, 524}, {392, 50});
+	CraftButtonText = CastChecked<UTextBlock>(WidgetTree->FindWidget(TEXT("CraftEquipmentButtonText")));
+	CraftButton->OnClicked.AddDynamic(this, &ThisClass::HandleCraftClicked);
 
-	UTextBlock* EquipmentTitle = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("CraftingEquipmentTitle"));
-	EquipmentTitle->SetText(FText::FromString(TEXT("装备强化 / 洗炼")));
-	StyleCraftingText(EquipmentTitle, 20, FLinearColor::White);
-	SetCraftingCanvasLayout(Canvas->AddChildToCanvas(EquipmentTitle), FVector2D(730.0f, 42.0f), FVector2D(265.0f, 26.0f));
-	UScrollBox* EquipmentScroll = WidgetTree->ConstructWidget<UScrollBox>(UScrollBox::StaticClass(), TEXT("CraftingEquipmentScroll"));
-	SetCraftingCanvasLayout(Canvas->AddChildToCanvas(EquipmentScroll), FVector2D(725.0f, 72.0f), FVector2D(265.0f, 185.0f));
-	EquipmentList = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass(), TEXT("CraftingEquipmentList"));
-	EquipmentScroll->AddChild(EquipmentList);
-	ItemNameText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("CraftingItemName"));
-	StyleCraftingText(ItemNameText, 18, FLinearColor::White);
-	SetCraftingCanvasLayout(Canvas->AddChildToCanvas(ItemNameText), FVector2D(1010.0f, 42.0f), FVector2D(565.0f, 28.0f));
-	ItemStatsText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("CraftingItemStats"));
-	StyleCraftingText(ItemStatsText, 16, FLinearColor(0.84f, 0.88f, 0.94f));
-	SetCraftingCanvasLayout(Canvas->AddChildToCanvas(ItemStatsText), FVector2D(1010.0f, 74.0f), FVector2D(290.0f, 75.0f));
-	AffixText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("CraftingAffixes"));
+	Text(TEXT("CraftingEquipmentTitle"), TEXT("选择装备"), {758, 64}, {242, 30}, 22);
+	EquipmentList = List(TEXT("CraftingEquipmentList"), {754, 104}, {250, 428});
+	ItemIcon = Art(TEXT("CraftingItemIcon"), FSlateBrush(), {1040, 70}, 100);
+	ItemNameText = Text(TEXT("CraftingItemName"), TEXT(""), {1154, 76}, {416, 86}, 22);
+	ItemNameText->SetAutoWrapText(true);
+	ItemStatsText = Text(TEXT("CraftingItemStats"), TEXT(""), {1040, 180}, {532, 80});
+	ItemStatsText->SetAutoWrapText(true);
+	AffixText = Text(TEXT("CraftingAffixes"), TEXT(""), {1040, 270}, {532, 80});
 	AffixText->SetAutoWrapText(true);
-	StyleCraftingText(AffixText, 16, FLinearColor(0.55f, 0.95f, 0.76f));
-	SetCraftingCanvasLayout(Canvas->AddChildToCanvas(AffixText), FVector2D(1010.0f, 150.0f), FVector2D(290.0f, 108.0f));
-	EnhancementCostText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("EnhancementCost"));
-	StyleCraftingText(EnhancementCostText, 15, FLinearColor(0.9f, 0.84f, 0.62f));
-	SetCraftingCanvasLayout(Canvas->AddChildToCanvas(EnhancementCostText), FVector2D(1320.0f, 48.0f), FVector2D(260.0f, 56.0f));
-	RefinementCostText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("RefinementCost"));
-	StyleCraftingText(RefinementCostText, 15, FLinearColor(0.9f, 0.84f, 0.62f));
-	SetCraftingCanvasLayout(Canvas->AddChildToCanvas(RefinementCostText), FVector2D(1320.0f, 153.0f), FVector2D(260.0f, 56.0f));
-	EnhanceButton = WidgetTree->ConstructWidget<UButton>(UButton::StaticClass(), TEXT("EnhanceEquipmentButton"));
-	EnhanceButton->OnClicked.AddDynamic(this, &UImmortalCraftingWidget::HandleEnhanceClicked);
-	EnhanceButton->SetStyle(MakeCraftingButtonStyle(FVector2D(128.0f, 44.0f), FLinearColor(0.28f, 0.56f, 0.82f)));
-	SetCraftingCanvasLayout(Canvas->AddChildToCanvas(EnhanceButton), FVector2D(1320.0f, 106.0f), FVector2D(260.0f, 38.0f));
-	UTextBlock* EnhanceText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("EnhanceText"));
-	EnhanceText->SetText(FText::FromString(TEXT("强化一次")));
-	EnhanceText->SetJustification(ETextJustify::Center);
-	StyleCraftingText(EnhanceText, 17, FLinearColor::White);
-	EnhanceButton->AddChild(EnhanceText);
-	RefineButton = WidgetTree->ConstructWidget<UButton>(UButton::StaticClass(), TEXT("RefineEquipmentButton"));
-	RefineButton->OnClicked.AddDynamic(this, &UImmortalCraftingWidget::HandleRefineClicked);
-	RefineButton->SetStyle(MakeCraftingButtonStyle(FVector2D(128.0f, 44.0f), FLinearColor(0.62f, 0.34f, 0.78f)));
-	SetCraftingCanvasLayout(Canvas->AddChildToCanvas(RefineButton), FVector2D(1320.0f, 212.0f), FVector2D(260.0f, 38.0f));
-	UTextBlock* RefineText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("RefineText"));
-	RefineText->SetText(FText::FromString(TEXT("洗炼词条")));
-	RefineText->SetJustification(ETextJustify::Center);
-	StyleCraftingText(RefineText, 17, FLinearColor::White);
-	RefineButton->AddChild(RefineText);
-
-	ResultText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("CraftingResult"));
+	EnhancementCostText = Text(TEXT("EnhancementCost"), TEXT("强化消耗"), {1040, 354}, {252, 28}, 20);
+	RefinementCostText = Text(TEXT("RefinementCost"), TEXT("洗炼消耗"), {1320, 354}, {252, 28}, 20);
+	EnhancementCostList = List(TEXT("CraftingEnhancementCosts"), {1040, 388}, {252, 86});
+	RefinementCostList = List(TEXT("CraftingRefinementCosts"), {1320, 388}, {252, 86});
+	EnhanceButton = Button(TEXT("EnhanceEquipmentButton"), TEXT("强化一次"), {1040, 484}, {252, 48});
+	EnhanceButton->OnClicked.AddDynamic(this, &ThisClass::HandleEnhanceClicked);
+	RefineButton = Button(TEXT("RefineEquipmentButton"), TEXT("洗炼词条"), {1320, 484}, {252, 48});
+	RefineButton->OnClicked.AddDynamic(this, &ThisClass::HandleRefineClicked);
+	ResultText = Text(TEXT("CraftingResult"), TEXT("打造、强化与洗炼结果将在这里显示"), {758, 544}, {814, 38});
 	ResultText->SetAutoWrapText(true);
-	ResultText->SetJustification(ETextJustify::Center);
-	StyleCraftingText(ResultText, 16, FLinearColor(1.0f, 0.78f, 0.3f));
-	SetCraftingCanvasLayout(Canvas->AddChildToCanvas(ResultText), FVector2D(535.0f, 190.0f), FVector2D(165.0f, 66.0f));
+	for (UTextBlock* Value : {RecipeNameText, RecipeDescriptionText, ItemNameText, ItemStatsText, AffixText, ResultText})
+		ImmortalFeaturePageLayout::MakeScrollable(WidgetTree, Value);
 	RefreshFromPlayer();
-	ImmortalFeaturePageLayout::MakeScrollable(WidgetTree, RecipeCostText);
-	ImmortalFeaturePageLayout::MakeScrollable(WidgetTree, AffixText);
-	ImmortalFeaturePageLayout::MakeScrollable(WidgetTree, ItemStatsText);
-	ImmortalFeaturePageLayout::MakeScrollable(WidgetTree, ResultText);
-	ImmortalFeaturePageLayout::MakeScrollable(WidgetTree, RecipeDescriptionText);
-	CastChecked<UCanvasPanelSlot>(ItemNameText->Slot)->SetSize(FVector2D(290.0f, 28.0f));
-	ImmortalFeaturePageLayout::MakeScrollable(WidgetTree, ItemNameText);
-	ImmortalFeaturePageLayout::MakeScrollable(WidgetTree, EnhancementCostText);
-	ImmortalFeaturePageLayout::MakeScrollable(WidgetTree, RefinementCostText);
-	for (UScrollBox* List : {CastChecked<UScrollBox>(RecipeList->GetParent()),
-		CastChecked<UScrollBox>(EquipmentList->GetParent())})
-		ImmortalFeaturePageLayout::StyleScrollBox(List);
 }
 
 void UImmortalCraftingWidget::NativeTick(const FGeometry& MyGeometry, const float InDeltaTime)
@@ -198,6 +178,8 @@ void UImmortalCraftingWidget::NativeTick(const FGeometry& MyGeometry, const floa
 void UImmortalCraftingWidget::RefreshFromPlayer()
 {
 	if (!Player.IsValid() || !RecipeList || !EquipmentList) return;
+	const bool bEquipmentChanged = LastEquipmentRevision != Player->GetEquipmentInventoryRevision();
+	const bool bStageChanged = LastStage != Player->GetQingyunStage();
 	LastEquipmentRevision = Player->GetEquipmentInventoryRevision();
 	LastMaterialRevision = Player->GetMaterialInventoryRevision();
 	LastSpiritStones = Player->GetGold();
@@ -206,7 +188,20 @@ void UImmortalCraftingWidget::RefreshFromPlayer()
 	CurrencyText->SetText(FText::FromString(FString::Printf(TEXT("灵石 %d · 青云山第 %d 关"), LastSpiritStones, LastStage)));
 
 	const TArray<FName> Recipes = UImmortalCraftingLibrary::GetKnownRecipeIds();
-	if (SelectedRecipeId.IsNone() || !Recipes.Contains(SelectedRecipeId)) SelectedRecipeId = Recipes.IsEmpty() ? NAME_None : Recipes[0];
+	if (SelectedRecipeId.IsNone() || !Recipes.Contains(SelectedRecipeId))
+	{
+		int32 EarliestStage = MAX_int32;
+		SelectedRecipeId = NAME_None;
+		for (FName Id : Recipes)
+		{
+			FImmortalCraftingRecipeDefinition Definition;
+			if (UImmortalCraftingLibrary::GetRecipeDefinition(Id, Definition) && Definition.MinimumQingyunStage < EarliestStage)
+			{
+				SelectedRecipeId = Id;
+				EarliestStage = Definition.MinimumQingyunStage;
+			}
+		}
+	}
 	FImmortalEquipmentItem SelectedItem;
 	bool bEquipped = false;
 	if (!Player->GetEquipmentItemById(SelectedItemId, SelectedItem, bEquipped))
@@ -215,8 +210,13 @@ void UImmortalCraftingWidget::RefreshFromPlayer()
 		const TArray<FImmortalEquipmentItem> Inventory = Player->GetInventoryItems();
 		SelectedItemId = !Equipped.IsEmpty() ? Equipped[0].ItemId : (!Inventory.IsEmpty() ? Inventory[0].ItemId : FGuid());
 	}
-	RebuildRecipeEntries();
-	RebuildEquipmentEntries();
+	// Combat may change currency every second; do not destroy the row under the mouse for a cost update.
+	if (bStageChanged || LastRenderedRecipeId != SelectedRecipeId || RecipeList->GetChildrenCount() == 0)
+		RebuildRecipeEntries();
+	if (bEquipmentChanged || LastRenderedItemId != SelectedItemId || EquipmentList->GetChildrenCount() == 0)
+		RebuildEquipmentEntries();
+	LastRenderedRecipeId = SelectedRecipeId;
+	LastRenderedItemId = SelectedItemId;
 	RefreshRecipeDetails();
 	RefreshEquipmentDetails();
 }
@@ -276,12 +276,15 @@ void UImmortalCraftingWidget::RefreshRecipeDetails()
 		*UImmortalEquipmentLibrary::GetQualityText(Definition.OutputQuality).ToString(),
 		*UImmortalEquipmentLibrary::GetSlotText(Definition.OutputSlot).ToString(), *SetText)));
 	const FImmortalCraftingCost EffectiveCost = Player->ApplyCaveForgeDiscount(Definition.Cost);
-	RecipeCostText->SetText(UImmortalCraftingLibrary::FormatCost(
-		EffectiveCost, Player->GetMaterialInventory(), Player->GetGold()));
+	RecipeIcon->SetBrush(ImmortalCraftingArt::EquipmentBrush(GetEquipmentAtlas(), Definition.OutputSlot));
+	RecipeCostText->SetText(FText::FromString(TEXT("消耗 · 持有 / 需要")));
+	RefreshCostList(RecipeCostList, EffectiveCost);
 	const bool bUnlocked = Player->IsCraftingRecipeUnlocked(SelectedRecipeId);
 	const bool bCanCraft = Player->CanCraftEquipment(SelectedRecipeId);
+	const bool bAffordable = UImmortalCraftingLibrary::CanAfford( Player->GetMaterialInventory(), Player->GetGold(), EffectiveCost);
 	CraftButton->SetIsEnabled(bCanCraft);
-	CraftButtonText->SetText(FText::FromString(!bUnlocked ? TEXT("关卡未解锁") : (bCanCraft ? TEXT("打造装备") : TEXT("材料或灵石不足"))));
+	CraftButtonText->SetText(FText::FromString(!bUnlocked ? TEXT("关卡未解锁") : (bCanCraft ? TEXT("打造装备")
+		: (bAffordable ? TEXT("储物戒已满，请先整理") : TEXT("材料或灵石不足")))));
 }
 
 void UImmortalCraftingWidget::RefreshEquipmentDetails()
@@ -295,13 +298,17 @@ void UImmortalCraftingWidget::RefreshEquipmentDetails()
 		AffixText->SetText(FText::GetEmpty());
 		EnhancementCostText->SetText(FText::GetEmpty());
 		RefinementCostText->SetText(FText::GetEmpty());
+		ItemIcon->SetBrush(ImmortalCraftingArt::EquipmentBrush(nullptr, EImmortalEquipmentSlot::MAX));
+		EnhancementCostList->ClearChildren();
+		RefinementCostList->ClearChildren();
 		EnhanceButton->SetIsEnabled(false);
 		RefineButton->SetIsEnabled(false);
 		return;
 	}
-	ItemNameText->SetText(FText::FromString(FString::Printf(TEXT("%s%s  +%d"),
-		bEquipped ? TEXT("[已装备] ") : TEXT(""), *Item.DisplayName.ToString(), Item.EnhancementLevel)));
+	ItemNameText->SetText(FText::FromString(FString::Printf(TEXT("%s%s"),
+		bEquipped ? TEXT("[已装备] ") : TEXT(""), *Item.DisplayName.ToString())));
 	ItemNameText->SetColorAndOpacity(FSlateColor(UImmortalEquipmentLibrary::GetQualityColor(Item.Quality)));
+	ItemIcon->SetBrush(ImmortalCraftingArt::EquipmentBrush(GetEquipmentAtlas(), Item.Slot));
 	ItemStatsText->SetText(FText::FromString(FString::Printf(
 		TEXT("等级 %d · %s契合 · 战力 %.1f · 洗炼 %d 次\n攻击 %.1f  防御 %.1f  生命 %.1f\n攻速 %.1f%%  暴击 %.1f%%"),
 		Item.ItemLevel, *UImmortalEquipmentLibrary::GetDisciplineText(Item.Discipline).ToString(),
@@ -317,10 +324,47 @@ void UImmortalCraftingWidget::RefreshEquipmentDetails()
 		UImmortalCraftingLibrary::GetRefinementCost(Item));
 	EnhancementCostText->SetText(Item.EnhancementLevel >= 15
 		? FText::FromString(TEXT("强化已满级"))
-		: UImmortalCraftingLibrary::FormatCost(EnhancementCost, Player->GetMaterialInventory(), Player->GetGold()));
-	RefinementCostText->SetText(UImmortalCraftingLibrary::FormatCost(RefinementCost, Player->GetMaterialInventory(), Player->GetGold()));
+		: FText::FromString(TEXT("强化消耗")));
+	RefinementCostText->SetText(FText::FromString(TEXT("洗炼消耗")));
+	EnhancementCostList->ClearChildren();
+	if (Item.EnhancementLevel < 15) RefreshCostList(EnhancementCostList, EnhancementCost);
+	RefreshCostList(RefinementCostList, RefinementCost);
 	EnhanceButton->SetIsEnabled(Player->CanEnhanceEquipment(SelectedItemId));
 	RefineButton->SetIsEnabled(Player->CanRefineEquipment(SelectedItemId));
+}
+
+void UImmortalCraftingWidget::RefreshCostList(UVerticalBox* List, const FImmortalCraftingCost& Cost)
+{
+	List->ClearChildren();
+	const auto AddCost = [this, List](FName Id, const FString& Name, int32 Owned, int32 Needed)
+	{
+		UHorizontalBox* Row = WidgetTree->ConstructWidget<UHorizontalBox>();
+		USizeBox* IconSize = WidgetTree->ConstructWidget<USizeBox>();
+		IconSize->SetWidthOverride(36); IconSize->SetHeightOverride(36);
+		UImage* Icon = WidgetTree->ConstructWidget<UImage>();
+		Icon->SetBrush(ImmortalCraftingArt::MaterialBrush(GetForgeAtlas(), GetMaterialAtlas(), Id));
+		IconSize->AddChild(Icon);
+		Row->AddChildToHorizontalBox(IconSize)->SetVerticalAlignment(VAlign_Center);
+		UTextBlock* Label = WidgetTree->ConstructWidget<UTextBlock>();
+		Label->SetText(FText::FromString(FString::Printf(TEXT("%s  %d / %d"), *Name, Owned, Needed)));
+		Label->SetAutoWrapText(true);
+		Label->SetToolTipText(FText::FromString(Owned >= Needed ? TEXT("材料充足") : TEXT("材料不足")));
+		StyleCraftingText(Label, 18, Owned >= Needed ? FLinearColor(0.60f, 0.92f, 0.73f) : FLinearColor(1, 0.47f, 0.35f));
+		UHorizontalBoxSlot* Slot = Row->AddChildToHorizontalBox(Label);
+		Slot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+		Slot->SetVerticalAlignment(VAlign_Center);
+		Slot->SetPadding(FMargin(6, 4));
+		List->AddChild(Row);
+	};
+	AddCost(TEXT("SpiritStones"), TEXT("灵石"), Player->GetGold(), Cost.SpiritStones);
+	for (const FImmortalCraftingMaterialCost& MaterialCost : Cost.Materials)
+	{
+		FImmortalMaterialDefinition Definition;
+		const bool bKnown = UImmortalMaterialLibrary::GetMaterialDefinition(MaterialCost.MaterialId, Definition);
+		AddCost(MaterialCost.MaterialId, bKnown ? Definition.DisplayName.ToString() : MaterialCost.MaterialId.ToString(),
+			Player->GetMaterialQuantity(MaterialCost.MaterialId), MaterialCost.Quantity);
+	}
+	List->ForceLayoutPrepass();
 }
 
 void UImmortalCraftingWidget::SelectRecipe(const FName RecipeId)

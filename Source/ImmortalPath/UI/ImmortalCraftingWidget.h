@@ -10,6 +10,8 @@ class AImmortalPlayerCharacter;
 class UButton;
 class UTextBlock;
 class UVerticalBox;
+class UImage;
+class UTexture2D;
 
 UCLASS()
 class IMMORTALPATH_API UImmortalCraftingWidget : public UUserWidget
@@ -21,8 +23,17 @@ public:
 	void RefreshFromPlayer();
 	void SelectRecipe(FName RecipeId);
 	void SelectEquipment(FGuid ItemId);
+	UTexture2D* GetEquipmentAtlas() const;
+	UTexture2D* GetForgeAtlas() const;
+	UTexture2D* GetMaterialAtlas() const;
 
 protected:
+	UPROPERTY(EditDefaultsOnly, Category="Art")
+	TSoftObjectPtr<UTexture2D> EquipmentAtlas = TSoftObjectPtr<UTexture2D>(FSoftObjectPath(TEXT("/Game/GAME/Asset/DesktopPixelV2/UI/T_EquipmentAtlas.T_EquipmentAtlas")));
+	UPROPERTY(EditDefaultsOnly, Category="Art")
+	TSoftObjectPtr<UTexture2D> ForgeAtlas = TSoftObjectPtr<UTexture2D>(FSoftObjectPath(TEXT("/Game/GAME/Asset/DesktopPixelV2/UI/T_ForgeAtlas.T_ForgeAtlas")));
+	UPROPERTY(EditDefaultsOnly, Category="Art")
+	TSoftObjectPtr<UTexture2D> MaterialAtlas = TSoftObjectPtr<UTexture2D>(FSoftObjectPath(TEXT("/Game/GAME/Asset/DesktopPixelV2/UI/T_MaterialAtlas.T_MaterialAtlas")));
 	virtual void NativeOnInitialized() override;
 	virtual void NativeTick(const FGeometry& MyGeometry, float InDeltaTime) override;
 
@@ -31,6 +42,7 @@ private:
 	void RebuildEquipmentEntries();
 	void RefreshRecipeDetails();
 	void RefreshEquipmentDetails();
+	void RefreshCostList(UVerticalBox* List, const struct FImmortalCraftingCost& Cost);
 
 	UFUNCTION() void HandleCraftClicked();
 	UFUNCTION() void HandleEnhanceClicked();
@@ -41,6 +53,11 @@ private:
 	UPROPERTY(Transient) TWeakObjectPtr<AImmortalPlayerCharacter> Player;
 	UPROPERTY(Transient) TObjectPtr<UVerticalBox> RecipeList;
 	UPROPERTY(Transient) TObjectPtr<UVerticalBox> EquipmentList;
+	UPROPERTY(Transient) TObjectPtr<UVerticalBox> RecipeCostList;
+	UPROPERTY(Transient) TObjectPtr<UVerticalBox> EnhancementCostList;
+	UPROPERTY(Transient) TObjectPtr<UVerticalBox> RefinementCostList;
+	UPROPERTY(Transient) TObjectPtr<UImage> RecipeIcon;
+	UPROPERTY(Transient) TObjectPtr<UImage> ItemIcon;
 	UPROPERTY(Transient) TObjectPtr<UTextBlock> CurrencyText;
 	UPROPERTY(Transient) TObjectPtr<UTextBlock> RecipeNameText;
 	UPROPERTY(Transient) TObjectPtr<UTextBlock> RecipeDescriptionText;
@@ -58,6 +75,8 @@ private:
 
 	FName SelectedRecipeId = NAME_None;
 	FGuid SelectedItemId;
+	FName LastRenderedRecipeId = NAME_None;
+	FGuid LastRenderedItemId;
 	int32 LastEquipmentRevision = INDEX_NONE;
 	int32 LastMaterialRevision = INDEX_NONE;
 	int32 LastSpiritStones = INDEX_NONE;
