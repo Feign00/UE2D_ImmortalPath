@@ -7,6 +7,7 @@
 #include "../Alchemy/ImmortalAlchemyTypes.h"
 #include "../Progression/ImmortalCultivationComponent.h"
 #include "../Save/ImmortalPathSaveGame.h"
+#include "../UI/ImmortalAscensionSequenceLayout.h"
 #include "Misc/AutomationTest.h"
 #include "PaperFlipbook.h"
 #include "PaperSprite.h"
@@ -504,6 +505,30 @@ bool FImmortalAscensionPathTest::RunTest(
 		Capped.bSucceeded);
 	TestEqual(TEXT("Rank cap does not consume a seal"),
 		State.ImmortalSeals, 1);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FImmortalAscensionUIPoseLayoutTest,
+	"ImmortalPath.Ascension.UIPoseLayout",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FImmortalAscensionUIPoseLayoutTest::RunTest(const FString& Parameters)
+{
+	using namespace ImmortalAscensionSequenceLayout;
+	TestEqual(TEXT("Original sheet has 16 distinct poses"), FrameCount, 16);
+	TestEqual(TEXT("Original playback speed is retained"), FramesPerSecond, 12.0f);
+	for (int32 Frame = 0; Frame < FrameCount; ++Frame)
+	{
+		const FBox2f UV = GetFrameUV(Frame);
+		TestTrue(TEXT("Every pose remains inside the source texture"),
+			UV.Min.X >= 0 && UV.Min.Y >= 0 && UV.Max.X <= 1 && UV.Max.Y <= 1);
+		TestTrue(TEXT("All poses have identical dimensions, without per-frame stretching"),
+			FMath::IsNearlyEqual(UV.GetSize().X * 2176, 128.0f, 0.001f)
+			&& FMath::IsNearlyEqual(UV.GetSize().Y * 724, 430.0f, 0.001f));
+	}
+	TestTrue(TEXT("Negative frame clamps to first pose"), GetFrameUV(-1) == GetFrameUV(0));
+	TestTrue(TEXT("Past-end frame clamps to last pose"), GetFrameUV(99) == GetFrameUV(15));
 	return true;
 }
 

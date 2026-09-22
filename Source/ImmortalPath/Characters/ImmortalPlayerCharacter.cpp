@@ -5043,7 +5043,7 @@ void AImmortalPlayerCharacter::OpenAscensionInterface()
 	bManagementInterfaceOpen = false;
 	SetManagementFeatureOpenFlags(EImmortalManagementFeature::Home);
 	bAscensionOpen = true;
-	PlayerAscensionWidget->RefreshFromPlayer();
+	PlayerAscensionWidget->PrepareForOpen();
 	PlayerAscensionWidget->SetVisibility(ESlateVisibility::Visible);
 	if (PlayerStatusWidget)
 	{
@@ -5479,7 +5479,7 @@ void AImmortalPlayerCharacter::ToggleAscension()
 			: ESlateVisibility::Collapsed);
 	if (bAscensionOpen)
 	{
-		PlayerAscensionWidget->RefreshFromPlayer();
+		PlayerAscensionWidget->PrepareForOpen();
 	}
 	ConfigureModalWidget(
 		PlayerAscensionWidget, bAscensionOpen);
@@ -8173,6 +8173,7 @@ void AImmortalPlayerCharacter::ConfigureModalWidget(UUserWidget* Widget, const b
 			|| Widget == PlayerSettingsWidget;
 		const FVector2D InventorySize = bIsFullViewportScene
 			? ImmortalDesktopPanelLayout::ManagementSize
+			: Widget == PlayerAscensionWidget ? FVector2D(1600.0f, 600.0f)
 			: bIsTaskbarStripWidget
 				? FVector2D(1600.0f, 300.0f)
 			: FVector2D(900.0f, 600.0f);

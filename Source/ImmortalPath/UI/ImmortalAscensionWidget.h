@@ -13,7 +13,7 @@ class UImage;
 class UTextBlock;
 class UTexture2D;
 
-/** Native TBH-height panel for repeatable ascension and permanent path investment. */
+/** Native large illustrated panel for repeatable ascension and permanent path investment. */
 UCLASS()
 class IMMORTALPATH_API UImmortalAscensionWidget : public UUserWidget
 {
@@ -22,6 +22,7 @@ class IMMORTALPATH_API UImmortalAscensionWidget : public UUserWidget
 public:
 	void InitializeForPlayer(AImmortalPlayerCharacter* InPlayer);
 	void RefreshFromPlayer();
+	void PrepareForOpen();
 
 	/** Plays the committed ascension visual inside this independent page. */
 	void PlayAscensionSequence();
@@ -32,6 +33,8 @@ public:
 	}
 
 protected:
+	UPROPERTY(EditDefaultsOnly, Category="Art")
+	TSoftObjectPtr<UTexture2D> AscensionAtlas = TSoftObjectPtr<UTexture2D>(FSoftObjectPath(TEXT("/Game/GAME/Asset/DesktopPixelV2/UI/T_AscensionAtlas.T_AscensionAtlas")));
 	virtual void NativeOnInitialized() override;
 	virtual void NativeTick(
 		const FGeometry& MyGeometry,
@@ -46,6 +49,7 @@ private:
 
 	UFUNCTION()
 	void HandleAscendClicked();
+	UFUNCTION() void HandleCancelAscensionClicked();
 
 	UFUNCTION()
 	void HandleBattlePathClicked();
@@ -115,6 +119,9 @@ private:
 	UPROPERTY(Transient)
 	TObjectPtr<UTexture2D> AscensionSequenceTexture;
 
+	UPROPERTY(Transient) TObjectPtr<UTextBlock> RewardText;
+	UPROPERTY(Transient) TObjectPtr<UButton> CancelAscensionButton;
+	bool bAwaitingAscensionConfirmation = false;
 	int32 LastRevision = INDEX_NONE;
 	float RefreshAccumulator = 0.0f;
 	double ResultMessageExpirySeconds = 0.0;

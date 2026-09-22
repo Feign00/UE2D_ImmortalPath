@@ -6,6 +6,7 @@
 #include "../UI/ImmortalCraftingWidget.h"
 #include "../UI/ImmortalShopWidget.h"
 #include "../UI/ImmortalCultivationWidget.h"
+#include "../UI/ImmortalAscensionWidget.h"
 #include "Components/ProgressBar.h"
 #include "Components/ScrollBox.h"
 #include "../UI/ImmortalSectWidget.h"
@@ -493,8 +494,56 @@ void AImmortalPlayerCharacter::RunDesktopPanelFixture()
 		At(11.1f, [Shot] { Shot(TEXT("MarketBuildings")); });
 	}
 	At(12, [this] { ToggleAscension(); });
-	At(12.6f, [this, Check, Shot] { Check(TEXT("ascension remains separate without pausing"), bAscensionOpen
-		&& !bManagementInterfaceOpen && !UGameplayStatics::IsGamePaused(this)); Shot(TEXT("Ascension")); });
+	At(12.6f, [this, Check, Shot] {
+		Check(TEXT("ascension remains separate without pausing"), bAscensionOpen
+			&& !bManagementInterfaceOpen && !UGameplayStatics::IsGamePaused(this));
+		UWidgetTree* Tree = PlayerAscensionWidget->WidgetTree;
+		const USizeBox* Root = Cast<USizeBox>(Tree->RootWidget);
+		Check(TEXT("ascension uses the large 1600x600 canvas"), Root && Root->GetWidthOverride() == 1600 && Root->GetHeightOverride() == 600);
+		bool bArt = true;
+		for (const TCHAR* Name : {TEXT("AscensionBattleArt"),TEXT("AscensionEnlightenmentArt"),TEXT("AscensionFortuneArt"),
+			TEXT("AscensionSealArt"),TEXT("AscensionAltarArt"),TEXT("AscensionCycleArt")})
+		{
+			const UImage* Art = Cast<UImage>(Tree->FindWidget(Name));
+			bArt &= Art && Art->GetBrush().GetResourceObject() && FBox2f(Art->GetBrush().GetUVRegion()).bIsValid;
+		}
+		Check(TEXT("ascension displays all six original illustrations"), bArt);
+		const UButton* Ascend = Cast<UButton>(Tree->FindWidget(TEXT("AscensionPerformButton")));
+		const UButton* Cancel = Cast<UButton>(Tree->FindWidget(TEXT("AscensionCancelButton")));
+		Check(TEXT("ineligible ascension is disabled without a pending confirmation"),
+			Ascend && !Ascend->GetIsEnabled() && Cancel && Cancel->GetVisibility() == ESlateVisibility::Hidden);
+		const auto SavedState = AscensionState;
+		AscensionState.ImmortalSeals = 0;
+		AscensionState.BattlePathRank = 0;
+		AscensionState.EnlightenmentPathRank = 0;
+		AscensionState.FortunePathRank = 0;
+		PlayerAscensionWidget->RefreshFromPlayer();
+		bool bZeroDisabled = true;
+		for (const TCHAR* Name : {TEXT("AscensionBattlePathButton"),TEXT("AscensionEnlightenmentPathButton"),TEXT("AscensionFortunePathButton")})
+		{
+			const UButton* Button = Cast<UButton>(Tree->FindWidget(Name));
+			bZeroDisabled &= Button && !Button->GetIsEnabled();
+		}
+		Check(TEXT("zero seals disable all three investment actions"), bZeroDisabled);
+		AscensionState.ImmortalSeals = 100000;
+		AscensionState.BattlePathRank = 50;
+		AscensionState.EnlightenmentPathRank = 50;
+		AscensionState.FortunePathRank = 50;
+		PlayerAscensionWidget->RefreshFromPlayer();
+		bool bMaxDisabled = true;
+		for (const TCHAR* Name : {TEXT("AscensionBattlePathButton"),TEXT("AscensionEnlightenmentPathButton"),TEXT("AscensionFortunePathButton")})
+		{
+			const UButton* Button = Cast<UButton>(Tree->FindWidget(Name));
+			bMaxDisabled &= Button && !Button->GetIsEnabled();
+		}
+		Check(TEXT("maxed ascension paths cannot consume further seals"), bMaxDisabled);
+		AscensionState = SavedState;
+		PlayerAscensionWidget->RefreshFromPlayer();
+		const UImage* Sequence = Cast<UImage>(Tree->FindWidget(TEXT("AscensionSequenceImage")));
+		const UCanvasPanelSlot* SequenceSlot = Sequence ? Cast<UCanvasPanelSlot>(Sequence->Slot) : nullptr;
+		Check(TEXT("ascension animation preserves cropped aspect ratio"), SequenceSlot && SequenceSlot->GetSize() == FVector2D(128,430));
+		Shot(TEXT("Ascension"));
+	});
 	At(13.5f, [this] { OpenManagementInterface(); CloseManagementInterface(); });
 	At(14.5f, [this, BaseSize, Check, Shot] {
 		FIntPoint Size; Cast<APlayerController>(GetController())->GetViewportSize(Size.X, Size.Y);
