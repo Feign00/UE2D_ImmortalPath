@@ -243,6 +243,8 @@ protected:
 	void BP_OnActiveMapChanged(FName PreviousMapId, FName NewMapId, const FText& NewMapName, int32 Stage);
 
 private:
+	/** No spawning or snapshot writes after the main save failed to load. */
+	bool bSaveLoadBlocked = false;
 	void SpawnUntilInitialCount();
 	void HandleSpawnTimer();
 	void SuspendSpawnTimer();

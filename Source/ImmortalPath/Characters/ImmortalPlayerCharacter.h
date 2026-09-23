@@ -56,6 +56,7 @@ class UImmortalCultivationWidget;
 class UImmortalWorldBossWidget;
 class UImmortalPetWidget;
 class UImmortalQuestWidget;
+class UImmortalSaveRecoveryWidget;
 class UInputComponent;
 class USpringArmComponent;
 class UUserWidget;
@@ -963,6 +964,13 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Immortal Path|Save")
 	bool SaveProgress();
 
+	/** Restores the last readable snapshot only after the player explicitly requests it. */
+	UFUNCTION(BlueprintCallable, Category = "Immortal Path|Save")
+	bool RestoreSaveBackupAndRestart();
+
+	UFUNCTION(BlueprintCallable, Category = "Immortal Path|Save")
+	void ExitWithoutSavingForRecovery();
+
 	/** Restores player data from the main slot. Returns false when no player save exists yet. */
 	UFUNCTION(BlueprintCallable, Category = "Immortal Path|Save")
 	bool LoadProgress();
@@ -1580,6 +1588,13 @@ private:
 
 	UPROPERTY(Transient)
 	TObjectPtr<UImmortalManagementWidget> PlayerManagementWidget;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UImmortalSaveRecoveryWidget> SaveRecoveryWidget;
+
+	bool bSaveRecoveryRequired = false;
+	bool bPrimarySaveMissingForRecovery = false;
+	bool bIncompatibleSaveVersion = false;
 
 	UPROPERTY(Transient)
 	TObjectPtr<UImmortalCultivationWidget> PlayerCultivationWidget;

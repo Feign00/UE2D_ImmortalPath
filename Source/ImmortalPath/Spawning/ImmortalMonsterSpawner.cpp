@@ -86,6 +86,12 @@ void AImmortalMonsterSpawner::BeginPlay()
 		}
 	}
 	LoadStageProgress();
+	if (bSaveLoadBlocked)
+	{
+		UE_LOG(LogTemp, Error,
+			TEXT("Spawner stopped: existing save is unreadable; progress and combat are suspended"));
+		return;
+	}
 
 #if !UE_BUILD_SHIPPING
 	int32 TestStage = 0;
@@ -149,6 +155,7 @@ void AImmortalMonsterSpawner::EndPlay(const EEndPlayReason::Type EndPlayReason)
 
 AImmortalMonsterCharacter* AImmortalMonsterSpawner::SpawnMonster()
 {
+	if (bSaveLoadBlocked) return nullptr;
 	RemoveInvalidMonsters();
 	if (bMapTransitionInProgress || bCurrentMapCompleted || bWorldBossChallengeActive
 		|| bEndlessDungeonActive)
@@ -320,6 +327,7 @@ void AImmortalMonsterSpawner::HandleMonsterDeath(
 
 bool AImmortalMonsterSpawner::SaveStageProgress()
 {
+	if (bSaveLoadBlocked) return false;
 	if (!SyncCurrentProgressToState())
 	{
 		UE_LOG(LogTemp, Error, TEXT("Cannot save map progress because active map state is invalid"));
@@ -360,9 +368,12 @@ bool AImmortalMonsterSpawner::SaveStageProgress()
 
 bool AImmortalMonsterSpawner::LoadStageProgress()
 {
-	UImmortalPathSaveGame* SaveGame = UImmortalPathSaveGame::LoadOrCreate(this);
-	if (!SaveGame)
+	EImmortalSaveLoadStatus LoadStatus = EImmortalSaveLoadStatus::Unreadable;
+	UImmortalPathSaveGame* SaveGame =
+		UImmortalPathSaveGame::LoadOrCreate(this, &LoadStatus);
+	if (!SaveGame || LoadStatus == EImmortalSaveLoadStatus::NewerVersion)
 	{
+		bSaveLoadBlocked = true;
 		return false;
 	}
 
@@ -1831,6 +1842,7 @@ int32 AImmortalMonsterSpawner::GetAliveMonsterCount() const
 
 void AImmortalMonsterSpawner::StartSpawning()
 {
+	if (bSaveLoadBlocked) return;
 	bSpawningRequested = true;
 	if (!GetWorld() || bMapTransitionInProgress || bCurrentMapCompleted
 		|| bWorldBossChallengeActive || bEndlessDungeonActive)

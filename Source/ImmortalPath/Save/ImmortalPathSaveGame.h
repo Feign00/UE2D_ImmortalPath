@@ -23,6 +23,15 @@
 #include "GameFramework/SaveGame.h"
 #include "ImmortalPathSaveGame.generated.h"
 
+enum class EImmortalSaveLoadStatus : uint8
+{
+	Missing,
+	BackupAvailable,
+	Loaded,
+	Unreadable,
+	NewerVersion
+};
+
 /** Versioned persistent data shared by the combat map and future progression systems. */
 UCLASS()
 class IMMORTALPATH_API UImmortalPathSaveGame : public USaveGame
@@ -35,8 +44,17 @@ public:
 	UImmortalPathSaveGame();
 
 	static FString GetSlotName();
-	static UImmortalPathSaveGame* LoadOrCreate(const UObject* WorldContextObject);
-	bool SaveToDisk();
+	static UImmortalPathSaveGame* LoadOrCreate(
+		const UObject* WorldContextObject,
+		EImmortalSaveLoadStatus* OutStatus = nullptr);
+	/** A named-slot variant used by isolated persistence tests. Never creates over an unreadable slot. */
+	static UImmortalPathSaveGame* LoadOrCreateSlot(
+		const FString& SlotName,
+		EImmortalSaveLoadStatus* OutStatus = nullptr);
+	static bool HasRestorableBackup(const FString& SlotName = FString());
+	/** Explicit recovery only. A readable main slot is never replaced by its backup. */
+	static bool RestoreBackup(const FString& SlotName = FString());
+	bool SaveToDisk(const FString& SlotName = FString());
 
 #if !UE_BUILD_SHIPPING
 	/**

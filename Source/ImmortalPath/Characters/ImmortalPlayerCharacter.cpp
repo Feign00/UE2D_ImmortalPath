@@ -29,6 +29,7 @@
 #include "../UI/ImmortalPlayerStatusWidget.h"
 #include "../UI/ImmortalDesktopGroundWidget.h"
 #include "../UI/ImmortalQuestWidget.h"
+#include "../UI/ImmortalSaveRecoveryWidget.h"
 #include "../UI/ImmortalSectWidget.h"
 #include "../UI/ImmortalSettingsWidget.h"
 #include "../UI/ImmortalShopWidget.h"
@@ -508,7 +509,7 @@ void AImmortalPlayerCharacter::BeginPlay()
 	RecalculateCaveBonuses();
 	AwakenSpiritRootIfNeeded();
 	RecalculateEquipmentBonuses();
-	if (!bLoadedProgress)
+	if (!bLoadedProgress && !bSaveRecoveryRequired)
 	{
 		RefreshShopForDay(
 			UImmortalShopLibrary::GetDayKeyFromUtcTicks(FDateTime::UtcNow().GetTicks(), ShopUtcOffsetMinutes),
@@ -521,6 +522,43 @@ void AImmortalPlayerCharacter::BeginPlay()
 	ApplyDesktopSettings();
 	ConfigureCombatCamera();
 	ConfigureTaskbarWindow();
+	if (bSaveRecoveryRequired)
+	{
+		// A damaged main slot is never treated as a new game. Keep the world
+		// stopped until the player chooses to restore its previous snapshot.
+		UGameplayStatics::SetGamePaused(this, true);
+		if (APlayerController* PlayerController = GetWorld()
+			? GetWorld()->GetFirstPlayerController() : nullptr)
+		{
+			SaveRecoveryWidget = CreateWidget<UImmortalSaveRecoveryWidget>(
+				PlayerController, UImmortalSaveRecoveryWidget::StaticClass());
+			if (SaveRecoveryWidget)
+			{
+				SaveRecoveryWidget->InitializeForPlayer(
+					this,
+					!bIncompatibleSaveVersion
+						&& UImmortalPathSaveGame::HasRestorableBackup(),
+					bPrimarySaveMissingForRecovery,
+					bIncompatibleSaveVersion);
+				SaveRecoveryWidget->AddToViewport(10000);
+				SaveRecoveryWidget->ActivateInput();
+				UE_LOG(LogTemp, Display,
+					TEXT("Save recovery screen opened; backup=%s missingMain=%s newerVersion=%s"),
+					UImmortalPathSaveGame::HasRestorableBackup() ? TEXT("yes") : TEXT("no"),
+					bPrimarySaveMissingForRecovery ? TEXT("yes") : TEXT("no"),
+					bIncompatibleSaveVersion ? TEXT("yes") : TEXT("no"));
+			}
+			else
+			{
+				UE_LOG(LogTemp, Error, TEXT("Save recovery screen could not be created; no save will be written"));
+			}
+		}
+		else
+		{
+			UE_LOG(LogTemp, Error, TEXT("Save recovery screen has no player controller; no save will be written"));
+		}
+		return;
+	}
 
 	if (APlayerController* PlayerController = GetWorld() ? GetWorld()->GetFirstPlayerController() : nullptr)
 	{
@@ -10140,9 +10178,31 @@ bool AImmortalPlayerCharacter::SaveProgress()
 	return SaveProgressWithMapOverride(nullptr);
 }
 
+bool AImmortalPlayerCharacter::RestoreSaveBackupAndRestart()
+{
+	if (!bSaveRecoveryRequired || bIncompatibleSaveVersion || !GetWorld()
+		|| !UImmortalPathSaveGame::RestoreBackup())
+	{
+		return false;
+	}
+	const FString LevelName = UGameplayStatics::GetCurrentLevelName(this, true);
+	UGameplayStatics::SetGamePaused(this, false);
+	UGameplayStatics::OpenLevel(this, FName(*LevelName));
+	return true;
+}
+
+void AImmortalPlayerCharacter::ExitWithoutSavingForRecovery()
+{
+	if (bSaveRecoveryRequired)
+	{
+		FPlatformMisc::RequestExit(false);
+	}
+}
+
 bool AImmortalPlayerCharacter::SaveProgressWithMapOverride(
 	const FImmortalMapSystemState* MapStateOverride)
 {
+	if (bSaveRecoveryRequired) return false;
 	const FImmortalCaveState CaveBeforeSettlement = CaveState;
 	const FImmortalFarmingState FarmingBeforeSettlement = FarmingState;
 	SettleCaveProduction();
@@ -10329,7 +10389,21 @@ bool AImmortalPlayerCharacter::SaveProgressWithMapOverride(
 
 bool AImmortalPlayerCharacter::LoadProgress()
 {
-	UImmortalPathSaveGame* SaveGame = UImmortalPathSaveGame::LoadOrCreate(this);
+	EImmortalSaveLoadStatus LoadStatus = EImmortalSaveLoadStatus::Unreadable;
+	UImmortalPathSaveGame* SaveGame = UImmortalPathSaveGame::LoadOrCreate(this, &LoadStatus);
+	if (LoadStatus == EImmortalSaveLoadStatus::Unreadable
+		|| LoadStatus == EImmortalSaveLoadStatus::BackupAvailable
+		|| LoadStatus == EImmortalSaveLoadStatus::NewerVersion)
+	{
+		bSaveRecoveryRequired = true;
+		bPrimarySaveMissingForRecovery =
+			LoadStatus == EImmortalSaveLoadStatus::BackupAvailable;
+		bIncompatibleSaveVersion =
+			LoadStatus == EImmortalSaveLoadStatus::NewerVersion;
+		UE_LOG(LogTemp, Error,
+			TEXT("Player startup stopped: main save is unreadable, recoverable, or from a newer version; no new save will be written"));
+		return false;
+	}
 	if (!SaveGame || !SaveGame->bHasPlayerData)
 	{
 		UE_LOG(LogTemp, Display, TEXT("No saved player progress found; starting with defaults"));
