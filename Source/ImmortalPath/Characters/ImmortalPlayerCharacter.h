@@ -61,6 +61,7 @@ class UInputComponent;
 class USpringArmComponent;
 class UUserWidget;
 class UImmortalPathSaveGame;
+class UImmortalSaveExitWidget;
 class UPaperFlipbook;
 
 /**
@@ -970,6 +971,11 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Immortal Path|Settings")
 	bool SaveAndQuitDesktop();
 
+	/** Return to the running game after a failed exit save. */
+	void DismissFailedSaveExitPrompt();
+	/** Explicitly discard unsaved progress after the exit prompt confirms twice. */
+	void ExitWithoutSavingAfterFailure();
+
 	/** Writes attributes, spirit stones, backpack and equipped items to the main slot. */
 	UFUNCTION(BlueprintCallable, Category = "Immortal Path|Save")
 	bool SaveProgress();
@@ -1266,6 +1272,9 @@ private:
 	void ConfigureCombatCamera();
 	void ApplyDesktopSettings();
 	void ConfigureTaskbarWindow();
+	void BindDesktopWindowCloseRequest();
+	bool HandleDesktopWindowCloseRequested();
+	void ShowFailedSaveExitPrompt();
 	void ApplyTaskbarWindowPlacement();
 	void HandleEscapePressed();
 	void HandleManagementToggleInput();
@@ -1607,6 +1616,9 @@ private:
 	UPROPERTY(Transient)
 	TObjectPtr<UImmortalSaveRecoveryWidget> SaveRecoveryWidget;
 
+	UPROPERTY(Transient)
+	TObjectPtr<UImmortalSaveExitWidget> SaveExitWidget;
+
 	bool bSaveRecoveryRequired = false;
 	bool bPrimarySaveMissingForRecovery = false;
 	bool bIncompatibleSaveVersion = false;
@@ -1689,6 +1701,7 @@ private:
 	EImmortalManagementFeature ActiveManagementFeature =
 		EImmortalManagementFeature::Home;
 	bool bSaveAndQuitRequested = false;
+	bool bExitWithoutSavingConfirmed = false;
 
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Immortal Path|World Boss", meta = (AllowPrivateAccess = "true"))
 	FImmortalWorldBossState WorldBossState;

@@ -30,6 +30,7 @@
 #include "../UI/ImmortalDesktopGroundWidget.h"
 #include "../UI/ImmortalQuestWidget.h"
 #include "../UI/ImmortalSaveRecoveryWidget.h"
+#include "../UI/ImmortalSaveExitWidget.h"
 #include "../UI/ImmortalSectWidget.h"
 #include "../UI/ImmortalSettingsWidget.h"
 #include "../UI/ImmortalShopWidget.h"
@@ -63,6 +64,10 @@
 #include "TimerManager.h"
 #include "UnrealClient.h"
 #include "Widgets/SWindow.h"
+
+#if !UE_BUILD_SHIPPING
+void ScheduleImmortalExitRuntimeFixture(AImmortalPlayerCharacter* Player);
+#endif
 
 #if PLATFORM_WINDOWS
 #include "Windows/AllowWindowsPlatformTypes.h"
@@ -522,6 +527,7 @@ void AImmortalPlayerCharacter::BeginPlay()
 	ApplyDesktopSettings();
 	ConfigureCombatCamera();
 	ConfigureTaskbarWindow();
+	BindDesktopWindowCloseRequest();
 	if (bSaveRecoveryRequired)
 	{
 		// A damaged main slot is never treated as a new game. Keep the world
@@ -5006,6 +5012,9 @@ void AImmortalPlayerCharacter::BeginPlay()
 	ImmortalPixelAnimationPreview::StartIfRequested(*this);
 	RunPixelPlayerIntegrationFixture();
 	RunDesktopPanelFixture();
+#if !UE_BUILD_SHIPPING
+	ScheduleImmortalExitRuntimeFixture(this);
+#endif
 }
 
 void AImmortalPlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
@@ -5763,7 +5772,8 @@ bool AImmortalPlayerCharacter::SaveAndQuitDesktop()
 		UE_LOG(
 			LogTemp,
 			Error,
-			TEXT("Save-and-quit aborted because the atomic player/map write failed"));
+			TEXT("Save-and-quit aborted because the player/map write failed"));
+		ShowFailedSaveExitPrompt();
 		return false;
 	}
 	bSaveAndQuitRequested = true;
@@ -5776,6 +5786,100 @@ bool AImmortalPlayerCharacter::SaveAndQuitDesktop()
 	ImmortalDesktopWindow::PrepareForExit(GetWorld());
 	FPlatformMisc::RequestExit(false);
 	return true;
+}
+
+void AImmortalPlayerCharacter::BindDesktopWindowCloseRequest()
+{
+	if (!GetWorld() || GetWorld()->WorldType != EWorldType::Game
+		|| !GEngine || !GEngine->GameViewport)
+	{
+		return;
+	}
+	auto& CloseRequest = GEngine->GameViewport->OnWindowCloseRequested();
+	if (CloseRequest.IsBound() && !CloseRequest.IsBoundToObject(this))
+	{
+		UE_LOG(LogTemp, Error,
+			TEXT("Desktop window close interception unavailable: viewport already has another close handler"));
+		return;
+	}
+	CloseRequest.BindUObject(this,
+		&AImmortalPlayerCharacter::HandleDesktopWindowCloseRequested);
+	UE_LOG(LogTemp, Display, TEXT("Desktop window close interception bound"));
+}
+
+bool AImmortalPlayerCharacter::HandleDesktopWindowCloseRequested()
+{
+	// UE 5.7 routes both Alt+F4 and the native close button through this
+	// cancellable delegate before Slate destroys the game viewport. The menu
+	// path performs the same save and requests exit after hiding the color key.
+	if (bSaveAndQuitRequested || bExitWithoutSavingConfirmed)
+	{
+		return false;
+	}
+	if (bSaveRecoveryRequired)
+	{
+		ExitWithoutSavingForRecovery();
+		return false;
+	}
+	SaveAndQuitDesktop();
+	return false;
+}
+
+void AImmortalPlayerCharacter::ShowFailedSaveExitPrompt()
+{
+	if (!GetWorld() || GetWorld()->WorldType != EWorldType::Game)
+	{
+		return;
+	}
+	if (SaveExitWidget && SaveExitWidget->IsInViewport())
+	{
+		SaveExitWidget->ShowFailureMessage();
+		SaveExitWidget->ActivateInput();
+		return;
+	}
+	APlayerController* PlayerController = GetWorld()->GetFirstPlayerController();
+	if (!PlayerController)
+	{
+		UE_LOG(LogTemp, Error,
+			TEXT("Exit save failed, but the failure prompt has no player controller"));
+		return;
+	}
+	SaveExitWidget = CreateWidget<UImmortalSaveExitWidget>(
+		PlayerController, UImmortalSaveExitWidget::StaticClass());
+	if (!SaveExitWidget)
+	{
+		UE_LOG(LogTemp, Error,
+			TEXT("Exit save failed, but the failure prompt could not be created"));
+		return;
+	}
+	SaveExitWidget->InitializeForPlayer(this);
+	SaveExitWidget->AddToViewport(10001);
+	SaveExitWidget->ActivateInput();
+	UE_LOG(LogTemp, Warning,
+		TEXT("Exit save failed: game window retained; retry, continue or confirm discarding progress"));
+}
+
+void AImmortalPlayerCharacter::DismissFailedSaveExitPrompt()
+{
+	if (!SaveExitWidget || !SaveExitWidget->IsInViewport()) return;
+	SaveExitWidget->RemoveFromParent();
+	SaveExitWidget = nullptr;
+	ConfigureModalWidget(nullptr, false);
+	UE_LOG(LogTemp, Display, TEXT("Exit save failure prompt dismissed; game remains running"));
+}
+
+void AImmortalPlayerCharacter::ExitWithoutSavingAfterFailure()
+{
+	if (!GetWorld() || GetWorld()->WorldType != EWorldType::Game
+		|| !SaveExitWidget || !SaveExitWidget->IsInViewport())
+	{
+		return;
+	}
+	bExitWithoutSavingConfirmed = true;
+	UE_LOG(LogTemp, Warning,
+		TEXT("Player explicitly confirmed exit without saving after a failed write"));
+	ImmortalDesktopWindow::PrepareForExit(GetWorld());
+	FPlatformMisc::RequestExit(false);
 }
 
 bool AImmortalPlayerCharacter::GetPetProgress(
@@ -10396,10 +10500,15 @@ bool AImmortalPlayerCharacter::SaveProgressWithMapOverride(
 		for (const FImmortalEquipmentItem& Item : InventoryItems) LockedEquipment += Item.bLocked ? 1 : 0;
 		int32 LockedArtifacts = 0;
 		for (const FImmortalArtifactItem& Item : ArtifactInventory) LockedArtifacts += Item.bLocked ? 1 : 0;
-		UE_LOG(LogTemp, Display, TEXT("Player progress saved: realm %s | cultivation %d/%d | spirit stones %d | equipped %d | backpack %d/locked%d | material types %d | pill stacks %d | artifacts %d/locked%d | quest types %d | artifact equipped %s | techniques %d/%d | insight %d | root %d/%.2f | path %d/switches %d | shop %d/%d/%d/%d | alchemy boost %.0fs"),
+		// Keep format checks small enough for the Windows toolchain to compile
+		// this already large translation unit reliably.
+		UE_LOG(LogTemp, Display, TEXT("Player progress saved: realm %s | cultivation %d/%d | spirit stones %d | equipped %d | backpack %d/locked%d"),
 			*GetFullCultivationRealmName().ToString(), CurrentCultivation, GetRequiredCultivation(),
-			CurrentGold, EquippedItems.Num(), InventoryItems.Num(), LockedEquipment, MaterialInventory.Num(), PillInventory.Num(),
-			ArtifactInventory.Num(), LockedArtifacts, QuestItemInventory.Num(), EquippedArtifactInstanceId.IsValid() ? TEXT("true") : TEXT("false"),
+			CurrentGold, EquippedItems.Num(), InventoryItems.Num(), LockedEquipment);
+		UE_LOG(LogTemp, Display, TEXT("Player progress saved inventory: materials=%d pills=%d artifacts=%d/locked%d questItems=%d artifactEquipped=%s"),
+			MaterialInventory.Num(), PillInventory.Num(), ArtifactInventory.Num(), LockedArtifacts,
+			QuestItemInventory.Num(), EquippedArtifactInstanceId.IsValid() ? TEXT("true") : TEXT("false"));
+		UE_LOG(LogTemp, Display, TEXT("Player progress saved growth: techniques=%d/%d insight=%d root=%d/%.2f path=%d/switches%d shop=%d/%d/%d/%d boost=%.0fs"),
 			TechniqueLibrary.Num(), EquippedTechniqueIds.Num(), TechniqueInsightPoints,
 			static_cast<int32>(SpiritRootState.Root), SpiritRootState.Purity,
 			static_cast<int32>(CultivationPathState.Path), CultivationPathState.SwitchCount,
@@ -10825,10 +10934,13 @@ bool AImmortalPlayerCharacter::LoadProgress()
 	for (const FImmortalEquipmentItem& Item : InventoryItems) LockedEquipment += Item.bLocked ? 1 : 0;
 	int32 LockedArtifacts = 0;
 	for (const FImmortalArtifactItem& Item : ArtifactInventory) LockedArtifacts += Item.bLocked ? 1 : 0;
-	UE_LOG(LogTemp, Display, TEXT("Player progress loaded: realm %s | cultivation %d/%d | spirit stones %d | equipped %d | backpack %d/locked%d | material types %d | pill stacks %d | artifacts %d/locked%d | quest types %d | artifact equipped %s | techniques %d/%d | insight %d | root %d/%.2f | path %d/switches %d | shop %d/%d/%d/%d | boost %.0fs | combat power %.2f"),
+	UE_LOG(LogTemp, Display, TEXT("Player progress loaded: realm %s | cultivation %d/%d | spirit stones %d | equipped %d | backpack %d/locked%d"),
 		*GetFullCultivationRealmName().ToString(), CurrentCultivation, GetRequiredCultivation(),
-		CurrentGold, EquippedItems.Num(), InventoryItems.Num(), LockedEquipment, MaterialInventory.Num(), PillInventory.Num(),
-		ArtifactInventory.Num(), LockedArtifacts, QuestItemInventory.Num(), EquippedArtifactInstanceId.IsValid() ? TEXT("true") : TEXT("false"),
+		CurrentGold, EquippedItems.Num(), InventoryItems.Num(), LockedEquipment);
+	UE_LOG(LogTemp, Display, TEXT("Player progress loaded inventory: materials=%d pills=%d artifacts=%d/locked%d questItems=%d artifactEquipped=%s"),
+		MaterialInventory.Num(), PillInventory.Num(), ArtifactInventory.Num(), LockedArtifacts,
+		QuestItemInventory.Num(), EquippedArtifactInstanceId.IsValid() ? TEXT("true") : TEXT("false"));
+	UE_LOG(LogTemp, Display, TEXT("Player progress loaded growth: techniques=%d/%d insight=%d root=%d/%.2f path=%d/switches%d shop=%d/%d/%d/%d boost=%.0fs power=%.2f"),
 		TechniqueLibrary.Num(), EquippedTechniqueIds.Num(), TechniqueInsightPoints,
 		static_cast<int32>(SpiritRootState.Root), SpiritRootState.Purity,
 		static_cast<int32>(CultivationPathState.Path), CultivationPathState.SwitchCount,
@@ -12378,16 +12490,28 @@ void AImmortalPlayerCharacter::RecalculateAscensionBonuses()
 
 void AImmortalPlayerCharacter::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
-	// Covers native window close / Alt+F4 as well as the in-game quit button.
-	// Level transitions must not hide the persistent game window.
-	if (EndPlayReason == EEndPlayReason::Quit || bSaveAndQuitRequested)
+	if (GEngine && GEngine->GameViewport)
+	{
+		auto& CloseRequest = GEngine->GameViewport->OnWindowCloseRequested();
+		if (CloseRequest.IsBoundToObject(this)) CloseRequest.Unbind();
+	}
+	// Normal native close and the menu save before reaching EndPlay. Forced
+	// process shutdown cannot be cancelled here, so this is only a fallback.
+	if (EndPlayReason == EEndPlayReason::Quit || bSaveAndQuitRequested
+		|| bExitWithoutSavingConfirmed)
 	{
 		ImmortalDesktopWindow::PrepareForExit(GetWorld());
 	}
 	ImmortalDesktopWindow::Restore(GetWorld());
-	if (!bSaveAndQuitRequested)
+	if (!bSaveAndQuitRequested && !bExitWithoutSavingConfirmed
+		&& !bSaveRecoveryRequired)
 	{
-		SaveProgress();
+		if (!SaveProgress())
+		{
+			UE_LOG(LogTemp, Error,
+				TEXT("EndPlay fallback save failed (reason=%d); shutdown cannot be cancelled at this point"),
+				static_cast<int32>(EndPlayReason));
+		}
 	}
 	DespawnActivePetActor();
 	StopAutoAttack();
@@ -12530,6 +12654,11 @@ void AImmortalPlayerCharacter::EndPlay(const EEndPlayReason::Type EndPlayReason)
 	{
 		PlayerStatusWidget->RemoveFromParent();
 		PlayerStatusWidget = nullptr;
+	}
+	if (SaveExitWidget)
+	{
+		SaveExitWidget->RemoveFromParent();
+		SaveExitWidget = nullptr;
 	}
 	if (DesktopGroundWidget)
 	{
