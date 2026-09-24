@@ -245,6 +245,10 @@ protected:
 private:
 	/** No spawning or snapshot writes after the main save failed to load. */
 	bool bSaveLoadBlocked = false;
+#if !UE_BUILD_SHIPPING
+	void ScheduleMapCombatRuntimeFixture();
+	void RunMapCombatRuntimeFixture();
+#endif
 	void SpawnUntilInitialCount();
 	void HandleSpawnTimer();
 	void SuspendSpawnTimer();

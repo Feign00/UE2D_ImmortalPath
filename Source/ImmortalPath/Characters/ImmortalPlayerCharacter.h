@@ -354,6 +354,16 @@ public:
 		int32 BossKills,
 		int32 MapCompletions = 0);
 
+	/** Commits one map kill, its quest/sect counters and credited pet growth in one save. */
+	bool CommitMapCombatProgress(
+		const FImmortalMapSystemState& CandidateMapState,
+		AImmortalMonsterCharacter* DefeatedMonster,
+		bool bCreditedPetKill,
+		int32 MonsterKills,
+		int32 StageClears,
+		int32 BossKills,
+		int32 MapCompletions);
+
 	UFUNCTION(BlueprintPure, Category = "Immortal Path|Quest")
 	FImmortalQuestState GetQuestState() const { return QuestState; }
 
@@ -1268,6 +1278,11 @@ private:
 		float DurationSeconds = 5.0f);
 	bool SaveProgressWithMapOverride(
 		const FImmortalMapSystemState* MapStateOverride);
+	FImmortalPetExperienceResult GrantPetCombatExperience(
+		AImmortalMonsterCharacter* DefeatedMonster,
+		int32 MapDifficultyIndex = 0);
+	void PublishPetCombatExperience(
+		const FImmortalPetExperienceResult& Growth);
 	AActor* FindNearestTarget() const;
 	bool IsTargetAttackable(const AActor* Target, bool bCheckRange) const;
 	FVector GetAutoAttackLocation(const AActor* Target) const;

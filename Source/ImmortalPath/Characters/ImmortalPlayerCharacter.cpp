@@ -6159,12 +6159,20 @@ float AImmortalPlayerCharacter::ResolvePetAttack(
 void AImmortalPlayerCharacter::NotifyPetCombatKill(
 	AImmortalMonsterCharacter* DefeatedMonster)
 {
+	PublishPetCombatExperience(GrantPetCombatExperience(DefeatedMonster));
+}
+
+FImmortalPetExperienceResult AImmortalPlayerCharacter::GrantPetCombatExperience(
+	AImmortalMonsterCharacter* DefeatedMonster,
+	const int32 MapDifficultyIndex)
+{
 	if (!DefeatedMonster || PetState.ActivePetId.IsNone())
 	{
-		return;
+		return FImmortalPetExperienceResult();
 	}
 
-	int32 DifficultyIndex = GetActiveMapStage();
+	int32 DifficultyIndex = MapDifficultyIndex > 0
+		? MapDifficultyIndex : GetActiveMapStage();
 	bool bElite = false;
 	bool bBoss = DefeatedMonster->IsBoss();
 	const bool bWorldBoss = DefeatedMonster->IsWorldBoss();
@@ -6188,6 +6196,12 @@ void AImmortalPlayerCharacter::NotifyPetCombatKill(
 	const FImmortalPetExperienceResult Growth =
 		UImmortalPetLibrary::GrantActivePetExperience(
 			PetState, Experience, 1);
+	return Growth;
+}
+
+void AImmortalPlayerCharacter::PublishPetCombatExperience(
+	const FImmortalPetExperienceResult& Growth)
+{
 	if (!Growth.bSucceeded)
 	{
 		return;
@@ -7000,6 +7014,84 @@ void AImmortalPlayerCharacter::NotifySectCombatProgress(
 	}
 	if (bQuestChanged) BP_OnQuestStateChanged(QuestState);
 	if (bSectChanged) BP_OnSectStateChanged(SectState);
+}
+
+bool AImmortalPlayerCharacter::CommitMapCombatProgress(
+	const FImmortalMapSystemState& CandidateMapState,
+	AImmortalMonsterCharacter* DefeatedMonster,
+	const bool bCreditedPetKill,
+	const int32 MonsterKills,
+	const int32 StageClears,
+	const int32 BossKills,
+	const int32 MapCompletions)
+{
+	FImmortalMapProgress CandidateProgress;
+	if (bSaveRecoveryRequired || !DefeatedMonster
+		|| !CandidateMapState.bInitialized
+		|| CandidateMapState.ActiveMapId.IsNone()
+		|| !UImmortalMapLibrary::GetMapProgress(
+			CandidateMapState, CandidateMapState.ActiveMapId, CandidateProgress)
+		|| !CandidateProgress.IsValid())
+	{
+		UE_LOG(LogTemp, Error,
+			TEXT("Map combat commit refused: defeated monster or candidate map state is invalid"));
+		return false;
+	}
+
+	const int32 SafeKills = FMath::Max(MonsterKills, 0);
+	const int32 SafeStages = FMath::Max(StageClears, 0);
+	const int32 SafeBosses = FMath::Max(BossKills, 0);
+	const int32 SafeMaps = FMath::Max(MapCompletions, 0);
+	const FImmortalQuestState PreviousQuestState = QuestState;
+	const FImmortalSectState PreviousSectState = SectState;
+	const FImmortalPetState PreviousPetState = PetState;
+
+	FImmortalPetExperienceResult PetGrowth;
+	if (bCreditedPetKill)
+	{
+		PetGrowth = GrantPetCombatExperience(
+			DefeatedMonster, CandidateProgress.Stage);
+	}
+	bool bQuestChanged = false;
+	bQuestChanged |= RecordQuestProgressWithoutSave(
+		EImmortalQuestMetric::MonsterKills, SafeKills);
+	bQuestChanged |= RecordQuestProgressWithoutSave(
+		EImmortalQuestMetric::StageClears, SafeStages);
+	bQuestChanged |= RecordQuestProgressWithoutSave(
+		EImmortalQuestMetric::BossKills, SafeBosses);
+	bQuestChanged |= RecordQuestProgressWithoutSave(
+		EImmortalQuestMetric::MapCompletions, SafeMaps);
+
+	bool bSectChanged = false;
+	if (SectState.HasJoined())
+	{
+		const FImmortalSectTaskProgressResult SectResult =
+			UImmortalSectLibrary::RecordCombatProgress(
+				SectState,
+				SafeKills,
+				SafeStages,
+				SafeBosses,
+				FDateTime::UtcNow().GetTicks(),
+				SectUtcOffsetMinutes);
+		bSectChanged = SectResult.bStateChanged;
+	}
+
+	if (!SaveProgressWithMapOverride(&CandidateMapState))
+	{
+		QuestState = PreviousQuestState;
+		SectState = PreviousSectState;
+		PetState = PreviousPetState;
+		UE_LOG(LogTemp, Error,
+			TEXT("Map combat commit rolled back: map=%s stage=%d kills=%d stageClears=%d bosses=%d maps=%d"),
+			*CandidateMapState.ActiveMapId.ToString(), CandidateProgress.Stage,
+			SafeKills, SafeStages, SafeBosses, SafeMaps);
+		return false;
+	}
+
+	PublishPetCombatExperience(PetGrowth);
+	if (bQuestChanged) BP_OnQuestStateChanged(QuestState);
+	if (bSectChanged) BP_OnSectStateChanged(SectState);
+	return true;
 }
 
 FImmortalCaveProductionSnapshot AImmortalPlayerCharacter::GetCaveProductionSnapshot() const

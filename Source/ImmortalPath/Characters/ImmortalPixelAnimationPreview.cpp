@@ -1,4 +1,5 @@
 #include "ImmortalPixelAnimationPreview.h"
+#include "CoreMinimal.h"
 
 #if !UE_BUILD_SHIPPING
 #include "ImmortalPlayerCharacter.h"

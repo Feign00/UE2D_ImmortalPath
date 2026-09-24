@@ -149,6 +149,9 @@ public:
 	UPROPERTY(BlueprintAssignable, Category = "Immortal Path|Monster")
 	FMonsterDeathSignature OnMonsterDeath;
 
+	/** Called by the map spawner during OnMonsterDeath when the combat save fails. */
+	void SuppressGenericMapRewardsForThisDeath();
+
 	UPROPERTY(BlueprintAssignable, Category = "Immortal Path|Monster|Boss")
 	FBossPhaseChangedSignature OnBossPhaseChanged;
 
@@ -352,6 +355,7 @@ private:
 
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Immortal Path|Monster", meta = (AllowPrivateAccess = "true"))
 	bool bDead = false;
+	bool bSuppressGenericMapRewardsThisDeath = false;
 
 	UPROPERTY(Transient)
 	TWeakObjectPtr<APawn> CombatTarget;

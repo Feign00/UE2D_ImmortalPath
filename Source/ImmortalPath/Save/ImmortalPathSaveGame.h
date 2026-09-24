@@ -64,6 +64,16 @@ public:
 	 */
 	static void SetDevelopmentWriteFailure(bool bShouldFail);
 	static bool IsDevelopmentWriteFailureEnabled();
+	/**
+	 * Fail one numbered logical SaveToDisk attempt, counting from the next
+	 * write boundary reached. Setting a non-positive number disables the
+	 * injection; either setting also resets the attempt counter.
+	 */
+	static void SetDevelopmentWriteFailureOnAttempt(int32 AttemptNumber);
+	/** Disarm the numbered failure and reset its attempt counter. */
+	static void ClearDevelopmentWriteFailureOnAttempt();
+	/** Attempts since the numbered failure was armed or cleared. */
+	static int32 GetDevelopmentWriteAttemptCount();
 #endif
 
 	UPROPERTY(SaveGame)

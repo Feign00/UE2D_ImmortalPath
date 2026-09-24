@@ -835,6 +835,19 @@ void AImmortalMonsterCharacter::Die(AActor* DamageCauser)
 	PlayOneShotAnimation(DeathFlipbook);
 
 	OnMonsterDeath.Broadcast(this, DamageCauser);
+	if (bSuppressGenericMapRewardsThisDeath && !bIsWorldBoss && !bIsEndlessEnemy)
+	{
+		// The map kill was not committed. Keep the death animation, but do not
+		// grant Blueprint rewards or create any collectible reward entities.
+		BP_OnMonsterDied(DamageCauser);
+		UE_LOG(LogTemp, Warning, TEXT("Map monster rewards suppressed after combat save failure: %s"), *GetName());
+		if (bDestroyAfterDeath)
+		{
+			SetLifeSpan(FMath::Max(
+				DeathLifeSpan, GetAnimationDuration(DeathFlipbook, DeathLifeSpan)));
+		}
+		return;
+	}
 
 	const AImmortalPlayerCharacter* RewardPlayer = Cast<AImmortalPlayerCharacter>(DamageCauser);
 	const float EffectiveEquipmentDropChance = FMath::Clamp(
@@ -951,5 +964,13 @@ void AImmortalMonsterCharacter::Die(AActor* DamageCauser)
 	if (bDestroyAfterDeath)
 	{
 		SetLifeSpan(FMath::Max(DeathLifeSpan, GetAnimationDuration(DeathFlipbook, DeathLifeSpan)));
+	}
+}
+
+void AImmortalMonsterCharacter::SuppressGenericMapRewardsForThisDeath()
+{
+	if (bDead && !bIsWorldBoss && !bIsEndlessEnemy)
+	{
+		bSuppressGenericMapRewardsThisDeath = true;
 	}
 }

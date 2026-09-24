@@ -7,6 +7,7 @@
 #include "Misc/Parse.h"
 #include "PlatformFeatures.h"
 #include "SaveGameSystem.h"
+#include "Serialization/MemoryReader.h"
 #include "Serialization/ObjectAndNameAsStringProxyArchive.h"
 
 namespace
@@ -64,6 +65,8 @@ namespace
 	}
 #if !UE_BUILD_SHIPPING
 	bool bForceDevelopmentWriteFailure = false;
+	int32 DevelopmentWriteFailureAttempt = 0;
+	int32 DevelopmentWriteAttemptCount = 0;
 #endif
 }
 
@@ -224,6 +227,24 @@ bool UImmortalPathSaveGame::IsDevelopmentWriteFailureEnabled()
 {
 	return bForceDevelopmentWriteFailure;
 }
+
+void UImmortalPathSaveGame::SetDevelopmentWriteFailureOnAttempt(
+	const int32 AttemptNumber)
+{
+	DevelopmentWriteFailureAttempt = FMath::Max(AttemptNumber, 0);
+	DevelopmentWriteAttemptCount = 0;
+}
+
+void UImmortalPathSaveGame::ClearDevelopmentWriteFailureOnAttempt()
+{
+	DevelopmentWriteFailureAttempt = 0;
+	DevelopmentWriteAttemptCount = 0;
+}
+
+int32 UImmortalPathSaveGame::GetDevelopmentWriteAttemptCount()
+{
+	return DevelopmentWriteAttemptCount;
+}
 #endif
 
 bool UImmortalPathSaveGame::SaveToDisk(const FString& SlotName)
@@ -309,6 +330,21 @@ bool UImmortalPathSaveGame::SaveToDisk(const FString& SlotName)
 	SaveVersion = VersionToWrite;
 	LastSavedUtcTicks = FDateTime::UtcNow().GetTicks();
 #if !UE_BUILD_SHIPPING
+	// Count logical save attempts only when they reach the shared disk-write
+	// boundary. Failure is one-shot, before either backup or main is touched.
+	if (DevelopmentWriteAttemptCount < MAX_int32)
+	{
+		++DevelopmentWriteAttemptCount;
+	}
+	if (DevelopmentWriteFailureAttempt > 0
+		&& DevelopmentWriteAttemptCount == DevelopmentWriteFailureAttempt)
+	{
+		DevelopmentWriteFailureAttempt = 0;
+		UE_LOG(LogTemp, Error,
+			TEXT("Injected SaveGame logical write attempt %d failure; slot was not modified: %s"),
+			DevelopmentWriteAttemptCount, *TargetSlot);
+		return false;
+	}
 	if (bForceDevelopmentWriteFailure)
 	{
 		UE_LOG(

@@ -115,6 +115,9 @@ void AImmortalMonsterSpawner::BeginPlay()
 		StartSpawning();
 	}
 	UpdateStageHud();
+#if !UE_BUILD_SHIPPING
+	ScheduleMapCombatRuntimeFixture();
+#endif
 }
 
 void AImmortalMonsterSpawner::EndPlay(const EEndPlayReason::Type EndPlayReason)
@@ -140,7 +143,9 @@ void AImmortalMonsterSpawner::EndPlay(const EEndPlayReason::Type EndPlayReason)
 	ActiveWorldBoss.Reset();
 	ActiveEndlessBoss.Reset();
 	ActiveEndlessRunId.Invalidate();
-	SaveStageProgress();
+	// Every accepted map kill and map transition is persisted at its own
+	// transaction boundary. A teardown-time map-only write is redundant and
+	// can run after SaveGame loading is no longer safe during world shutdown.
 	StopSpawning();
 	GetWorldTimerManager().ClearTimer(WorldBossTimeoutTimerHandle);
 	GetWorldTimerManager().ClearTimer(WorldBossHudTimerHandle);
@@ -259,69 +264,108 @@ void AImmortalMonsterSpawner::HandleMonsterDeath(
 	}
 
 	TGuardValue<bool> DeathGuard(bHandlingMonsterDeath, true);
+	AImmortalPlayerCharacter* Player = Cast<AImmortalPlayerCharacter>(
+		UGameplayStatics::GetPlayerCharacter(this, 0));
+	if (!Player)
+	{
+		Monster->SuppressGenericMapRewardsForThisDeath();
+		UE_LOG(LogTemp, Error,
+			TEXT("Map combat progress cannot be committed without a player"));
+		return;
+	}
+	const int32 ClearedStage = CurrentStage;
+	const int32 MaximumStage = GetCurrentMaximumStage();
+	const bool bBossStage = IsCurrentStageBossStage();
 	bool bStageCleared = false;
 	bool bBossDefeated = false;
-	if (IsCurrentStageBossStage())
+	bool bMapCompleted = false;
+	int32 CandidateStage = CurrentStage;
+	int32 CandidateKills = CurrentStageKills;
+	if (bBossStage)
 	{
 		if (!Monster->IsBoss())
 		{
-			if (AImmortalPlayerCharacter* Player = Cast<AImmortalPlayerCharacter>(
-				UGameplayStatics::GetPlayerCharacter(this, 0)))
-			{
-				Player->NotifySectCombatProgress(1, 0, 0);
-			}
+			Player->NotifySectCombatProgress(1, 0, 0);
 			UE_LOG(LogTemp, Display, TEXT("%s boss minion defeated; gate remains active at stage %d"),
 				*ActiveMapDefinition.DisplayName.ToString(), CurrentStage);
 			return;
 		}
-
-		const int32 ClearedStage = CurrentStage;
-		AdvanceStage(Monster);
 		bStageCleared = true;
 		bBossDefeated = true;
-		++MapSystemRevision;
+		bMapCompleted = CurrentStage >= MaximumStage;
+		CandidateStage = bMapCompleted ? MaximumStage : CurrentStage + 1;
+		CandidateKills = bMapCompleted ? 1 : 0;
+	}
+	else
+	{
+		++CandidateKills;
+		const int32 RequiredKills = GetRequiredKillsForCurrentStage();
+		if (CandidateKills >= RequiredKills)
+		{
+			bStageCleared = true;
+			CandidateStage = FMath::Min(CurrentStage + 1, MaximumStage);
+			CandidateKills = 0;
+		}
+	}
+
+	// Build the next map state without mutating the live stage or destroying
+	// monsters. Player persists map, quests, sect and pet growth together.
+	FImmortalMapSystemState CandidateMapState = MapSystemState;
+	FImmortalMapProgress CandidateProgress;
+	CandidateProgress.MapId = MapSystemState.ActiveMapId;
+	CandidateProgress.Stage = CandidateStage;
+	CandidateProgress.StageKills = CandidateKills;
+	CandidateProgress.bCompleted = bMapCompleted;
+	if (!UImmortalMapLibrary::SetMapProgress(CandidateMapState, CandidateProgress))
+	{
+		Monster->SuppressGenericMapRewardsForThisDeath();
+		UE_LOG(LogTemp, Error,
+			TEXT("Map combat progress could not build a valid candidate state"));
+		return;
+	}
+	const bool bCommitted = Player->CommitMapCombatProgress(
+		CandidateMapState,
+		Monster,
+		DamageCauser == Player,
+		1,
+		bStageCleared ? 1 : 0,
+		bBossDefeated ? 1 : 0,
+		bMapCompleted ? 1 : 0);
+	if (!bCommitted)
+	{
+		Monster->SuppressGenericMapRewardsForThisDeath();
+		UE_LOG(LogTemp, Error,
+			TEXT("Map combat transaction failed; stage, quest, sect and pet progress were not advanced"));
+		ShowBossMessage(
+			FText::FromString(TEXT("历练进度保存失败，本次击杀未计入关卡；请检查存储空间")),
+			FLinearColor(1.0f, 0.22f, 0.15f, 1.0f));
+		return;
+	}
+
+	MapSystemState = MoveTemp(CandidateMapState);
+	if (bStageCleared)
+	{
+		AdvanceStage(Monster);
+	}
+	else
+	{
+		CurrentStageKills = CandidateKills;
+		UE_LOG(LogTemp, Display, TEXT("%s stage %d progress: %d/%d"),
+			*ActiveMapDefinition.DisplayName.ToString(), CurrentStage,
+			CurrentStageKills, GetRequiredKillsForCurrentStage());
+	}
+	++MapSystemRevision;
+	UpdateStageHud();
+	if (bBossDefeated)
+	{
 		BP_OnBossDefeated(ClearedStage, CurrentStage, bCurrentMapCompleted);
 		const FString VictoryMessage = bCurrentMapCompleted
 			? FString::Printf(TEXT("%s最终首领“%s”已击败！地图通关"),
 				*ActiveMapDefinition.DisplayName.ToString(), *ActiveMapDefinition.BossName.ToString())
 			: FString::Printf(TEXT("%s守关首领已击败！进入第 %d 关"),
 				*ActiveMapDefinition.DisplayName.ToString(), CurrentStage);
-		ShowBossMessage(FText::FromString(VictoryMessage), FLinearColor(1.0f, 0.78f, 0.18f, 1.0f));
-	}
-	else
-	{
-		++CurrentStageKills;
-		const int32 RequiredKills = GetRequiredKillsForCurrentStage();
-		UE_LOG(LogTemp, Display, TEXT("%s stage %d progress: %d/%d"),
-			*ActiveMapDefinition.DisplayName.ToString(), CurrentStage, CurrentStageKills, RequiredKills);
-		if (CurrentStageKills >= RequiredKills)
-		{
-			AdvanceStage(Monster);
-			bStageCleared = true;
-		}
-		++MapSystemRevision;
-	}
-
-	if (AImmortalPlayerCharacter* Player =
-		Cast<AImmortalPlayerCharacter>(DamageCauser))
-	{
-		Player->NotifyPetCombatKill(Monster);
-	}
-	SyncCurrentProgressToState();
-	UpdateStageHud();
-	const bool bMapProgressSaved = SaveStageProgress();
-	if (AImmortalPlayerCharacter* Player = Cast<AImmortalPlayerCharacter>(
-		UGameplayStatics::GetPlayerCharacter(this, 0)))
-	{
-		// A stage/Boss task must never advance when its authoritative map write
-		// failed, otherwise restarting would allow the same gate to be claimed
-		// repeatedly. The ordinary kill itself is still a valid completed combat.
-		Player->NotifySectCombatProgress(
-			1,
-			bMapProgressSaved && bStageCleared ? 1 : 0,
-			bMapProgressSaved && bBossDefeated ? 1 : 0,
-			bMapProgressSaved && bStageCleared
-				&& bCurrentMapCompleted ? 1 : 0);
+		ShowBossMessage(FText::FromString(VictoryMessage),
+			FLinearColor(1.0f, 0.78f, 0.18f, 1.0f));
 	}
 }
 
