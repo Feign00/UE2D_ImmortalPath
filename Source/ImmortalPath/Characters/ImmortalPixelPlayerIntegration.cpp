@@ -99,19 +99,19 @@ void AImmortalPlayerCharacter::RunPixelPlayerIntegrationFixture()
 		Check(TEXT("damage landed at contact"), !bAttackPending && Target->IsValid() && Target->Get()->GetCurrentHealth() < *TargetHealth && GetSprite()->GetPlaybackPositionInFrames() >= 3);
 		Shot(TEXT("Attack"));
 	});
-	At(2.05f, [this, Check, HurtRemaining, Shot]
+	At(1.8f, [this, Check, HurtRemaining, Shot]
 	{
 		Check(TEXT("queued hurt follows attack with normal rate"), GetSprite()->GetFlipbook() == MortalRealmHurtFlipbook && GetSprite()->GetPlayRate() == 1);
 		*HurtRemaining = GetWorldTimerManager().GetTimerRemaining(MortalRealmHurtAnimationTimerHandle); Shot(TEXT("Hurt"));
 	});
-	At(2.2f, [this, Check, HurtRemaining]
+	At(1.95f, [this, Check, HurtRemaining]
 	{
 		const float Position = GetSprite()->GetPlaybackPosition(); FDamageEvent Event;
 		TakeDamage(1, Event, nullptr, this); TakeDamage(1, Event, nullptr, this);
 		Check(TEXT("repeated hurt preserves phase and original deadline"), GetSprite()->GetPlaybackPosition() >= Position
 			&& GetWorldTimerManager().GetTimerRemaining(MortalRealmHurtAnimationTimerHandle) < *HurtRemaining);
 	});
-	At(2.8f, [this, Check] { Check(TEXT("hurt recovers to idle"), GetSprite()->GetFlipbook() == MortalRealmIdleFlipbook && !bMortalRealmOneShotAnimation); });
+	At(2.5f, [this, Check] { Check(TEXT("hurt recovers to idle"), GetSprite()->GetFlipbook() == MortalRealmIdleFlipbook && !bMortalRealmOneShotAnimation); });
 	At(3.0f, [this, Check, Target, TargetHealth]
 	{
 		if (Target->IsValid()) *TargetHealth = Target->Get()->GetCurrentHealth();

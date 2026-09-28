@@ -5011,6 +5011,7 @@ void AImmortalPlayerCharacter::BeginPlay()
 #endif
 	ImmortalPixelAnimationPreview::StartIfRequested(*this);
 	RunPixelPlayerIntegrationFixture();
+	RunHighSpeedCombatFixture();
 	RunDesktopPanelFixture();
 #if !UE_BUILD_SHIPPING
 	ScheduleImmortalExitRuntimeFixture(this);
@@ -12809,8 +12810,25 @@ void AImmortalPlayerCharacter::UpdateMortalRealmLocomotionAnimation()
 
 void AImmortalPlayerCharacter::PlayMortalRealmAttackAnimation()
 {
-	if (!bUseMortalRealmAnimationSet || !MortalRealmAttackFlipbook || !GetWorld())
+	if (!bUseMortalRealmAnimationSet || !MortalRealmAttackFlipbook || !GetWorld() || bDead)
 	{
+		return;
+	}
+	if (bUsingDesktopPixelPlayer && bPixelHurtQueued)
+	{
+		// A new swing must not keep resetting the old swing's finish timer
+		// forever. Resolve combat on its existing clock while one hurt reaction
+		// gets its own visible window.
+		GetWorldTimerManager().ClearTimer(MortalRealmAttackAnimationTimerHandle);
+		bPixelHurtQueued = false;
+		PlayMortalRealmHurtAnimation();
+		return;
+	}
+	if (bUsingDesktopPixelPlayer
+		&& GetWorldTimerManager().IsTimerActive(MortalRealmHurtAnimationTimerHandle))
+	{
+		// Do not restart a nonlethal reaction every time an attack is due.
+		// TryAutoAttack still schedules and resolves damage normally.
 		return;
 	}
 
@@ -12821,10 +12839,16 @@ void AImmortalPlayerCharacter::PlayMortalRealmAttackAnimation()
 	float Duration = GetMortalRealmFlipbookDuration(MortalRealmAttackFlipbook, 0.67f);
 	if (bUsingDesktopPixelPlayer && GetSprite())
 	{
-		const auto Playback = ImmortalPixelPlayerTiming::Attack(Duration, MortalRealmAttackFlipbook->GetFramesPerSecond(), AttackWindup);
+		const float FPS = MortalRealmAttackFlipbook->GetFramesPerSecond();
+		const float Windup = ImmortalPixelPlayerTiming::SafeWindup(AttackWindup);
+		const auto Playback = ImmortalPixelPlayerTiming::Attack(Duration, FPS, Windup);
+		const float Contact = 3.0f / FMath::Max(FPS, 1.0f);
+		const auto Recovery = ImmortalPixelPlayerTiming::AttackRecovery(
+			Duration, FMath::Max(Playback.Start, Contact), Playback.Rate,
+			Windup, GetEffectiveAttackInterval());
 		GetSprite()->SetPlayRate(Playback.Rate);
 		GetSprite()->SetPlaybackPosition(Playback.Start, false);
-		Duration = Playback.Duration;
+		Duration = Windup + Recovery.Duration;
 	}
 	GetWorldTimerManager().SetTimer(
 		MortalRealmAttackAnimationTimerHandle,
@@ -13307,6 +13331,16 @@ void AImmortalPlayerCharacter::ResolvePendingAttack()
 		// Timer ordering can precede the component tick. Never render a pre-contact pose at resolution.
 		const float Contact = 3.0f / MortalRealmAttackFlipbook->GetFramesPerSecond();
 		if (GetSprite()->GetPlaybackPosition() < Contact) GetSprite()->SetPlaybackPosition(Contact, false);
+		// Preserve the hit frame's original windup. A delayed hit callback must
+		// fit recovery into the finish timer's *remaining* time, not the full
+		// nominal cycle, or its last frames would be cut off by that timer.
+		const float RemainingDisplayTime = FMath::Max(
+			GetWorldTimerManager().GetTimerRemaining(MortalRealmAttackAnimationTimerHandle), 0.0f);
+		const auto Recovery = ImmortalPixelPlayerTiming::AttackRecovery(
+			GetMortalRealmFlipbookDuration(MortalRealmAttackFlipbook, 0.67f),
+			GetSprite()->GetPlaybackPosition(), GetSprite()->GetPlayRate(),
+			0.0f, RemainingDisplayTime);
+		GetSprite()->SetPlayRate(Recovery.Rate);
 	}
 	AActor* Target = CurrentAttackTarget.Get();
 	float DamageDealt = 0.0f;

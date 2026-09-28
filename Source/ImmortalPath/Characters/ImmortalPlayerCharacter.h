@@ -1298,6 +1298,7 @@ private:
 	void ResolvePendingAttack();
 	void LoadMortalRealmAnimationSet();
 	void RunPixelPlayerIntegrationFixture();
+	void RunHighSpeedCombatFixture();
 	void RunDesktopPanelFixture();
 	void UpdateDesktopPanelPresentation();
 	FIntPoint LastDesktopPanelViewport = FIntPoint::ZeroValue;
