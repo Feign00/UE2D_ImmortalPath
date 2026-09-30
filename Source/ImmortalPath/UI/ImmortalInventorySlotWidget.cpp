@@ -4,6 +4,7 @@
 
 #include "ImmortalInventoryWidget.h"
 #include "ImmortalInventoryPresentation.h"
+#include "ImmortalCraftingArt.h"
 #include "ImmortalUITheme.h"
 #include "Blueprint/WidgetTree.h"
 #include "Components/Button.h"
@@ -21,32 +22,20 @@ namespace
 	// Shared cell size for paper-doll equipment and the seven-column backpack.
 	constexpr float SlotSize = ImmortalInventoryPresentation::SlotSize;
 
-	FSlateBrush MakeInventoryBrush(const TCHAR* AssetPath, const FVector2D Size, const FLinearColor Tint = FLinearColor::White)
-	{
-		FSlateBrush Brush;
-		Brush.DrawAs = ESlateBrushDrawType::Image;
-		Brush.ImageSize = Size;
-		Brush.TintColor = FSlateColor(Tint);
-		if (UTexture2D* Texture = LoadObject<UTexture2D>(nullptr, AssetPath))
-		{
-			Brush.SetResourceObject(Texture);
-		}
-		return Brush;
-	}
-
-	const TCHAR* GetSlotTexturePath(const EImmortalEquipmentSlot Slot)
+	const TCHAR* GetSlotGlyph(const EImmortalEquipmentSlot Slot)
 	{
 		switch (Slot)
 		{
-		case EImmortalEquipmentSlot::Head: return TEXT("/Game/GAME/Asset/ui/inventory/equipment_icons/head.head");
-		case EImmortalEquipmentSlot::Chest: return TEXT("/Game/GAME/Asset/ui/inventory/equipment_icons/clothes.clothes");
-		case EImmortalEquipmentSlot::Bracers:
-		case EImmortalEquipmentSlot::Belt: return TEXT("/Game/GAME/Asset/ui/inventory/equipment_icons/clothes.clothes");
-		case EImmortalEquipmentSlot::Boots: return TEXT("/Game/GAME/Asset/ui/inventory/equipment_icons/boots.boots");
-		case EImmortalEquipmentSlot::RingLeft:
-		case EImmortalEquipmentSlot::RingRight:
-		case EImmortalEquipmentSlot::Accessory: return TEXT("/Game/GAME/Asset/ui/inventory/equipment_icons/accessory.accessory");
-		default: return TEXT("/Game/GAME/Asset/ui/inventory/equipment_icons/weapon.weapon");
+		case EImmortalEquipmentSlot::Weapon: return TEXT("剑");
+		case EImmortalEquipmentSlot::Head: return TEXT("盔");
+		case EImmortalEquipmentSlot::Chest: return TEXT("甲");
+		case EImmortalEquipmentSlot::Bracers: return TEXT("腕");
+		case EImmortalEquipmentSlot::Belt: return TEXT("带");
+		case EImmortalEquipmentSlot::Boots: return TEXT("靴");
+		case EImmortalEquipmentSlot::RingLeft: return TEXT("戒1");
+		case EImmortalEquipmentSlot::RingRight: return TEXT("戒2");
+		case EImmortalEquipmentSlot::Accessory: return TEXT("链");
+		default: return TEXT("");
 		}
 	}
 
@@ -95,15 +84,23 @@ void UImmortalInventorySlotWidget::NativeOnInitialized()
 	}
 
 	QualityFrame = WidgetTree->ConstructWidget<UImage>(UImage::StaticClass(), TEXT("InventoryQualityFrame"));
-	MaterialGlyphText->RemoveFromParent();
-	SymbolIcon = CreateWidget<UImmortalIconWidget>(this);
-	UOverlaySlot* SymbolSlot = Layers->AddChildToOverlay(SymbolIcon);
-	SymbolSlot->SetHorizontalAlignment(HAlign_Fill);
-	SymbolSlot->SetVerticalAlignment(VAlign_Fill);
-	SymbolSlot->SetPadding(FMargin(8.0f, 4.0f, 8.0f, 16.0f));
 	UOverlaySlot* FrameSlot = Layers->AddChildToOverlay(QualityFrame);
 	FrameSlot->SetHorizontalAlignment(HAlign_Fill);
 	FrameSlot->SetVerticalAlignment(VAlign_Fill);
+
+	SlotLabelText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("InventorySlotLabel"));
+	SlotLabelText->SetColorAndOpacity(FSlateColor(FLinearColor(0.95f, 0.89f, 0.72f)));
+	SlotLabelText->SetShadowOffset(FVector2D(1.0f));
+	SlotLabelText->SetShadowColorAndOpacity(FLinearColor::Black);
+	FSlateFontInfo LabelFont = SlotLabelText->GetFont();
+	LabelFont.Size = 11;
+	SlotLabelText->SetFont(LabelFont);
+	if (UOverlaySlot* LabelSlot = Layers->AddChildToOverlay(SlotLabelText))
+	{
+		LabelSlot->SetHorizontalAlignment(HAlign_Right);
+		LabelSlot->SetVerticalAlignment(VAlign_Top);
+		LabelSlot->SetPadding(FMargin(0.0f, 4.0f, 6.0f, 0.0f));
+	}
 
 	LevelText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("InventoryItemLevel"));
 	LevelText->SetColorAndOpacity(FSlateColor(FLinearColor::White));
@@ -232,119 +229,133 @@ void UImmortalInventorySlotWidget::InitializeQuestItemSlot(
 
 void UImmortalInventorySlotWidget::RefreshAppearance()
 {
-	if (!SlotButton || !ItemIcon || !QualityFrame || !LevelText || !MaterialGlyphText || !LockGlyphText)
+	if (!SlotButton || !ItemIcon || !QualityFrame || !LevelText || !MaterialGlyphText || !SlotLabelText || !LockGlyphText)
 	{
 		return;
 	}
 
 	SlotButton->SetStyle(ImmortalUITheme::ButtonStyle(bSelected));
-	SymbolIcon->SetVisibility((bQuestItem || bArtifactItem || bPillItem || bMaterialItem)
-		? ESlateVisibility::HitTestInvisible : ESlateVisibility::Collapsed);
-	SymbolIcon->SetIcon(bQuestItem ? 9 : bArtifactItem ? 4 : bPillItem ? 2
-		: MaterialStack.MaterialId.ToString().Contains(TEXT("Herb")) ? 11 : 19);
+	SlotButton->SetToolTipText(FText::GetEmpty());
+	SlotButton->SetIsEnabled(false);
+	ItemIcon->SetBrush(FSlateBrush());
+	ItemIcon->SetVisibility(ESlateVisibility::Collapsed);
+	QualityFrame->SetVisibility(ESlateVisibility::Collapsed);
+	MaterialGlyphText->SetText(FText::GetEmpty());
+	MaterialGlyphText->SetVisibility(ESlateVisibility::Collapsed);
+	SlotLabelText->SetText(FText::GetEmpty());
+	SlotLabelText->SetVisibility(ESlateVisibility::Collapsed);
+	LevelText->SetText(FText::GetEmpty());
+	LevelText->SetVisibility(ESlateVisibility::Collapsed);
 	LockGlyphText->SetVisibility(ESlateVisibility::Collapsed);
+	FSlateFontInfo GlyphFont = MaterialGlyphText->GetFont();
+	GlyphFont.Size = 34;
+	MaterialGlyphText->SetFont(GlyphFont);
+	FSlateFontInfo LevelFont = LevelText->GetFont();
+	LevelFont.Size = bArtifactItem ? 11 : 14;
+	LevelText->SetFont(LevelFont);
 
-	if (bQuestItem)
+	// Atlas art replaces the central fallback glyph rather than obscuring it.
+	const auto ShowItemArt = [this](FSlateBrush Brush, const FText& FallbackGlyph, const FLinearColor Color)
 	{
-		ItemIcon->SetVisibility(ESlateVisibility::Collapsed);
-		QualityFrame->SetVisibility(ESlateVisibility::Collapsed);
-		FImmortalQuestItemDefinition Definition;
-		if (bHasItem && UImmortalInventoryLibrary::GetQuestItemDefinition(QuestItemStack.QuestItemId, Definition))
+		const bool bHasArt = Brush.DrawAs == ESlateBrushDrawType::Image && Brush.GetResourceObject();
+		if (bHasArt)
 		{
-			MaterialGlyphText->SetText(Definition.IconGlyph.IsEmpty() ? FText::FromString(TEXT("任")) : Definition.IconGlyph);
-			SlotButton->SetToolTipText(Definition.DisplayName);
-			MaterialGlyphText->SetColorAndOpacity(FSlateColor(Definition.DisplayColor));
-			MaterialGlyphText->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
-			LevelText->SetText(FText::FromString(FString::Printf(TEXT("×%d"), QuestItemStack.Quantity)));
-			LevelText->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+			Brush.ImageSize = FVector2D(52.0f);
+			ItemIcon->SetBrush(Brush);
+			ItemIcon->SetVisibility(ESlateVisibility::HitTestInvisible);
 		}
 		else
 		{
-			MaterialGlyphText->SetVisibility(ESlateVisibility::Collapsed);
-			LevelText->SetVisibility(ESlateVisibility::Collapsed);
+			FSlateFontInfo FallbackFont = MaterialGlyphText->GetFont();
+			FallbackFont.Size = FallbackGlyph.ToString().Len() > 1 ? 22 : 34;
+			MaterialGlyphText->SetFont(FallbackFont);
+			MaterialGlyphText->SetText(FallbackGlyph);
+			MaterialGlyphText->SetColorAndOpacity(FSlateColor(Color));
+			MaterialGlyphText->SetShadowColorAndOpacity(FLinearColor::Black);
+			MaterialGlyphText->SetVisibility(ESlateVisibility::HitTestInvisible);
 		}
-		SlotButton->SetIsEnabled(bHasItem);
+	};
+	const auto ShowQualityFrame = [this](const FLinearColor Color)
+	{
+		QualityFrame->SetBrush(ImmortalUITheme::PanelBrush(FLinearColor::Transparent, Color));
+		QualityFrame->SetVisibility(ESlateVisibility::HitTestInvisible);
+	};
+
+	if (bQuestItem)
+	{
+		FImmortalQuestItemDefinition Definition;
+		if (bHasItem && UImmortalInventoryLibrary::GetQuestItemDefinition(QuestItemStack.QuestItemId, Definition))
+		{
+			ShowItemArt(FSlateBrush(), Definition.IconGlyph.IsEmpty() ? FText::FromString(TEXT("任")) : Definition.IconGlyph,
+				Definition.DisplayColor);
+			SlotButton->SetToolTipText(Definition.DisplayName);
+			LevelText->SetText(FText::FromString(FString::Printf(TEXT("×%d"), QuestItemStack.Quantity)));
+			LevelText->SetVisibility(ESlateVisibility::HitTestInvisible);
+			SlotButton->SetIsEnabled(true);
+		}
 		return;
 	}
 
 	if (bArtifactItem)
 	{
-		ItemIcon->SetVisibility(ESlateVisibility::Collapsed);
-		QualityFrame->SetVisibility(ESlateVisibility::Collapsed);
 		FImmortalArtifactDefinition Definition;
 		if (bHasItem && UImmortalArtifactLibrary::GetArtifactDefinition(ArtifactItem.ArtifactId, Definition))
 		{
 			const FLinearColor Color = UImmortalArtifactLibrary::GetQualityColor(Definition.Quality);
-			SlotButton->SetToolTipText(Definition.DisplayName);
-			MaterialGlyphText->SetText(Definition.IconGlyph.IsEmpty() ? FText::FromString(TEXT("宝")) : Definition.IconGlyph);
-			MaterialGlyphText->SetColorAndOpacity(FSlateColor(Color));
-			MaterialGlyphText->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+			// Artifact illustrations are a separate pending art stage; keep the explicit catalog glyph.
+			ShowItemArt(FSlateBrush(), Definition.IconGlyph.IsEmpty() ? FText::FromString(TEXT("宝")) : Definition.IconGlyph, Color);
+			ShowQualityFrame(Color);
+			SlotButton->SetToolTipText(FText::FromString(FString::Printf(TEXT("%s · %s%s"),
+				*Definition.DisplayName.ToString(), *UImmortalArtifactLibrary::GetQualityText(Definition.Quality).ToString(),
+				bEquipped ? TEXT(" · 已穿戴") : TEXT(""))));
 			LevelText->SetText(FText::FromString(FString::Printf(TEXT("Lv%d ★%d"), ArtifactItem.Level, ArtifactItem.Stars)));
-			LevelText->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
-			LockGlyphText->SetVisibility(ArtifactItem.bLocked ? ESlateVisibility::SelfHitTestInvisible : ESlateVisibility::Collapsed);
+			LevelText->SetVisibility(ESlateVisibility::HitTestInvisible);
+			LockGlyphText->SetVisibility(ArtifactItem.bLocked ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Collapsed);
+			SlotButton->SetIsEnabled(true);
 		}
-		else
+		else if (!bHasItem)
 		{
-			MaterialGlyphText->SetText(FText::FromString(TEXT("法")));
-			MaterialGlyphText->SetColorAndOpacity(FSlateColor(FLinearColor(0.48f, 0.38f, 0.58f, 0.75f)));
-			MaterialGlyphText->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
-			LevelText->SetText(FText::FromString(TEXT("法宝")));
-			LevelText->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+			ShowItemArt(FSlateBrush(), FText::FromString(TEXT("法")), FLinearColor(0.48f, 0.38f, 0.58f, 0.55f));
+			SlotButton->SetToolTipText(FText::FromString(TEXT("空法宝栏 · 查看法宝")));
+			// The empty paper-doll artifact cell remains an entry to the artifact category.
+			SlotButton->SetIsEnabled(true);
 		}
-		SlotButton->SetIsEnabled(true);
 		return;
 	}
 
 	if (bPillItem)
 	{
-		ItemIcon->SetVisibility(ESlateVisibility::Collapsed);
-		QualityFrame->SetVisibility(ESlateVisibility::Collapsed);
 		FImmortalPillDefinition Definition;
 		if (bHasItem && UImmortalAlchemyLibrary::GetPillDefinition(PillStack.PillId, Definition))
 		{
 			const FLinearColor QualityColor = UImmortalAlchemyLibrary::GetQualityColor(PillStack.Quality);
-			SlotButton->SetToolTipText(Definition.DisplayName);
-			MaterialGlyphText->SetText(Definition.IconGlyph);
-			MaterialGlyphText->SetColorAndOpacity(FSlateColor(QualityColor));
-			MaterialGlyphText->SetShadowColorAndOpacity(QualityColor.CopyWithNewOpacity(0.65f));
-			MaterialGlyphText->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+			ShowItemArt(ImmortalAlchemyArt::Brush(AlchemyAtlas.LoadSynchronous(), PillStack.PillId),
+				Definition.IconGlyph.IsEmpty() ? FText::FromString(TEXT("丹")) : Definition.IconGlyph, QualityColor);
+			ShowQualityFrame(QualityColor);
+			SlotButton->SetToolTipText(FText::FromString(FString::Printf(TEXT("%s · %s"),
+				*Definition.DisplayName.ToString(), *UImmortalAlchemyLibrary::GetQualityText(PillStack.Quality).ToString())));
 			LevelText->SetText(FText::FromString(FString::Printf(TEXT("×%d"), PillStack.Quantity)));
-			LevelText->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+			LevelText->SetVisibility(ESlateVisibility::HitTestInvisible);
+			SlotButton->SetIsEnabled(true);
 		}
-		else
-		{
-			MaterialGlyphText->SetVisibility(ESlateVisibility::Collapsed);
-			LevelText->SetVisibility(ESlateVisibility::Collapsed);
-		}
-		SlotButton->SetIsEnabled(bHasItem);
 		return;
 	}
 
 	if (bMaterialItem)
 	{
-		ItemIcon->SetVisibility(ESlateVisibility::Collapsed);
-		QualityFrame->SetVisibility(ESlateVisibility::Collapsed);
 		FImmortalMaterialDefinition Definition;
 		if (bHasItem && UImmortalMaterialLibrary::GetMaterialDefinition(MaterialStack.MaterialId, Definition))
 		{
-			MaterialGlyphText->SetText(Definition.IconGlyph.IsEmpty() ? FText::FromString(TEXT("◆")) : Definition.IconGlyph);
+			ShowItemArt(ImmortalCraftingArt::MaterialBrush(ForgeAtlas.LoadSynchronous(), MaterialAtlas.LoadSynchronous(), MaterialStack.MaterialId),
+				Definition.IconGlyph.IsEmpty() ? FText::FromString(TEXT("◆")) : Definition.IconGlyph, Definition.DisplayColor);
 			SlotButton->SetToolTipText(Definition.DisplayName);
-			MaterialGlyphText->SetColorAndOpacity(FSlateColor(Definition.DisplayColor));
-			MaterialGlyphText->SetShadowColorAndOpacity(Definition.DisplayColor.CopyWithNewOpacity(0.65f));
-			MaterialGlyphText->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
 			LevelText->SetText(FText::FromString(FString::Printf(TEXT("×%d"), MaterialStack.Quantity)));
-			LevelText->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+			LevelText->SetVisibility(ESlateVisibility::HitTestInvisible);
+			SlotButton->SetIsEnabled(true);
 		}
-		else
-		{
-			MaterialGlyphText->SetVisibility(ESlateVisibility::Collapsed);
-			LevelText->SetVisibility(ESlateVisibility::Collapsed);
-		}
-		SlotButton->SetIsEnabled(bHasItem);
 		return;
 	}
 
-	MaterialGlyphText->SetVisibility(ESlateVisibility::Collapsed);
 	const EImmortalEquipmentSlot VisibleSlot = bHasItem ? Item.Slot : PlaceholderSlot;
 	if (VisibleSlot != EImmortalEquipmentSlot::MAX)
 	{
@@ -353,45 +364,24 @@ void UImmortalInventorySlotWidget::RefreshAppearance()
 				*UImmortalEquipmentLibrary::GetSlotText(VisibleSlot).ToString(), bEquipped ? TEXT(" · 已穿戴") : TEXT(""))
 			: UImmortalEquipmentLibrary::GetSlotText(VisibleSlot).ToString()));
 		const float Alpha = bHasItem ? 1.0f : 0.32f;
-		ItemIcon->SetBrush(MakeInventoryBrush(GetSlotTexturePath(VisibleSlot), FVector2D(52.0f), FLinearColor(1.0f, 1.0f, 1.0f, Alpha)));
-		ItemIcon->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
-		FString SlotGlyph;
-		switch (VisibleSlot)
+		FSlateBrush Brush = ImmortalCraftingArt::EquipmentBrush(EquipmentAtlas.LoadSynchronous(), VisibleSlot);
+		Brush.TintColor = FSlateColor(FLinearColor(1.0f, 1.0f, 1.0f, Alpha));
+		ShowItemArt(Brush, FText::FromString(GetSlotGlyph(VisibleSlot)), FLinearColor(0.92f, 0.86f, 0.72f, Alpha));
+		if (VisibleSlot == EImmortalEquipmentSlot::Bracers || VisibleSlot == EImmortalEquipmentSlot::Belt
+			|| VisibleSlot == EImmortalEquipmentSlot::RingLeft || VisibleSlot == EImmortalEquipmentSlot::RingRight)
 		{
-		case EImmortalEquipmentSlot::Bracers: SlotGlyph = TEXT("腕"); break;
-		case EImmortalEquipmentSlot::Belt: SlotGlyph = TEXT("带"); break;
-		case EImmortalEquipmentSlot::RingLeft: SlotGlyph = TEXT("戒1"); break;
-		case EImmortalEquipmentSlot::RingRight: SlotGlyph = TEXT("戒2"); break;
-		default: break;
+			SlotLabelText->SetText(FText::FromString(GetSlotGlyph(VisibleSlot)));
+			SlotLabelText->SetColorAndOpacity(FSlateColor(FLinearColor(0.95f, 0.89f, 0.72f, bHasItem ? 1.0f : 0.65f)));
+			SlotLabelText->SetVisibility(ESlateVisibility::HitTestInvisible);
 		}
-		if (!SlotGlyph.IsEmpty())
-		{
-			FSlateFontInfo GlyphFont = MaterialGlyphText->GetFont();
-			GlyphFont.Size = 18;
-			MaterialGlyphText->SetFont(GlyphFont);
-			MaterialGlyphText->SetText(FText::FromString(SlotGlyph));
-			MaterialGlyphText->SetColorAndOpacity(FSlateColor(FLinearColor(0.92f, 0.86f, 0.72f, Alpha)));
-			MaterialGlyphText->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
-		}
-	}
-	else
-	{
-		ItemIcon->SetVisibility(ESlateVisibility::Collapsed);
 	}
 
 	if (bHasItem)
 	{
-		QualityFrame->SetBrush(ImmortalUITheme::PanelBrush(FLinearColor::Transparent,
-			UImmortalEquipmentLibrary::GetQualityColor(Item.Quality)));
-		QualityFrame->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+		ShowQualityFrame(UImmortalEquipmentLibrary::GetQualityColor(Item.Quality));
 		LevelText->SetText(FText::AsNumber(Item.ItemLevel));
-		LevelText->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
-		LockGlyphText->SetVisibility(Item.bLocked ? ESlateVisibility::SelfHitTestInvisible : ESlateVisibility::Collapsed);
-	}
-	else
-	{
-		QualityFrame->SetVisibility(ESlateVisibility::Collapsed);
-		LevelText->SetVisibility(ESlateVisibility::Collapsed);
+		LevelText->SetVisibility(ESlateVisibility::HitTestInvisible);
+		LockGlyphText->SetVisibility(Item.bLocked ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Collapsed);
 	}
 
 	SlotButton->SetIsEnabled(bHasItem);

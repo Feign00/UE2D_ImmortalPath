@@ -92,7 +92,7 @@ FSlateBrush UImmortalShopWidget::GetOfferArt(const FImmortalShopListing& Listing
 	case EImmortalShopProductType::Pill: return ImmortalAlchemyArt::Brush(AlchemyAtlas.LoadSynchronous(), Listing.ProductId);
 	default:
 		// Artifact-specific illustrations belong to the artifact art pass. Keep the existing
-		// generic sword symbol visible rather than misrepresenting a material as an artifact.
+		// explicit artifact category symbol visible rather than borrowing material art.
 		FSlateBrush Empty;
 		Empty.DrawAs = ESlateBrushDrawType::NoDrawType;
 		return Empty;
@@ -165,7 +165,7 @@ void UImmortalShopWidget::NativeOnInitialized()
 	SaleList = List(TEXT("ShopSaleScroll"), TEXT("ShopSaleList"), 806);
 
 	OfferIcon = Art(TEXT("ShopOfferIcon"), 626, 68, 144);
-	OfferFallback = CreateWidget<UImmortalIconWidget>(this);
+	OfferFallback = CreateWidget<UImmortalIconWidget>(this, UImmortalIconWidget::StaticClass(), TEXT("ShopOfferFallback"));
 	OfferFallback->SetIcon(4);
 	SetShopLayout(Canvas->AddChildToCanvas(OfferFallback), FVector2D(650, 92), FVector2D(96));
 	OfferFallback->SetVisibility(ESlateVisibility::Hidden);
@@ -182,6 +182,9 @@ void UImmortalShopWidget::NativeOnInitialized()
 	RefreshButton->OnClicked.AddDynamic(this, &UImmortalShopWidget::HandleRefreshClicked);
 
 	SaleIcon = Art(TEXT("ShopSaleIcon"), 1148, 70, 136);
+	SaleFallback = CreateWidget<UImmortalIconWidget>(this, UImmortalIconWidget::StaticClass(), TEXT("ShopSaleFallback"));
+	SetShopLayout(Canvas->AddChildToCanvas(SaleFallback), FVector2D(1168, 90), FVector2D(96));
+	SaleFallback->SetVisibility(ESlateVisibility::Hidden);
 	SaleNameText = Text(TEXT("ShopSaleName"), TEXT(""), 1296, 78, 278, 124, 23);
 	SaleDetailText = Text(TEXT("ShopSaleDetail"), TEXT(""), 1154, 224, 420, 152, 20);
 	Text(TEXT("ShopSaleHint"), TEXT("锁定装备不能出售\n已穿戴的装备不会列入此处"), 1154, 390, 420, 62, 17);
@@ -413,7 +416,12 @@ void UImmortalShopWidget::RefreshOfferDetails()
 		OfferIcon->SetVisibility(ESlateVisibility::HitTestInvisible);
 		const FSlateBrush Brush = GetOfferArt(*Listing);
 		OfferIcon->SetBrush(Brush);
-		OfferFallback->SetVisibility(Brush.DrawAs == ESlateBrushDrawType::NoDrawType ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Hidden);
+		const bool bHasArt = Brush.DrawAs == ESlateBrushDrawType::Image && Brush.GetResourceObject();
+		const int32 FallbackIcon = Listing->ProductType == EImmortalShopProductType::Artifact ? 6
+			: Listing->ProductType == EImmortalShopProductType::Pill ? 2
+			: Listing->ProductType == EImmortalShopProductType::Material ? 19 : 4;
+		OfferFallback->SetIcon(FallbackIcon);
+		OfferFallback->SetVisibility(bHasArt ? ESlateVisibility::Hidden : ESlateVisibility::HitTestInvisible);
 		OfferNameText->SetText(UImmortalShopLibrary::GetListingDisplayName(*Listing));
 		OfferNameText->SetColorAndOpacity(FSlateColor(UImmortalShopLibrary::GetListingColor(*Listing)));
 		OfferMetaText->SetText(FText::FromString(FString::Printf(TEXT("%s  ·  数量 %d"),
@@ -443,6 +451,14 @@ void UImmortalShopWidget::RefreshSaleDetails()
 	{
 		return;
 	}
+	const auto ShowSaleArt = [this](const FSlateBrush& Brush, const int32 FallbackIndex)
+	{
+		const bool bHasArt = Brush.DrawAs == ESlateBrushDrawType::Image && Brush.GetResourceObject();
+		SaleIcon->SetBrush(Brush);
+		SaleIcon->SetVisibility(bHasArt ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Hidden);
+		SaleFallback->SetIcon(FallbackIndex);
+		SaleFallback->SetVisibility(bHasArt ? ESlateVisibility::Hidden : ESlateVisibility::HitTestInvisible);
+	};
 
 	if (SaleSelection == ESaleSelection::Equipment)
 	{
@@ -454,8 +470,8 @@ void UImmortalShopWidget::RefreshSaleDetails()
 			const FString Name = Item->DisplayName.IsNone()
 				? UImmortalEquipmentLibrary::GetSlotText(Item->Slot).ToString()
 				: Item->DisplayName.ToString();
-			SaleIcon->SetVisibility(ESlateVisibility::HitTestInvisible);
-			SaleIcon->SetBrush(GetEquipmentArt(Item->Slot));
+			ShowSaleArt(GetEquipmentArt(Item->Slot), Item->Slot == EImmortalEquipmentSlot::RingLeft
+				|| Item->Slot == EImmortalEquipmentSlot::RingRight ? 1 : 4);
 			SaleNameText->SetText(FText::FromString(Name));
 			SaleNameText->SetColorAndOpacity(FSlateColor(UImmortalEquipmentLibrary::GetQualityColor(Item->Quality)));
 			SaleDetailText->SetText(FText::FromString(FString::Printf(
@@ -482,8 +498,8 @@ void UImmortalShopWidget::RefreshSaleDetails()
 		{
 			FImmortalMaterialDefinition Definition;
 			const bool bHasDefinition = UImmortalMaterialLibrary::GetMaterialDefinition(Stack->MaterialId, Definition);
-			SaleIcon->SetVisibility(ESlateVisibility::HitTestInvisible);
-			SaleIcon->SetBrush(GetMaterialArt(Stack->MaterialId));
+			ShowSaleArt(GetMaterialArt(Stack->MaterialId), Stack->MaterialId.ToString().Contains(TEXT("Grass"))
+				|| Stack->MaterialId.ToString().Contains(TEXT("Wood")) ? 11 : 19);
 			SaleNameText->SetText(bHasDefinition ? Definition.DisplayName : FText::FromName(Stack->MaterialId));
 			SaleNameText->SetColorAndOpacity(FSlateColor(bHasDefinition
 				? Definition.DisplayColor
@@ -500,6 +516,8 @@ void UImmortalShopWidget::RefreshSaleDetails()
 	}
 
 	SaleIcon->SetVisibility(ESlateVisibility::Hidden);
+	SaleIcon->SetBrush(FSlateBrush());
+	SaleFallback->SetVisibility(ESlateVisibility::Hidden);
 	SaleNameText->SetText(FText::FromString(TEXT("请选择出售物品")));
 	SaleNameText->SetColorAndOpacity(FSlateColor(FLinearColor(0.7f, 0.72f, 0.74f, 1.0f)));
 	SaleDetailText->SetText(FText::FromString(TEXT("只会出售背包中的装备；已装备物品不会出现在列表中。")));

@@ -76,6 +76,9 @@ void UImmortalShopEntryWidget::InitializeOfferEntry(
 	ArtBrush = InOwner->GetOfferArt(InListing);
 	EntryId = InListing.ListingId;
 	MaterialId = NAME_None;
+	FallbackIconIndex = InListing.ProductType == EImmortalShopProductType::Artifact ? 6
+		: InListing.ProductType == EImmortalShopProductType::Pill ? 2
+		: InListing.ProductType == EImmortalShopProductType::Material ? 19 : 4;
 	bSelected = bInSelected;
 	bSoldOut = InListing.bSoldOut;
 	DisplayColor = UImmortalShopLibrary::GetListingColor(InListing);
@@ -99,6 +102,8 @@ void UImmortalShopEntryWidget::InitializeEquipmentSaleEntry(
 	ArtBrush = InOwner->GetEquipmentArt(InItem.Slot);
 	EntryId = InItem.ItemId;
 	MaterialId = NAME_None;
+	FallbackIconIndex = InItem.Slot == EImmortalEquipmentSlot::RingLeft
+		|| InItem.Slot == EImmortalEquipmentSlot::RingRight ? 1 : 4;
 	bSelected = bInSelected;
 	bSoldOut = InItem.bLocked;
 	DisplayColor = UImmortalEquipmentLibrary::GetQualityColor(InItem.Quality);
@@ -125,6 +130,8 @@ void UImmortalShopEntryWidget::InitializeMaterialSaleEntry(
 	ArtBrush = InOwner->GetMaterialArt(InStack.MaterialId);
 	EntryId.Invalidate();
 	MaterialId = InStack.MaterialId;
+	FallbackIconIndex = InStack.MaterialId.ToString().Contains(TEXT("Grass"))
+		|| InStack.MaterialId.ToString().Contains(TEXT("Wood")) ? 11 : 19;
 	bSelected = bInSelected;
 	bSoldOut = false;
 	FImmortalMaterialDefinition Definition;
@@ -148,8 +155,9 @@ void UImmortalShopEntryWidget::RefreshAppearance()
 
 	EntryButton->SetStyle(ImmortalUITheme::ButtonStyle(bSelected));
 	ProductArt->SetBrush(ArtBrush);
-	ProductIcon->SetIcon(4);
-	ProductIcon->SetVisibility(ArtBrush.GetResourceObject() ? ESlateVisibility::Hidden : ESlateVisibility::HitTestInvisible);
+	ProductIcon->SetIcon(FallbackIconIndex);
+	ProductIcon->SetVisibility(ArtBrush.DrawAs == ESlateBrushDrawType::Image
+		&& ArtBrush.GetResourceObject() ? ESlateVisibility::Hidden : ESlateVisibility::HitTestInvisible);
 	EntryButton->SetToolTipText(DisplayText);
 	// Unavailable entries remain inspectable; the transaction controls enforce availability.
 	EntryButton->SetIsEnabled(true);

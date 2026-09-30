@@ -73,6 +73,7 @@ private:
 	UPROPERTY(Transient) TObjectPtr<UImage> OfferIcon;
 	UPROPERTY(Transient) TObjectPtr<UImage> SaleIcon;
 	UPROPERTY(Transient) TObjectPtr<UImmortalIconWidget> OfferFallback;
+	UPROPERTY(Transient) TObjectPtr<UImmortalIconWidget> SaleFallback;
 	UPROPERTY(Transient) TObjectPtr<UTextBlock> CurrencyText;
 	UPROPERTY(Transient) TObjectPtr<UTextBlock> OfferNameText;
 	UPROPERTY(Transient) TObjectPtr<UTextBlock> OfferMetaText;

@@ -215,10 +215,13 @@ void UImmortalInventoryWidget::NativeOnInitialized()
 	BulkDismantle.Button->OnClicked.AddDynamic(this, &UImmortalInventoryWidget::HandleBatchDismantleClicked); BatchDismantleButton = BulkDismantle.Button;
 
 	ItemNameText = Text(TEXT("SelectedItemName"), TEXT("请选择物品"), {1120, 68}, {456, 30}, 21);
+	SelectedItemCell = CreateWidget<UImmortalInventorySlotWidget>(GetOwningPlayer(), UImmortalInventorySlotWidget::StaticClass(), TEXT("SelectedItemCell"));
+	SetCanvasLayout(Canvas->AddChildToCanvas(SelectedItemCell), {1120, 109}, {84, 84});
+	SelectedItemCell->SetVisibility(ESlateVisibility::HitTestInvisible);
 	ItemDetailsText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("SelectedItemDetails"));
 	ItemDetailsText->SetAutoWrapText(true);
 	SetTextAppearance(ItemDetailsText, 17, FLinearColor(0.89f, 0.9f, 0.86f));
-	Scroll(TEXT("SelectedItemDetailScroll"), {1120, 105}, {456, 220})->AddChild(ItemDetailsText);
+	Scroll(TEXT("SelectedItemDetailScroll"), {1212, 105}, {364, 220})->AddChild(ItemDetailsText);
 	ComparisonText = Text(TEXT("SelectedItemComparison"), TEXT(""), {1120, 335}, {456, 156}, 16);
 	ComparisonText->SetAutoWrapText(true);
 	ImmortalFeaturePageLayout::MakeScrollable(WidgetTree, ComparisonText);
@@ -491,6 +494,7 @@ void UImmortalInventoryWidget::RebuildBackpackSlots()
 void UImmortalInventoryWidget::RefreshDetails()
 {
 	ItemNameText->SetToolTipText(FText::GetEmpty());
+	SelectedItemCell->SetVisibility(ESlateVisibility::Hidden);
 	ComparisonText->SetColorAndOpacity(FLinearColor(0.87f, 0.88f, 0.79f));
 	if (ActiveCategory == EImmortalInventoryCategory::Material)
 	{
@@ -505,6 +509,11 @@ void UImmortalInventoryWidget::RefreshDetails()
 			return;
 		}
 		ItemNameText->SetText(Definition.DisplayName);
+		FImmortalMaterialStack PreviewStack;
+		PreviewStack.MaterialId = SelectedMaterialId;
+		PreviewStack.Quantity = Quantity;
+		SelectedItemCell->InitializeMaterialSlot(nullptr, PreviewStack, false);
+		SelectedItemCell->SetVisibility(ESlateVisibility::HitTestInvisible);
 		ItemNameText->SetColorAndOpacity(FSlateColor(Definition.DisplayColor));
 		ItemDetailsText->SetText(FText::FromString(FString::Printf(TEXT("%s ×%d\n%s"),
 			*UImmortalMaterialLibrary::GetCategoryText(Definition.Category).ToString(), Quantity, *Definition.Description.ToString())));
@@ -525,6 +534,12 @@ void UImmortalInventoryWidget::RefreshDetails()
 		}
 		ItemNameText->SetText(FText::FromString(FString::Printf(TEXT("%s · %s"), *Definition.DisplayName.ToString(),
 			*UImmortalAlchemyLibrary::GetQualityText(SelectedPillQuality).ToString())));
+		FImmortalPillStack PreviewStack;
+		PreviewStack.PillId = SelectedPillId;
+		PreviewStack.Quality = SelectedPillQuality;
+		PreviewStack.Quantity = Quantity;
+		SelectedItemCell->InitializePillSlot(nullptr, PreviewStack, false);
+		SelectedItemCell->SetVisibility(ESlateVisibility::HitTestInvisible);
 		ItemNameText->SetColorAndOpacity(FSlateColor(UImmortalAlchemyLibrary::GetQualityColor(SelectedPillQuality)));
 		ItemDetailsText->SetText(FText::FromString(FString::Printf(TEXT("持有 %d 枚\n%s\n药效：%s"), Quantity,
 			*Definition.Description.ToString(), *Player->GetEffectivePillEffectText(SelectedPillId, SelectedPillQuality).ToString())));
@@ -549,6 +564,8 @@ void UImmortalInventoryWidget::RefreshDetails()
 		}
 		FImmortalArtifactItem Equipped;
 		const bool bEquipped = Player->GetEquippedArtifact(Equipped) && Equipped.InstanceId == Item->InstanceId;
+		SelectedItemCell->InitializeArtifactSlot(nullptr, *Item, bEquipped, false);
+		SelectedItemCell->SetVisibility(ESlateVisibility::HitTestInvisible);
 		ItemNameText->SetText(Definition.DisplayName);
 		ItemNameText->SetColorAndOpacity(FSlateColor(UImmortalArtifactLibrary::GetQualityColor(Definition.Quality)));
 		ItemDetailsText->SetText(FText::FromString(FString::Printf(TEXT("%s · 等级%d · 星级%d%s\n%s\n%s"),
@@ -574,6 +591,11 @@ void UImmortalInventoryWidget::RefreshDetails()
 		ItemNameText->SetText(Definition.DisplayName);
 		ItemNameText->SetColorAndOpacity(FSlateColor(Definition.DisplayColor));
 		ItemDetailsText->SetText(FText::FromString(FString::Printf(TEXT("持有 ×%d\n%s"), Quantity, *Definition.Description.ToString())));
+		FImmortalQuestItemStack PreviewStack;
+		PreviewStack.QuestItemId = SelectedQuestItemId;
+		PreviewStack.Quantity = Quantity;
+		SelectedItemCell->InitializeQuestItemSlot(nullptr, PreviewStack, false);
+		SelectedItemCell->SetVisibility(ESlateVisibility::HitTestInvisible);
 		ComparisonText->SetText(FText::FromString(TEXT("受任务保护，不占装备背包容量")));
 		return;
 	}
@@ -591,6 +613,8 @@ void UImmortalInventoryWidget::RefreshDetails()
 		return;
 	}
 	ItemNameText->SetText(FText::FromName(Item->DisplayName));
+	SelectedItemCell->InitializeSlot(nullptr, *Item, true, bEquipped, false);
+	SelectedItemCell->SetVisibility(ESlateVisibility::HitTestInvisible);
 	ItemNameText->SetToolTipText(ItemNameText->GetText());
 	ItemNameText->SetColorAndOpacity(FSlateColor(UImmortalEquipmentLibrary::GetQualityColor(Item->Quality)));
 	const float ItemPower = UImmortalEquipmentLibrary::CalculateEquipmentPower(*Item);

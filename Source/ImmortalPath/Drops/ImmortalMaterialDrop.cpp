@@ -55,7 +55,7 @@ void AImmortalMaterialDrop::RefreshVisual()
 	{
 		if (UImmortalMaterialDropWidget* Widget = Cast<UImmortalMaterialDropWidget>(Visual->GetUserWidgetObject()))
 		{
-			Widget->SetMaterial(Definition, Quantity);
+			Widget->SetMaterial(MaterialId, Definition, Quantity);
 		}
 	}
 }

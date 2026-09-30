@@ -71,6 +71,7 @@ private:
 	FName MaterialId = NAME_None;
 	FText DisplayText;
 	FLinearColor DisplayColor = FLinearColor::White;
+	int32 FallbackIconIndex = 4;
 	bool bSelected = false;
 	bool bSoldOut = false;
 };

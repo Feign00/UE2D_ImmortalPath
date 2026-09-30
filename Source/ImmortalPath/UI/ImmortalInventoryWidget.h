@@ -13,6 +13,7 @@ class UTextBlock;
 class UUniformGridPanel;
 class UCanvasPanel;
 class UImage;
+class UImmortalInventorySlotWidget;
 enum class EImmortalEquipmentSlot : uint8;
 
 /** Desktop management page: paper doll, categorized item grid and bounded comparison. */
@@ -90,6 +91,7 @@ private:
 	UPROPERTY(Transient) TObjectPtr<UTextBlock> CombatPowerText;
 	UPROPERTY(Transient) TObjectPtr<UTextBlock> BackpackCountText;
 	UPROPERTY(Transient) TObjectPtr<UTextBlock> ItemNameText;
+	UPROPERTY(Transient) TObjectPtr<UImmortalInventorySlotWidget> SelectedItemCell;
 	UPROPERTY(Transient) TObjectPtr<UTextBlock> ItemDetailsText;
 	UPROPERTY(Transient) TObjectPtr<UTextBlock> ComparisonText;
 	UPROPERTY(Transient) TObjectPtr<UTextBlock> OperationMessageText;

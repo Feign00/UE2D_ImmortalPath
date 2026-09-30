@@ -13,6 +13,10 @@
 #include "../UI/ImmortalFarmingWidget.h"
 #include "../UI/ImmortalInventoryWidget.h"
 #include "../UI/ImmortalInventorySlotWidget.h"
+#include "../UI/ImmortalCraftingArt.h"
+#include "../UI/ImmortalIconWidget.h"
+#include "../UI/ImmortalMaterialDropWidget.h"
+#include "../Drops/ImmortalMaterialDrop.h"
 #include "Components/ButtonSlot.h"
 #include "Components/OverlaySlot.h"
 #include "Components/UniformGridPanel.h"
@@ -25,29 +29,482 @@
 #include "Components/CanvasPanelSlot.h"
 #include "Components/SizeBox.h"
 #include "Components/TextBlock.h"
+#include "Components/WidgetComponent.h"
 #include "Engine/World.h"
 #include "Kismet/GameplayStatics.h"
 #include "Misc/CommandLine.h"
 #include "Misc/Parse.h"
 #include "Misc/Paths.h"
+#include "HAL/FileManager.h"
 #include "TimerManager.h"
 #include "UnrealClient.h"
+#include "UObject/UnrealType.h"
+
+namespace
+{
+	bool IsItemArtVisible(const UWidget* Widget)
+	{
+		return Widget && Widget->GetVisibility() != ESlateVisibility::Hidden
+			&& Widget->GetVisibility() != ESlateVisibility::Collapsed;
+	}
+
+	bool SameItemArt(const FSlateBrush& A, const FSlateBrush& B)
+	{
+		const FBox2f AUV(A.GetUVRegion()), BUV(B.GetUVRegion());
+		return A.DrawAs == ESlateBrushDrawType::Image && B.DrawAs == ESlateBrushDrawType::Image
+			&& A.GetResourceObject() && A.GetResourceObject() == B.GetResourceObject()
+			&& AUV.bIsValid && BUV.bIsValid && AUV.Min.Equals(BUV.Min) && AUV.Max.Equals(BUV.Max);
+	}
+
+	FString ItemArtSignature(const FSlateBrush& Brush)
+	{
+		const FBox2f UV(Brush.GetUVRegion());
+		return FString::Printf(TEXT("%s:%.5f,%.5f,%.5f,%.5f"), *GetPathNameSafe(Brush.GetResourceObject()),
+			UV.Min.X, UV.Min.Y, UV.Max.X, UV.Max.Y);
+	}
+
+	UImmortalInventorySlotWidget* FindItemArtCell(UUniformGridPanel* Grid, const FString& Tooltip)
+	{
+		if (Grid) for (UWidget* Child : Grid->GetAllChildren())
+		{
+			auto* Cell = Cast<UImmortalInventorySlotWidget>(Child);
+			const UButton* Button = Cell && Cell->WidgetTree
+				? Cast<UButton>(Cell->WidgetTree->FindWidget(TEXT("InventorySlotButton"))) : nullptr;
+			if (Button && Button->GetToolTipText().ToString() == Tooltip) return Cell;
+		}
+		return nullptr;
+	}
+}
 #endif
 
 void AImmortalPlayerCharacter::RunDesktopPanelFixture()
 {
 #if !UE_BUILD_SHIPPING
 	const bool bBuildings = FParse::Param(FCommandLine::Get(), TEXT("ImmortalTestDesktopBuildings"));
+	const bool bItemArt = FParse::Param(FCommandLine::Get(), TEXT("ImmortalTestItemArt"));
 	const bool bInventoryPreview = FParse::Param(FCommandLine::Get(), TEXT("ImmortalTestInventoryPreview"));
 	const bool bInventoryFixture = bInventoryPreview || FParse::Param(FCommandLine::Get(), TEXT("ImmortalTestInventoryPanels"));
 	const bool bLayoutPreview = bInventoryPreview || FParse::Param(FCommandLine::Get(), TEXT("ImmortalTestFeatureLayoutPreview"));
-	if (!bBuildings && !bLayoutPreview && !bInventoryFixture && !FParse::Param(FCommandLine::Get(), TEXT("ImmortalTestDesktopPanels"))) return;
+	if (!bBuildings && !bItemArt && !bLayoutPreview && !bInventoryFixture && !FParse::Param(FCommandLine::Get(), TEXT("ImmortalTestDesktopPanels"))) return;
 	FString UserDir;
 	if (!FParse::Value(FCommandLine::Get(), TEXT("UserDir="), UserDir)
 		|| !FPaths::IsUnderDirectory(FPaths::ConvertRelativePathToFull(UserDir),
 			FPaths::ConvertRelativePathToFull(FPaths::Combine(FPaths::ProjectDir(), TEXT("Saved/Automation/DesktopPanels")))))
 	{
 		UE_LOG(LogTemp, Error, TEXT("Desktop panel fixture refused: isolated UserDir required.")); return;
+	}
+	if (bItemArt)
+	{
+		// Deterministic, real player-owned pages; all mutations and saves stay in the isolated UserDir.
+		if (!FParse::Param(FCommandLine::Get(), TEXT("ImmortalTestDisableAutoBattle")))
+		{
+			UE_LOG(LogTemp, Error, TEXT("R06 item art fixture requires ImmortalTestDisableAutoBattle."));
+			FPlatformMisc::RequestExitWithStatus(false, 1);
+			return;
+		}
+		const auto Failures = MakeShared<int32>(0), Checks = MakeShared<int32>(0);
+		const auto Check = [Failures, Checks](const FString& Name, const bool bPassed)
+		{
+			++*Checks;
+			if (!bPassed) ++*Failures;
+			UE_LOG(LogTemp, Display, TEXT("R06 item art check: %s passed=%s"), *Name,
+				bPassed ? TEXT("true") : TEXT("false"));
+		};
+		const auto At = [this](const float Time, TFunction<void()> Work)
+		{
+			FTimerHandle Timer;
+			GetWorldTimerManager().SetTimer(Timer, FTimerDelegate::CreateWeakLambda(this, [Work] { Work(); }), Time, false);
+		};
+		const auto Shot = [UserDir](const FString& Name)
+		{
+			IFileManager::Get().MakeDirectory(*FPaths::Combine(UserDir, TEXT("Screenshots")), true);
+			FScreenshotRequest::RequestScreenshot(FPaths::Combine(UserDir, TEXT("Screenshots"),
+				TEXT("R06_") + Name + TEXT(".png")), true, false);
+		};
+		UTexture2D* EquipmentAtlas = LoadObject<UTexture2D>(nullptr, TEXT("/Game/GAME/Asset/DesktopPixelV2/UI/T_EquipmentAtlas.T_EquipmentAtlas"));
+		UTexture2D* ForgeAtlas = LoadObject<UTexture2D>(nullptr, TEXT("/Game/GAME/Asset/DesktopPixelV2/UI/T_ForgeAtlas.T_ForgeAtlas"));
+		UTexture2D* MaterialAtlas = LoadObject<UTexture2D>(nullptr, TEXT("/Game/GAME/Asset/DesktopPixelV2/UI/T_MaterialAtlas.T_MaterialAtlas"));
+		UTexture2D* AlchemyAtlas = LoadObject<UTexture2D>(nullptr, TEXT("/Game/GAME/Asset/DesktopPixelV2/UI/T_AlchemyAtlas.T_AlchemyAtlas"));
+		Check(TEXT("all three item families and forge atlas load"), EquipmentAtlas && ForgeAtlas && MaterialAtlas && AlchemyAtlas);
+		const TArray<FName> Materials = {TEXT("SpiritGrass"), TEXT("DemonCore"), TEXT("SpiritLiquid"), TEXT("Ore"),
+			TEXT("DemonBone"), TEXT("ArtifactFragment"), TEXT("SpiritIron"), TEXT("ImmortalFruit"), TEXT("SpiritWood")};
+		const TArray<FName> Pills = {TEXT("HealingPill"), TEXT("QiGatheringPill"), TEXT("FoundationPill"),
+			TEXT("EnlightenmentPill"), TEXT("BreakthroughPill")};
+		const auto CheckCell = [Check](UImmortalInventorySlotWidget* Cell, const FSlateBrush& Expected, const FString& Name)
+		{
+			const UImage* Icon = Cell && Cell->WidgetTree ? Cast<UImage>(Cell->WidgetTree->FindWidget(TEXT("InventoryItemIcon"))) : nullptr;
+			const UTextBlock* Glyph = Cell && Cell->WidgetTree ? Cast<UTextBlock>(Cell->WidgetTree->FindWidget(TEXT("InventoryMaterialGlyph"))) : nullptr;
+			Check(Name, IsItemArtVisible(Icon) && SameItemArt(Icon->GetBrush(), Expected)
+				&& Glyph && Glyph->GetVisibility() == ESlateVisibility::Collapsed);
+		};
+		const auto CheckDetail = [this, Check](UImmortalInventorySlotWidget* Cell, const FString& Name)
+		{
+			auto* Preview = PlayerInventoryWidget && PlayerInventoryWidget->WidgetTree
+				? Cast<UImmortalInventorySlotWidget>(PlayerInventoryWidget->WidgetTree->FindWidget(TEXT("SelectedItemCell"))) : nullptr;
+			const UImage* Icon = Cell && Cell->WidgetTree ? Cast<UImage>(Cell->WidgetTree->FindWidget(TEXT("InventoryItemIcon"))) : nullptr;
+			const UImage* Detail = Preview && Preview->WidgetTree ? Cast<UImage>(Preview->WidgetTree->FindWidget(TEXT("InventoryItemIcon"))) : nullptr;
+			Check(Name, IsItemArtVisible(Preview) && IsItemArtVisible(Icon) && IsItemArtVisible(Detail)
+				&& SameItemArt(Icon->GetBrush(), Detail->GetBrush()));
+		};
+		At(0.8f, [this, Materials, Pills]
+		{
+			InvulnerableUntilTime = GetWorld()->GetTimeSeconds() + 120;
+			bAutoEquipNewItems = false;
+			InventoryItems.Reset(); EquippedItems.Reset(); MaterialInventory.Reset(); PillInventory.Reset();
+			ArtifactInventory.Reset(); QuestItemInventory.Reset(); EquippedArtifactInstanceId.Invalidate();
+			for (int32 Index = 0; Index < 9; ++Index)
+			{
+				auto Item = UImmortalEquipmentLibrary::GenerateCraftedEquipment(20 + Index,
+					static_cast<EImmortalEquipmentSlot>(Index), static_cast<EImmortalEquipmentQuality>(Index % 7));
+				Item.bLocked = Index % 2 == 0;
+				InventoryItems.Add(Item);
+			}
+			for (FName Id : Materials) MaterialInventory.Add(FImmortalMaterialStack{Id, 31});
+			for (FName Id : Pills) for (int32 Quality = 0; Quality < 2; ++Quality)
+			{
+				FImmortalPillStack Stack; Stack.PillId = Id; Stack.Quality = static_cast<EImmortalPillQuality>(Quality); Stack.Quantity = 23;
+				PillInventory.Add(Stack);
+			}
+			for (FName Id : UImmortalArtifactLibrary::GetKnownArtifactIds())
+				ArtifactInventory.Add(UImmortalArtifactLibrary::CreateArtifact(Id));
+			for (FName Id : UImmortalInventoryLibrary::GetKnownQuestItemIds()) QuestItemInventory.Add(FImmortalQuestItemStack{Id, 17});
+			++EquipmentInventoryRevision; ++MaterialInventoryRevision; ++PillInventoryRevision;
+			++ArtifactInventoryRevision; ++QuestItemInventoryRevision;
+		});
+		At(1.6f, [this] { OpenManagementFeature(EImmortalManagementFeature::Inventory); });
+		At(2.2f, [this, Check, CheckCell, CheckDetail, EquipmentAtlas]
+		{
+			if (!PlayerInventoryWidget || !PlayerInventoryWidget->WidgetTree) { Check(TEXT("player inventory exists"), false); return; }
+			auto* Grid = Cast<UUniformGridPanel>(PlayerInventoryWidget->WidgetTree->FindWidget(TEXT("BackpackGrid")));
+			Check(TEXT("nine equipment rows exist"), Grid && Grid->GetChildrenCount() >= 9 && InventoryItems.Num() == 9);
+			TSet<FString> DistinctArt;
+			for (int32 Index = 0; Grid && Index < 9 && InventoryItems.IsValidIndex(Index); ++Index)
+			{
+				const auto Item = InventoryItems[Index];
+				auto* Cell = Cast<UImmortalInventorySlotWidget>(Grid->GetChildAt(Index));
+				const FSlateBrush Expected = ImmortalCraftingArt::EquipmentBrush(EquipmentAtlas, Item.Slot);
+				CheckCell(Cell, Expected, FString::Printf(TEXT("equipment %d shared atlas without fallback overlap"), Index));
+				const UImage* Icon = Cell ? Cast<UImage>(Cell->WidgetTree->FindWidget(TEXT("InventoryItemIcon"))) : nullptr;
+				if (Icon) DistinctArt.Add(ItemArtSignature(Icon->GetBrush()));
+				const UImage* Frame = Cell ? Cast<UImage>(Cell->WidgetTree->FindWidget(TEXT("InventoryQualityFrame"))) : nullptr;
+				const UTextBlock* Lock = Cell ? Cast<UTextBlock>(Cell->WidgetTree->FindWidget(TEXT("InventoryLockGlyph"))) : nullptr;
+				const UTextBlock* Level = Cell ? Cast<UTextBlock>(Cell->WidgetTree->FindWidget(TEXT("InventoryItemLevel"))) : nullptr;
+				Check(FString::Printf(TEXT("equipment %d quality lock and level"), Index), IsItemArtVisible(Frame)
+					&& Frame->GetBrush().OutlineSettings.Color.GetSpecifiedColor().Equals(UImmortalEquipmentLibrary::GetQualityColor(Item.Quality))
+					&& Lock && IsItemArtVisible(Lock) == Item.bLocked && IsItemArtVisible(Level)
+					&& Level->GetText().ToString() == FText::AsNumber(Item.ItemLevel).ToString());
+				const UTextBlock* Label = Cell ? Cast<UTextBlock>(Cell->WidgetTree->FindWidget(TEXT("InventorySlotLabel"))) : nullptr;
+				const TCHAR* ExpectedLabel = Item.Slot == EImmortalEquipmentSlot::Bracers ? TEXT("腕")
+					: Item.Slot == EImmortalEquipmentSlot::Belt ? TEXT("带") : Item.Slot == EImmortalEquipmentSlot::RingLeft ? TEXT("戒1")
+					: Item.Slot == EImmortalEquipmentSlot::RingRight ? TEXT("戒2") : TEXT("");
+				Check(FString::Printf(TEXT("equipment %d slot badge"), Index), Label && (FCString::Strlen(ExpectedLabel)
+					? IsItemArtVisible(Label) && Label->GetText().ToString() == ExpectedLabel : !IsItemArtVisible(Label)));
+				PlayerInventoryWidget->HandleSlotSelected(Item.ItemId);
+				// Selection rebuilds the grid, so resolve the current cell before comparing the detail preview.
+				Grid = Cast<UUniformGridPanel>(PlayerInventoryWidget->WidgetTree->FindWidget(TEXT("BackpackGrid")));
+				CheckDetail(Cast<UImmortalInventorySlotWidget>(Grid->GetChildAt(Index)), FString::Printf(TEXT("equipment %d detail matches grid"), Index));
+			}
+			Check(TEXT("all nine equipment UVs are distinct"), DistinctArt.Num() == 9);
+		});
+		At(2.7f, [Shot] { Shot(TEXT("Equipment")); });
+		At(3.2f, [this] { if (PlayerInventoryWidget) PlayerInventoryWidget->ShowMaterialTab(); });
+		At(3.8f, [this, Materials, ForgeAtlas, MaterialAtlas, Check, CheckCell, CheckDetail]
+		{
+			if (!PlayerInventoryWidget) return;
+			TSet<FString> DistinctArt;
+			for (FName Id : Materials)
+			{
+				FImmortalMaterialDefinition Definition; UImmortalMaterialLibrary::GetMaterialDefinition(Id, Definition);
+				PlayerInventoryWidget->HandleMaterialSelected(Id);
+				auto* Grid = Cast<UUniformGridPanel>(PlayerInventoryWidget->WidgetTree->FindWidget(TEXT("BackpackGrid")));
+				auto* Cell = FindItemArtCell(Grid, Definition.DisplayName.ToString());
+				const FSlateBrush Expected = ImmortalCraftingArt::MaterialBrush(ForgeAtlas, MaterialAtlas, Id);
+				CheckCell(Cell, Expected, Id.ToString() + TEXT(" material atlas without fallback overlap"));
+				CheckDetail(Cell, Id.ToString() + TEXT(" material detail matches grid"));
+				if (Cell) DistinctArt.Add(ItemArtSignature(CastChecked<UImage>(Cell->WidgetTree->FindWidget(TEXT("InventoryItemIcon")))->GetBrush()));
+				const UTextBlock* Quantity = Cell ? Cast<UTextBlock>(Cell->WidgetTree->FindWidget(TEXT("InventoryItemLevel"))) : nullptr;
+				Check(Id.ToString() + TEXT(" material quantity"), IsItemArtVisible(Quantity) && Quantity->GetText().ToString() == TEXT("×31"));
+			}
+			Check(TEXT("nine material illustrations are distinct"), DistinctArt.Num() == 9);
+		});
+		At(4.4f, [Shot] { Shot(TEXT("Materials")); });
+		At(5.0f, [this] { if (PlayerInventoryWidget) PlayerInventoryWidget->ShowPillTab(); });
+		At(5.6f, [this, Pills, AlchemyAtlas, Check, CheckCell, CheckDetail]
+		{
+			if (!PlayerInventoryWidget) return;
+			TSet<FString> DistinctArt;
+			for (FName Id : Pills) for (int32 Quality = 0; Quality < 2; ++Quality)
+			{
+				const auto PillQuality = static_cast<EImmortalPillQuality>(Quality);
+				FImmortalPillDefinition Definition; UImmortalAlchemyLibrary::GetPillDefinition(Id, Definition);
+				PlayerInventoryWidget->HandlePillSelected(Id, PillQuality);
+				auto* Grid = Cast<UUniformGridPanel>(PlayerInventoryWidget->WidgetTree->FindWidget(TEXT("BackpackGrid")));
+				auto* Cell = FindItemArtCell(Grid, Definition.DisplayName.ToString() + TEXT(" · ") + UImmortalAlchemyLibrary::GetQualityText(PillQuality).ToString());
+				CheckCell(Cell, ImmortalAlchemyArt::Brush(AlchemyAtlas, Id), Id.ToString() + TEXT(" pill atlas without fallback overlap"));
+				CheckDetail(Cell, Id.ToString() + TEXT(" pill detail matches grid"));
+				const UImage* Icon = Cell ? Cast<UImage>(Cell->WidgetTree->FindWidget(TEXT("InventoryItemIcon"))) : nullptr;
+				if (Icon) DistinctArt.Add(ItemArtSignature(Icon->GetBrush()));
+				const UImage* Frame = Cell ? Cast<UImage>(Cell->WidgetTree->FindWidget(TEXT("InventoryQualityFrame"))) : nullptr;
+				const UTextBlock* Quantity = Cell ? Cast<UTextBlock>(Cell->WidgetTree->FindWidget(TEXT("InventoryItemLevel"))) : nullptr;
+				Check(Id.ToString() + TEXT(" pill quality and quantity"), IsItemArtVisible(Frame)
+					&& Frame->GetBrush().OutlineSettings.Color.GetSpecifiedColor().Equals(UImmortalAlchemyLibrary::GetQualityColor(PillQuality))
+					&& IsItemArtVisible(Quantity) && Quantity->GetText().ToString() == TEXT("×23"));
+			}
+			Check(TEXT("five pill illustrations remain distinct across both qualities"), DistinctArt.Num() == 5);
+		});
+		At(6.2f, [Shot] { Shot(TEXT("Pills")); });
+		for (int32 Kind = 0; Kind < 2; ++Kind)
+		{
+			At(7.0f + Kind * 1.4f, [this, Kind, Check]
+			{
+				if (!PlayerInventoryWidget) return;
+				if (Kind == 0) PlayerInventoryWidget->ShowArtifactTab(); else PlayerInventoryWidget->ShowQuestItemTab();
+				auto* Grid = Cast<UUniformGridPanel>(PlayerInventoryWidget->WidgetTree->FindWidget(TEXT("BackpackGrid")));
+				const int32 Count = Kind == 0 ? ArtifactInventory.Num() : QuestItemInventory.Num();
+				Check(Kind == 0 ? TEXT("artifact fallback catalog is populated") : TEXT("quest fallback catalog is populated"), Grid && Count > 0);
+				for (int32 Index = 0; Grid && Index < Count; ++Index)
+				{
+					if (Kind == 0) PlayerInventoryWidget->HandleArtifactSelected(ArtifactInventory[Index].InstanceId);
+					else PlayerInventoryWidget->HandleQuestItemSelected(QuestItemInventory[Index].QuestItemId);
+					Grid = Cast<UUniformGridPanel>(PlayerInventoryWidget->WidgetTree->FindWidget(TEXT("BackpackGrid")));
+					auto* Cell = Cast<UImmortalInventorySlotWidget>(Grid->GetChildAt(Index));
+					auto* Preview = Cast<UImmortalInventorySlotWidget>(PlayerInventoryWidget->WidgetTree->FindWidget(TEXT("SelectedItemCell")));
+					FText ExpectedGlyph;
+					if (Kind == 0)
+					{
+						FImmortalArtifactDefinition Definition;
+						UImmortalArtifactLibrary::GetArtifactDefinition(ArtifactInventory[Index].ArtifactId, Definition);
+						ExpectedGlyph = Definition.IconGlyph.IsEmpty() ? FText::FromString(TEXT("宝")) : Definition.IconGlyph;
+					}
+					else
+					{
+						FImmortalQuestItemDefinition Definition;
+						UImmortalInventoryLibrary::GetQuestItemDefinition(QuestItemInventory[Index].QuestItemId, Definition);
+						ExpectedGlyph = Definition.IconGlyph.IsEmpty() ? FText::FromString(TEXT("任")) : Definition.IconGlyph;
+					}
+					bool bExplicitFallback = IsItemArtVisible(Preview);
+					for (auto* VisibleCell : {Cell, Preview})
+					{
+						const UImage* Icon = VisibleCell ? Cast<UImage>(VisibleCell->WidgetTree->FindWidget(TEXT("InventoryItemIcon"))) : nullptr;
+						const UTextBlock* Glyph = VisibleCell ? Cast<UTextBlock>(VisibleCell->WidgetTree->FindWidget(TEXT("InventoryMaterialGlyph"))) : nullptr;
+						bExplicitFallback &= Icon && !IsItemArtVisible(Icon) && IsItemArtVisible(Glyph)
+							&& Glyph->GetParent() && Glyph->GetText().ToString() == ExpectedGlyph.ToString();
+					}
+					Check(FString::Printf(TEXT("%s %d grid and detail retain explicit glyph fallback"), Kind == 0 ? TEXT("artifact") : TEXT("quest"), Index), bExplicitFallback);
+				}
+			});
+			At(7.7f + Kind * 1.4f, [Shot, Kind] { Shot(Kind == 0 ? TEXT("ArtifactsFallback") : TEXT("QuestFallback")); });
+		}
+		At(10.0f, [this] { OpenManagementFeature(EImmortalManagementFeature::Alchemy); });
+		At(10.6f, [this, Check, AlchemyAtlas]
+		{
+			auto* Grid = PlayerAlchemyWidget ? Cast<UUniformGridPanel>(PlayerAlchemyWidget->WidgetTree->FindWidget(TEXT("PillGrid"))) : nullptr;
+			Check(TEXT("alchemy owns ten real pill cells"), Grid && Grid->GetChildrenCount() == PillInventory.Num() && PillInventory.Num() == 10);
+			for (int32 Index = 0; Grid && Index < PillInventory.Num(); ++Index)
+			{
+				auto* Cell = Cast<UUserWidget>(Grid->GetChildAt(Index));
+				const UImage* Icon = Cell ? Cast<UImage>(Cell->WidgetTree->FindWidget(TEXT("PillArt"))) : nullptr;
+				const UTextBlock* Glyph = Cell ? Cast<UTextBlock>(Cell->WidgetTree->FindWidget(TEXT("PillGlyph"))) : nullptr;
+				Check(FString::Printf(TEXT("alchemy pill %d uses the same catalog atlas without glyph overlap"), Index), IsItemArtVisible(Icon)
+					&& SameItemArt(Icon->GetBrush(), ImmortalAlchemyArt::Brush(AlchemyAtlas, PillInventory[Index].PillId))
+					&& Glyph && !IsItemArtVisible(Glyph));
+			}
+		});
+		At(11.2f, [Shot] { Shot(TEXT("Alchemy")); });
+		At(12.0f, [this, Materials, Pills]
+		{
+			ShopState.Listings.Reset();
+			ShopState.RefreshDayKey = UImmortalShopLibrary::GetDayKeyFromUtcTicks(FDateTime::UtcNow().GetTicks());
+			for (const auto& Item : InventoryItems)
+			{
+				FImmortalShopListing Listing; Listing.ListingId = FGuid::NewGuid(); Listing.ProductType = EImmortalShopProductType::Equipment;
+				Listing.EquipmentItem = Item; Listing.BundlePrice = 100; ShopState.Listings.Add(Listing);
+			}
+			for (FName Id : Materials)
+			{
+				FImmortalShopListing Listing; Listing.ListingId = FGuid::NewGuid(); Listing.ProductType = EImmortalShopProductType::Material;
+				Listing.ProductId = Id; Listing.BundleQuantity = 31; Listing.BundlePrice = 100; ShopState.Listings.Add(Listing);
+			}
+			for (FName Id : Pills)
+			{
+				FImmortalShopListing Listing; Listing.ListingId = FGuid::NewGuid(); Listing.ProductType = EImmortalShopProductType::Pill;
+				Listing.ProductId = Id; Listing.BundlePrice = 100; ShopState.Listings.Add(Listing);
+			}
+			for (const auto& Item : ArtifactInventory)
+			{
+				FImmortalShopListing Listing; Listing.ListingId = FGuid::NewGuid(); Listing.ProductType = EImmortalShopProductType::Artifact;
+				Listing.ProductId = Item.ArtifactId; Listing.BundlePrice = 100; ShopState.Listings.Add(Listing);
+			}
+			++ShopRevision;
+			OpenManagementFeature(EImmortalManagementFeature::Shop);
+		});
+		At(12.6f, [this, Check, EquipmentAtlas, ForgeAtlas, MaterialAtlas, AlchemyAtlas]
+		{
+			if (!PlayerShopWidget) { Check(TEXT("player shop exists"), false); return; }
+			auto* List = Cast<UVerticalBox>(PlayerShopWidget->WidgetTree->FindWidget(TEXT("ShopOfferList")));
+			Check(TEXT("shop includes all equipment material pill and artifact offers"), List && List->GetChildrenCount() == ShopState.Listings.Num()
+				&& ShopState.Listings.Num() == 27);
+			for (int32 Index = 0; List && Index < ShopState.Listings.Num(); ++Index)
+			{
+				const auto Listing = ShopState.Listings[Index];
+				PlayerShopWidget->SelectOffer(Listing.ListingId);
+				// Selection rebuilds the list; inspect the currently displayed row, not a removed widget.
+				List = Cast<UVerticalBox>(PlayerShopWidget->WidgetTree->FindWidget(TEXT("ShopOfferList")));
+				auto* Row = List ? Cast<UUserWidget>(List->GetChildAt(Index)) : nullptr;
+				const UImage* Art = Row ? Cast<UImage>(Row->WidgetTree->FindWidget(TEXT("ShopEntryArt"))) : nullptr;
+				UImmortalIconWidget* Fallback = nullptr;
+				if (Row) Row->WidgetTree->ForEachWidget([&](UWidget* Widget) { if (auto* Icon = Cast<UImmortalIconWidget>(Widget)) Fallback = Icon; });
+				const UImage* Detail = Cast<UImage>(PlayerShopWidget->WidgetTree->FindWidget(TEXT("ShopOfferIcon")));
+				const UWidget* DetailFallback = PlayerShopWidget->WidgetTree->FindWidget(TEXT("ShopOfferFallback"));
+				const FSlateBrush Expected = Listing.ProductType == EImmortalShopProductType::Equipment
+					? ImmortalCraftingArt::EquipmentBrush(EquipmentAtlas, Listing.EquipmentItem.Slot)
+					: Listing.ProductType == EImmortalShopProductType::Material
+						? ImmortalCraftingArt::MaterialBrush(ForgeAtlas, MaterialAtlas, Listing.ProductId)
+						: Listing.ProductType == EImmortalShopProductType::Pill
+							? ImmortalAlchemyArt::Brush(AlchemyAtlas, Listing.ProductId) : FSlateBrush();
+				const bool bAtlas = Expected.DrawAs == ESlateBrushDrawType::Image && Expected.GetResourceObject();
+				Check(FString::Printf(TEXT("shop offer %d list and detail agree on art or explicit fallback"), Index), Art && Detail && Fallback && DetailFallback
+					&& (bAtlas ? SameItemArt(Art->GetBrush(), Expected) && SameItemArt(Detail->GetBrush(), Expected)
+						&& !IsItemArtVisible(Fallback) && !IsItemArtVisible(DetailFallback)
+						: Art->GetBrush().DrawAs == ESlateBrushDrawType::NoDrawType && Detail->GetBrush().DrawAs == ESlateBrushDrawType::NoDrawType
+						&& IsItemArtVisible(Fallback) && IsItemArtVisible(DetailFallback)));
+			}
+			for (const auto& Item : InventoryItems)
+			{
+				PlayerShopWidget->SelectEquipmentForSale(Item.ItemId);
+				const UImage* Detail = Cast<UImage>(PlayerShopWidget->WidgetTree->FindWidget(TEXT("ShopSaleIcon")));
+				Check(FString::Printf(TEXT("shop equipment sale %d shares inventory catalog"), static_cast<int32>(Item.Slot)), IsItemArtVisible(Detail)
+					&& SameItemArt(Detail->GetBrush(), ImmortalCraftingArt::EquipmentBrush(EquipmentAtlas, Item.Slot)));
+			}
+			for (const auto& Stack : MaterialInventory)
+			{
+				PlayerShopWidget->SelectMaterialForSale(Stack.MaterialId);
+				const UImage* Detail = Cast<UImage>(PlayerShopWidget->WidgetTree->FindWidget(TEXT("ShopSaleIcon")));
+				Check(Stack.MaterialId.ToString() + TEXT(" shop material sale shares inventory catalog"), IsItemArtVisible(Detail)
+					&& SameItemArt(Detail->GetBrush(), ImmortalCraftingArt::MaterialBrush(ForgeAtlas, MaterialAtlas, Stack.MaterialId)));
+			}
+			if (!ShopState.Listings.IsEmpty()) PlayerShopWidget->SelectOffer(ShopState.Listings[0].ListingId);
+		});
+		At(13.2f, [Shot] { Shot(TEXT("ShopEquipment")); });
+		for (int32 Kind = 0; Kind < 3; ++Kind)
+		{
+			At(14.0f + Kind * 1.4f, [this, Kind, Check]
+			{
+				if (!PlayerShopWidget) return;
+				const auto ProductType = Kind == 0 ? EImmortalShopProductType::Material
+					: Kind == 1 ? EImmortalShopProductType::Pill : EImmortalShopProductType::Artifact;
+				const auto* Listing = ShopState.Listings.FindByPredicate([ProductType](const auto& Entry) { return Entry.ProductType == ProductType; });
+				if (Listing) PlayerShopWidget->SelectOffer(Listing->ListingId);
+				Check(TEXT("shop category remains inspectable"), Listing && !UGameplayStatics::IsGamePaused(this));
+				if (Kind == 0 && !MaterialInventory.IsEmpty())
+				{
+					PlayerShopWidget->SelectMaterialForSale(MaterialInventory[0].MaterialId);
+					const UImage* Art = Cast<UImage>(PlayerShopWidget->WidgetTree->FindWidget(TEXT("ShopSaleIcon")));
+					Check(TEXT("shop sale material detail uses shared catalog"), IsItemArtVisible(Art)
+						&& SameItemArt(Art->GetBrush(), PlayerShopWidget->GetMaterialArt(MaterialInventory[0].MaterialId)));
+				}
+			});
+			At(14.7f + Kind * 1.4f, [Shot, Kind] { Shot(Kind == 0 ? TEXT("ShopMaterial") : Kind == 1 ? TEXT("ShopPill") : TEXT("ShopArtifactFallback")); });
+		}
+		At(18.0f, [this, Check]
+		{
+			if (!PlayerShopWidget) { Check(TEXT("shop missing-art fixture has a real page"), false); return; }
+			// Exercise missing assets on this isolated widget instance, never on a class default.
+			for (const FName Name : {FName(TEXT("EquipmentAtlas")), FName(TEXT("ForgeAtlas")),
+				FName(TEXT("MaterialAtlas")), FName(TEXT("AlchemyAtlas"))})
+			{
+				auto* Property = FindFProperty<FSoftObjectProperty>(PlayerShopWidget->GetClass(), Name);
+				Check(Name.ToString() + TEXT(" test instance property exists"), Property != nullptr);
+				if (Property) Property->SetPropertyValue_InContainer(PlayerShopWidget, FSoftObjectPtr());
+			}
+			for (const auto Type : {EImmortalShopProductType::Equipment, EImmortalShopProductType::Material, EImmortalShopProductType::Pill})
+			{
+				const int32 Index = ShopState.Listings.IndexOfByPredicate([Type](const auto& Entry) { return Entry.ProductType == Type; });
+				if (Index == INDEX_NONE) { Check(TEXT("missing-art category has a listing"), false); continue; }
+				PlayerShopWidget->SelectOffer(ShopState.Listings[Index].ListingId);
+				auto* List = Cast<UVerticalBox>(PlayerShopWidget->WidgetTree->FindWidget(TEXT("ShopOfferList")));
+				auto* Row = List ? Cast<UUserWidget>(List->GetChildAt(Index)) : nullptr;
+				const UImage* Art = Row ? Cast<UImage>(Row->WidgetTree->FindWidget(TEXT("ShopEntryArt"))) : nullptr;
+				UImmortalIconWidget* Fallback = nullptr;
+				if (Row) Row->WidgetTree->ForEachWidget([&](UWidget* Widget) { if (auto* Icon = Cast<UImmortalIconWidget>(Widget)) Fallback = Icon; });
+				const UImage* Detail = Cast<UImage>(PlayerShopWidget->WidgetTree->FindWidget(TEXT("ShopOfferIcon")));
+				Check(FString::Printf(TEXT("shop missing-art category %d has live row and detail fallback"), static_cast<int32>(Type)),
+					Art && !Art->GetBrush().GetResourceObject() && IsItemArtVisible(Fallback)
+					&& Detail && !Detail->GetBrush().GetResourceObject()
+					&& IsItemArtVisible(PlayerShopWidget->WidgetTree->FindWidget(TEXT("ShopOfferFallback"))));
+			}
+			if (!InventoryItems.IsEmpty()) PlayerShopWidget->SelectEquipmentForSale(InventoryItems[0].ItemId);
+			Check(TEXT("shop missing equipment sale art has explicit fallback"),
+				!IsItemArtVisible(PlayerShopWidget->WidgetTree->FindWidget(TEXT("ShopSaleIcon")))
+				&& IsItemArtVisible(PlayerShopWidget->WidgetTree->FindWidget(TEXT("ShopSaleFallback"))));
+			if (!MaterialInventory.IsEmpty()) PlayerShopWidget->SelectMaterialForSale(MaterialInventory[0].MaterialId);
+			Check(TEXT("shop missing material sale art has explicit fallback"),
+				!IsItemArtVisible(PlayerShopWidget->WidgetTree->FindWidget(TEXT("ShopSaleIcon")))
+				&& IsItemArtVisible(PlayerShopWidget->WidgetTree->FindWidget(TEXT("ShopSaleFallback"))));
+		});
+		At(18.2f, [Shot] { Shot(TEXT("ShopMissingArtFallback")); });
+		const auto Drops = MakeShared<TArray<TWeakObjectPtr<AImmortalMaterialDrop>>>();
+		At(18.6f, [this, Materials, Drops]
+		{
+			CloseManagementInterface();
+			for (int32 Index = 0; Index < Materials.Num(); ++Index)
+			{
+				const FVector Location = GetActorLocation() + FVector(180 + Index * 130, 0, 95);
+				auto* Drop = GetWorld()->SpawnActor<AImmortalMaterialDrop>(AImmortalMaterialDrop::StaticClass(), Location, FRotator::ZeroRotator);
+				if (!Drop) continue;
+				Drop->SetActorTickEnabled(false);
+				if (auto* Visual = Drop->FindComponentByClass<UWidgetComponent>()) Visual->InitWidget();
+				Drop->SetMaterialDrop(Materials[Index], 31);
+				Drops->Add(Drop);
+			}
+		});
+		At(19.2f, [Materials, Drops, ForgeAtlas, MaterialAtlas, Check]
+		{
+			Check(TEXT("all nine real material actors spawned"), Drops->Num() == Materials.Num());
+			for (const auto& Entry : *Drops)
+			{
+				const auto* Drop = Entry.Get();
+				const auto* Visual = Drop ? Drop->FindComponentByClass<UWidgetComponent>() : nullptr;
+				const auto* Widget = Visual ? Cast<UImmortalMaterialDropWidget>(Visual->GetUserWidgetObject()) : nullptr;
+				const UImage* Icon = Widget ? Cast<UImage>(Widget->WidgetTree->FindWidget(TEXT("MaterialIcon"))) : nullptr;
+				const UTextBlock* Glyph = Widget ? Cast<UTextBlock>(Widget->WidgetTree->FindWidget(TEXT("MaterialGlyph"))) : nullptr;
+				Check(Drop ? Drop->GetMaterialId().ToString() + TEXT(" real drop shares inventory catalog without glyph overlap") : TEXT("material drop exists"),
+					Drop && Drop->GetQuantity() == 31 && IsItemArtVisible(Icon) && Glyph && !IsItemArtVisible(Glyph)
+					&& SameItemArt(Icon->GetBrush(), ImmortalCraftingArt::MaterialBrush(ForgeAtlas, MaterialAtlas, Drop->GetMaterialId())));
+			}
+		});
+		At(19.8f, [Shot] { Shot(TEXT("MaterialDrops")); });
+		At(20.6f, [this, Check, Drops]
+		{
+			for (const auto& Drop : *Drops) if (Drop.IsValid()) Drop->Destroy();
+			OpenManagementFeature(EImmortalManagementFeature::Inventory);
+			InventoryItems.Reset(); EquippedItems.Reset(); MaterialInventory.Reset(); PillInventory.Reset(); ArtifactInventory.Reset(); QuestItemInventory.Reset();
+			++EquipmentInventoryRevision; ++MaterialInventoryRevision; ++PillInventoryRevision; ++ArtifactInventoryRevision; ++QuestItemInventoryRevision;
+			if (!PlayerInventoryWidget) return;
+			for (const auto Category : {EImmortalInventoryCategory::Equipment, EImmortalInventoryCategory::Material,
+				EImmortalInventoryCategory::Pill, EImmortalInventoryCategory::Artifact, EImmortalInventoryCategory::QuestItem})
+			{
+				PlayerInventoryWidget->ShowCategory(Category);
+				auto* Grid = Cast<UUniformGridPanel>(PlayerInventoryWidget->WidgetTree->FindWidget(TEXT("BackpackGrid")));
+				bool bNoStaleArt = Grid != nullptr;
+				if (Grid) for (auto* Child : Grid->GetAllChildren())
+				{
+					auto* Cell = Cast<UImmortalInventorySlotWidget>(Child);
+					for (const TCHAR* Name : {TEXT("InventoryItemIcon"), TEXT("InventoryQualityFrame"), TEXT("InventoryItemLevel"), TEXT("InventoryLockGlyph")})
+						bNoStaleArt &= Cell && !IsItemArtVisible(Cell->WidgetTree->FindWidget(Name));
+				}
+				const UWidget* Detail = PlayerInventoryWidget->WidgetTree->FindWidget(TEXT("SelectedItemCell"));
+				Check(FString::Printf(TEXT("empty category %d clears actual art badges and detail"), static_cast<int32>(Category)), bNoStaleArt && Detail && !IsItemArtVisible(Detail));
+			}
+		});
+		At(21.3f, [Shot] { Shot(TEXT("EmptyCategory")); });
+		At(22.2f, [Failures, Checks]
+		{
+			UE_LOG(LogTemp, Display, TEXT("R06 item art finished: checks=%d failures=%d RESULT: %s"), *Checks, *Failures,
+				*Failures ? TEXT("FAIL") : TEXT("PASS"));
+			FPlatformMisc::RequestExitWithStatus(false, *Failures ? 1 : 0);
+		});
+		return;
 	}
 	if (bInventoryFixture)
 	{

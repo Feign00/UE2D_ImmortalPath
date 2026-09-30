@@ -3,7 +3,9 @@
 #include "ImmortalMaterialDropWidget.h"
 
 #include "../Items/ImmortalMaterialTypes.h"
+#include "ImmortalCraftingArt.h"
 #include "Blueprint/WidgetTree.h"
+#include "Components/Image.h"
 #include "Components/Overlay.h"
 #include "Components/OverlaySlot.h"
 #include "Components/SizeBox.h"
@@ -19,6 +21,18 @@ void UImmortalMaterialDropWidget::NativeOnInitialized()
 
 	UOverlay* Overlay = WidgetTree->ConstructWidget<UOverlay>(UOverlay::StaticClass(), TEXT("MaterialDropLayers"));
 	Root->AddChild(Overlay);
+
+	USizeBox* IconSize = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass(), TEXT("MaterialIconSize"));
+	IconSize->SetWidthOverride(64.0f);
+	IconSize->SetHeightOverride(64.0f);
+	IconImage = WidgetTree->ConstructWidget<UImage>(UImage::StaticClass(), TEXT("MaterialIcon"));
+	IconImage->SetVisibility(ESlateVisibility::Collapsed);
+	IconSize->AddChild(IconImage);
+	if (UOverlaySlot* IconOverlaySlot = Overlay->AddChildToOverlay(IconSize))
+	{
+		IconOverlaySlot->SetHorizontalAlignment(HAlign_Center);
+		IconOverlaySlot->SetVerticalAlignment(VAlign_Top);
+	}
 
 	GlyphText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("MaterialGlyph"));
 	GlyphText->SetText(FText::FromString(TEXT("◆")));
@@ -51,14 +65,24 @@ void UImmortalMaterialDropWidget::NativeOnInitialized()
 }
 
 void UImmortalMaterialDropWidget::SetMaterial(
+	const FName MaterialId,
 	const FImmortalMaterialDefinition& Definition,
 	const int32 Quantity)
 {
+	const FSlateBrush IconBrush = ImmortalCraftingArt::MaterialBrush(
+		ForgeAtlas.LoadSynchronous(), MaterialAtlas.LoadSynchronous(), MaterialId);
+	const bool bHasIcon = IconBrush.DrawAs == ESlateBrushDrawType::Image && IconBrush.GetResourceObject();
+	if (IconImage)
+	{
+		IconImage->SetBrush(IconBrush);
+		IconImage->SetVisibility(bHasIcon ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Collapsed);
+	}
 	if (GlyphText)
 	{
 		GlyphText->SetText(Definition.IconGlyph.IsEmpty() ? FText::FromString(TEXT("◆")) : Definition.IconGlyph);
 		GlyphText->SetColorAndOpacity(FSlateColor(Definition.DisplayColor));
 		GlyphText->SetShadowColorAndOpacity(Definition.DisplayColor.CopyWithNewOpacity(0.75f));
+		GlyphText->SetVisibility(bHasIcon ? ESlateVisibility::Collapsed : ESlateVisibility::HitTestInvisible);
 	}
 	if (NameText)
 	{
