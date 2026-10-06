@@ -1,0 +1,51 @@
+{
+  "source": "sources/hurt-regrid-v1.png",
+  "sourceSha256": "3cb6f5473a3094cb168ed2cd4739b562820565384998eb4806723fde344f7903",
+  "columns": 4,
+  "rows": 2,
+  "anchors": [
+    [
+      170,
+      448
+    ],
+    [
+      164,
+      448
+    ],
+    [
+      164,
+      448
+    ],
+    [
+      154,
+      448
+    ],
+    [
+      170,
+      415
+    ],
+    [
+      162,
+      416
+    ],
+    [
+      170,
+      416
+    ],
+    [
+      170,
+      416
+    ]
+  ],
+  "targetAnchor": [
+    256,
+    336
+  ],
+  "scale": 0.7,
+  "outputFrameSize": [
+    512,
+    384
+  ],
+  "alphaThreshold": 128,
+  "bottomTolerance": 2
+}

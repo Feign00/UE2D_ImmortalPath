@@ -1,0 +1,205 @@
+{
+  "sourceSha256": "3cb6f5473a3094cb168ed2cd4739b562820565384998eb4806723fde344f7903",
+  "settings": {
+    "source": "sources/hurt-regrid-v1.png",
+    "sourceSha256": "3cb6f5473a3094cb168ed2cd4739b562820565384998eb4806723fde344f7903",
+    "columns": 4,
+    "rows": 2,
+    "anchors": [
+      [
+        170,
+        448
+      ],
+      [
+        164,
+        448
+      ],
+      [
+        164,
+        448
+      ],
+      [
+        154,
+        448
+      ],
+      [
+        170,
+        415
+      ],
+      [
+        162,
+        416
+      ],
+      [
+        170,
+        416
+      ],
+      [
+        170,
+        416
+      ]
+    ],
+    "targetAnchor": [
+      256,
+      336
+    ],
+    "scale": 0.7,
+    "outputFrameSize": [
+      512,
+      384
+    ],
+    "alphaThreshold": 128,
+    "bottomTolerance": 2
+  },
+  "report": {
+    "width": 2048,
+    "height": 768,
+    "columns": 4,
+    "rows": 2,
+    "cellWidth": 512,
+    "cellHeight": 384,
+    "alphaThreshold": 128,
+    "bottomTolerance": 2,
+    "frames": [
+      {
+        "frame": 0,
+        "clear": 170058,
+        "partial": 0,
+        "opaque": 26550,
+        "solid": 26550,
+        "maxAlpha": 255,
+        "bounds": {
+          "left": 158,
+          "top": 118,
+          "right": 404,
+          "bottom": 336
+        },
+        "touchesCellEdge": false,
+        "maskedSha256": "26fd9177af8f47cd725b1dda58ad73dc8f3e4277b6f067367922e5248e41dd6f",
+        "sha256": "26fd9177af8f47cd725b1dda58ad73dc8f3e4277b6f067367922e5248e41dd6f"
+      },
+      {
+        "frame": 1,
+        "clear": 170913,
+        "partial": 0,
+        "opaque": 25695,
+        "solid": 25695,
+        "maxAlpha": 255,
+        "bounds": {
+          "left": 155,
+          "top": 139,
+          "right": 402,
+          "bottom": 336
+        },
+        "touchesCellEdge": false,
+        "maskedSha256": "dd4b63ae884cf2fdd4817ab8fcabad1bd1287e63d19ca34c347e3b3575586513",
+        "sha256": "dd4b63ae884cf2fdd4817ab8fcabad1bd1287e63d19ca34c347e3b3575586513"
+      },
+      {
+        "frame": 2,
+        "clear": 172402,
+        "partial": 0,
+        "opaque": 24206,
+        "solid": 24206,
+        "maxAlpha": 255,
+        "bounds": {
+          "left": 146,
+          "top": 158,
+          "right": 413,
+          "bottom": 336
+        },
+        "touchesCellEdge": false,
+        "maskedSha256": "dd69bf17c23f484196fe9ef079d2c3d6870cd09ebc02dc816624c4f2f7887ada",
+        "sha256": "dd69bf17c23f484196fe9ef079d2c3d6870cd09ebc02dc816624c4f2f7887ada"
+      },
+      {
+        "frame": 3,
+        "clear": 171815,
+        "partial": 0,
+        "opaque": 24793,
+        "solid": 24793,
+        "maxAlpha": 255,
+        "bounds": {
+          "left": 151,
+          "top": 149,
+          "right": 397,
+          "bottom": 336
+        },
+        "touchesCellEdge": false,
+        "maskedSha256": "d67859b9d07a7abbdcb0ef1445cb36e215f6d298391cdabfa4f0d97d1ce8e7a9",
+        "sha256": "d67859b9d07a7abbdcb0ef1445cb36e215f6d298391cdabfa4f0d97d1ce8e7a9"
+      },
+      {
+        "frame": 4,
+        "clear": 168114,
+        "partial": 0,
+        "opaque": 28494,
+        "solid": 28494,
+        "maxAlpha": 255,
+        "bounds": {
+          "left": 157,
+          "top": 121,
+          "right": 405,
+          "bottom": 336
+        },
+        "touchesCellEdge": false,
+        "maskedSha256": "f2ed6f0aef0bdc5fa382f15f3909ef206c5da2c7ba0a6fc6dbbb017d4629a30e",
+        "sha256": "f2ed6f0aef0bdc5fa382f15f3909ef206c5da2c7ba0a6fc6dbbb017d4629a30e"
+      },
+      {
+        "frame": 5,
+        "clear": 169093,
+        "partial": 0,
+        "opaque": 27515,
+        "solid": 27515,
+        "maxAlpha": 255,
+        "bounds": {
+          "left": 156,
+          "top": 114,
+          "right": 404,
+          "bottom": 336
+        },
+        "touchesCellEdge": false,
+        "maskedSha256": "3dc597f29b15e2998f8440629916718ca1a95199edd574920b10e50ae65b882d",
+        "sha256": "3dc597f29b15e2998f8440629916718ca1a95199edd574920b10e50ae65b882d"
+      },
+      {
+        "frame": 6,
+        "clear": 169080,
+        "partial": 0,
+        "opaque": 27528,
+        "solid": 27528,
+        "maxAlpha": 255,
+        "bounds": {
+          "left": 155,
+          "top": 114,
+          "right": 404,
+          "bottom": 336
+        },
+        "touchesCellEdge": false,
+        "maskedSha256": "35ff14c4e2546ca0a038f8c0e281e7c2515b140242cb95f4d9a953c7027c593f",
+        "sha256": "35ff14c4e2546ca0a038f8c0e281e7c2515b140242cb95f4d9a953c7027c593f"
+      },
+      {
+        "frame": 7,
+        "clear": 169384,
+        "partial": 0,
+        "opaque": 27224,
+        "solid": 27224,
+        "maxAlpha": 255,
+        "bounds": {
+          "left": 154,
+          "top": 114,
+          "right": 401,
+          "bottom": 336
+        },
+        "touchesCellEdge": false,
+        "maskedSha256": "976fff8064f46a60fc23fd3289a59420cb0fde12fbb83b678f5b06fd4d3087dd",
+        "sha256": "976fff8064f46a60fc23fd3289a59420cb0fde12fbb83b678f5b06fd4d3087dd"
+      }
+    ],
+    "silhouetteBottomSpread": 0,
+    "warnings": [],
+    "note": "Bounds are not anatomical foot anchors. Human visual/animation review is required."
+  }
+}

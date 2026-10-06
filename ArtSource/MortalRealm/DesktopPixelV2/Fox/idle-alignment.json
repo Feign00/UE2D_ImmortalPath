@@ -1,0 +1,51 @@
+{
+  "source": "sources/idle-regrid-v1.png",
+  "sourceSha256": "262306f80ac2310c5544b0eb41bded93a410da07927fdd818a68f5e8858708cb",
+  "columns": 4,
+  "rows": 2,
+  "anchors": [
+    [
+      170,
+      446
+    ],
+    [
+      170,
+      446
+    ],
+    [
+      170,
+      446
+    ],
+    [
+      170,
+      446
+    ],
+    [
+      170,
+      413
+    ],
+    [
+      170,
+      413
+    ],
+    [
+      170,
+      414
+    ],
+    [
+      170,
+      414
+    ]
+  ],
+  "targetAnchor": [
+    256,
+    336
+  ],
+  "scale": 0.7,
+  "outputFrameSize": [
+    512,
+    384
+  ],
+  "alphaThreshold": 128,
+  "bottomTolerance": 2
+}

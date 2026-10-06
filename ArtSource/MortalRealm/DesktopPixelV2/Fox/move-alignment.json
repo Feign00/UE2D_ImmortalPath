@@ -1,0 +1,51 @@
+{
+  "source": "sources/move-regrid-v1.png",
+  "sourceSha256": "47fa40bd0767f0bd923fbc94cb774cfb4e2486718f1396a38022ed515cbec96e",
+  "columns": 4,
+  "rows": 2,
+  "anchors": [
+    [
+      170,
+      446
+    ],
+    [
+      170,
+      446
+    ],
+    [
+      170,
+      446
+    ],
+    [
+      170,
+      446
+    ],
+    [
+      170,
+      407
+    ],
+    [
+      159,
+      407
+    ],
+    [
+      170,
+      407
+    ],
+    [
+      170,
+      407
+    ]
+  ],
+  "targetAnchor": [
+    256,
+    336
+  ],
+  "scale": 0.7,
+  "outputFrameSize": [
+    512,
+    384
+  ],
+  "alphaThreshold": 128,
+  "bottomTolerance": 2
+}

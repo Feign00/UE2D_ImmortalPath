@@ -59,7 +59,10 @@ namespace
 		const TCHAR* MoveFlipbookPath,
 		const TCHAR* AttackFlipbookPath,
 		const TCHAR* HurtFlipbookPath,
-		const TCHAR* DeathFlipbookPath)
+		const TCHAR* DeathFlipbookPath,
+		const TCHAR* IdleFlipbookPath = nullptr,
+		const EImmortalPetFootAnchorMode FootAnchorMode = EImmortalPetFootAnchorMode::LegacyOffset,
+		const float AttackContactSeconds = -1.0f)
 	{
 		FImmortalPetDefinition Result;
 		Result.DisplayName = FText::FromString(DisplayName);
@@ -79,6 +82,13 @@ namespace
 		Result.FollowOffsetX = FollowOffsetX;
 		Result.VisualScale = VisualScale;
 		Result.DisplayColor = DisplayColor;
+		Result.FootAnchorMode = FootAnchorMode;
+		Result.AttackContactSeconds = AttackContactSeconds;
+		if (IdleFlipbookPath)
+		{
+			Result.IdleFlipbook = TSoftObjectPtr<UPaperFlipbook>(
+				FSoftObjectPath(IdleFlipbookPath));
+		}
 		Result.MoveFlipbook = TSoftObjectPtr<UPaperFlipbook>(
 			FSoftObjectPath(MoveFlipbookPath));
 		Result.AttackFlipbook = TSoftObjectPtr<UPaperFlipbook>(
@@ -112,12 +122,15 @@ namespace
 					0.16f,
 					560.0f,
 					150.0f,
-					0.55f,
-					FLinearColor(0.96f, 0.56f, 0.80f, 1.0f),
-					TEXT("/Game/GAME/Asset/Player/fox_move/fox_moveleft.fox_moveleft"),
-					TEXT("/Game/GAME/Asset/Player/fox_attcak/foxattack.foxattack"),
-					TEXT("/Game/GAME/Asset/Player/fox_hurt/foxhurt.foxhurt"),
-					TEXT("/Game/GAME/Asset/Player/fox_death/death_fox.death_fox"))
+					1.25f,
+					FLinearColor::White,
+					TEXT("/Game/GAME/Asset/Monsters/desktop_pixel_v2/fox/FB_Fox_Pixel_Move.FB_Fox_Pixel_Move"),
+					TEXT("/Game/GAME/Asset/Monsters/desktop_pixel_v2/fox/FB_Fox_Pixel_Attack.FB_Fox_Pixel_Attack"),
+					TEXT("/Game/GAME/Asset/Monsters/desktop_pixel_v2/fox/FB_Fox_Pixel_Hurt.FB_Fox_Pixel_Hurt"),
+					TEXT("/Game/GAME/Asset/Monsters/desktop_pixel_v2/fox/FB_Fox_Pixel_Death.FB_Fox_Pixel_Death"),
+					TEXT("/Game/GAME/Asset/Monsters/desktop_pixel_v2/fox/FB_Fox_Pixel_Idle.FB_Fox_Pixel_Idle"),
+					EImmortalPetFootAnchorMode::PlayerBattleLane,
+					0.25f)
 			},
 			{
 				SpiritHoundId,
@@ -226,6 +239,8 @@ bool FImmortalPetDefinition::IsValid() const
 		&& DamageRatioPerStar >= 0.0f
 		&& FMath::IsFinite(AttackInterval)
 		&& AttackInterval >= 0.1f
+		&& FMath::IsFinite(AttackContactSeconds)
+		&& (AttackContactSeconds == -1.0f || AttackContactSeconds >= 0.0f)
 		&& FMath::IsFinite(AttackRange)
 		&& AttackRange >= 1.0f
 		&& FMath::IsFinite(SearchRange)
@@ -239,7 +254,40 @@ bool FImmortalPetDefinition::IsValid() const
 		&& FMath::IsFinite(MaximumLeashDistance)
 		&& MaximumLeashDistance >= AttackRange
 		&& FMath::IsFinite(VisualScale)
-		&& VisualScale > 0.0f;
+		&& VisualScale > 0.0f
+		&& (FootAnchorMode == EImmortalPetFootAnchorMode::LegacyOffset
+			|| FootAnchorMode == EImmortalPetFootAnchorMode::CapsuleBottom
+			|| FootAnchorMode == EImmortalPetFootAnchorMode::PlayerBattleLane);
+}
+
+float FImmortalPetDefinition::GetSpriteRelativeZ(
+	const float BaseSpriteRelativeZ,
+	const float CapsuleHalfHeight) const
+{
+	if (FootAnchorMode == EImmortalPetFootAnchorMode::CapsuleBottom
+		|| FootAnchorMode == EImmortalPetFootAnchorMode::PlayerBattleLane)
+	{
+		// PlayerBattleLane starts here when no owner foot plane is available.
+		// A foot-pivot sprite is grounded independently of its visual scale.
+		return -FMath::Max(CapsuleHalfHeight, 0.0f);
+	}
+	return BaseSpriteRelativeZ + 34.0f;
+}
+
+float FImmortalPetDefinition::GetAttackContactDelay(
+	const float AnimationDuration) const
+{
+	const float SafeDuration = FMath::IsFinite(AnimationDuration)
+		? FMath::Max(AnimationDuration, 0.01f) : 0.01f;
+	if (FMath::IsFinite(AttackContactSeconds) && AttackContactSeconds >= 0.0f)
+	{
+		// An explicit contact never fires after the one-shot has completed.
+		return FMath::Clamp(AttackContactSeconds,
+			0.0f, FMath::Max(SafeDuration - 0.01f, 0.0f));
+	}
+	const float MaximumWindup = FMath::Max(
+		FMath::Min(SafeDuration * 0.80f, 0.45f), 0.05f);
+	return FMath::Clamp(SafeDuration * 0.45f, 0.05f, MaximumWindup);
 }
 
 TArray<FName> UImmortalPetLibrary::GetKnownPetIds()

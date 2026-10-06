@@ -3,6 +3,7 @@
 #include "ImmortalPlayerCharacter.h"
 #include "ImmortalAnimationPlayback.h"
 #include "ImmortalPixelAnimationPreview.h"
+#include "ImmortalFoxAnimationFixture.h"
 #include "../UI/ImmortalDesktopPanelLayout.h"
 
 #include "../Combat/AutoAttackTarget.h"
@@ -420,6 +421,12 @@ void AImmortalPlayerCharacter::Tick(const float DeltaSeconds)
 
 void AImmortalPlayerCharacter::BeginPlay()
 {
+	if (!ImmortalFoxAnimationFixture::CheckPreflightIfRequested())
+	{
+		// Refused fixtures must not create an EndPlay fallback save either.
+		bSaveRecoveryRequired = true;
+		return;
+	}
 	Super::BeginPlay();
 	LoadMortalRealmAnimationSet();
 	InventoryItems.Reset();
@@ -5010,6 +5017,7 @@ void AImmortalPlayerCharacter::BeginPlay()
 	}
 #endif
 	ImmortalPixelAnimationPreview::StartIfRequested(*this);
+	ImmortalFoxAnimationFixture::StartIfRequested(*this);
 	RunPixelPlayerIntegrationFixture();
 	RunHighSpeedCombatFixture();
 	RunDesktopPanelFixture();

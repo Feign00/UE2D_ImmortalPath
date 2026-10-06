@@ -211,6 +211,10 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Immortal Path|Monster|Animation", meta = (Units = "cm"))
 	float VisualDepthOffset = -100.0f;
 
+	/** Opt in only for authored foot-pivot art. Old center-pivot monsters keep their placement. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Immortal Path|Monster|Animation")
+	bool bAlignSpriteToPlayerLane = false;
+
 	/** Keeps monster artwork in front of the tile map when translucent sprite materials are used. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Immortal Path|Monster|Animation")
 	int32 VisualSortPriority = 10;
@@ -336,6 +340,8 @@ protected:
 	void BP_OnBossSkillStarted(AActor* Target);
 
 private:
+	void UpdateBattleSpritePlacement();
+	void SetHealthBarPresentationHeight(float ExtraHeight = 0.0f);
 	void AcquireCombatTarget();
 	void UpdateAutoCombat(float DeltaSeconds);
 	void StartAttack();
@@ -356,6 +362,7 @@ private:
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Immortal Path|Monster", meta = (AllowPrivateAccess = "true"))
 	bool bDead = false;
 	bool bSuppressGenericMapRewardsThisDeath = false;
+	float HealthBarPresentationExtraHeight = 0.0f;
 
 	UPROPERTY(Transient)
 	TWeakObjectPtr<APawn> CombatTarget;

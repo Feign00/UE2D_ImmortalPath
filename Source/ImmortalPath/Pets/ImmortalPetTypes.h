@@ -18,6 +18,17 @@ enum class EImmortalPetAttackStyle : uint8
 	Ranged UMETA(DisplayName = "Ranged")
 };
 
+UENUM(BlueprintType)
+enum class EImmortalPetFootAnchorMode : uint8
+{
+	/** Preserves the supplied Fox/Dog sprite offset used by legacy catalogs. */
+	LegacyOffset UMETA(DisplayName = "Legacy Sprite Offset"),
+	/** The authored sprite pivot is the foot contact point on the capsule bottom. */
+	CapsuleBottom UMETA(DisplayName = "Foot Pivot at Capsule Bottom"),
+	/** Aligns only the sprite to the owner's visible battle foot plane and depth. */
+	PlayerBattleLane UMETA(DisplayName = "Player's Visual Battle Lane")
+};
+
 /**
  * Data-driven definition for one combat pet.
  *
@@ -63,6 +74,10 @@ struct IMMORTALPATH_API FImmortalPetDefinition : public FTableRowBase
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Pet|Combat", meta = (ClampMin = "0.1", Units = "s"))
 	float AttackInterval = 1.35f;
 
+	/** -1 keeps legacy 45-percent timing. Nonnegative values use an authored contact time. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Pet|Combat", meta = (ClampMin = "-1.0", Units = "s"))
+	float AttackContactSeconds = -1.0f;
+
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Pet|Combat", meta = (ClampMin = "1.0", Units = "cm"))
 	float AttackRange = 260.0f;
 
@@ -89,6 +104,9 @@ struct IMMORTALPATH_API FImmortalPetDefinition : public FTableRowBase
 	FLinearColor DisplayColor = FLinearColor::White;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Pet|Presentation")
+	EImmortalPetFootAnchorMode FootAnchorMode = EImmortalPetFootAnchorMode::LegacyOffset;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Pet|Presentation")
 	TSoftObjectPtr<UPaperFlipbook> MoveFlipbook;
 
 	/** Optional idle art; legacy catalogs keep a stationary move-frame fallback. */
@@ -107,6 +125,8 @@ struct IMMORTALPATH_API FImmortalPetDefinition : public FTableRowBase
 	TSoftObjectPtr<UPaperFlipbook> DeathFlipbook;
 
 	bool IsValid() const;
+	float GetSpriteRelativeZ(float BaseSpriteRelativeZ, float CapsuleHalfHeight) const;
+	float GetAttackContactDelay(float AnimationDuration) const;
 };
 
 /** Persistent growth for one catalog entry. Runtime actors and targets are never serialized. */

@@ -1,0 +1,51 @@
+{
+  "source": "sources/attack-regrid-v1.png",
+  "sourceSha256": "b7c583a7bf0cb185d0d7d658f3d481dad968ea698dfa4651a4d4054162ce0b55",
+  "columns": 4,
+  "rows": 2,
+  "anchors": [
+    [
+      170,
+      447
+    ],
+    [
+      164,
+      447
+    ],
+    [
+      158,
+      447
+    ],
+    [
+      192,
+      450
+    ],
+    [
+      170,
+      406
+    ],
+    [
+      154,
+      411
+    ],
+    [
+      162,
+      415
+    ],
+    [
+      162,
+      415
+    ]
+  ],
+  "targetAnchor": [
+    256,
+    336
+  ],
+  "scale": 0.7,
+  "outputFrameSize": [
+    512,
+    384
+  ],
+  "alphaThreshold": 128,
+  "bottomTolerance": 2
+}

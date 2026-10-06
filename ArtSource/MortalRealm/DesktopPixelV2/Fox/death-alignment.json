@@ -1,0 +1,51 @@
+{
+  "source": "sources/death-regrid-v1.png",
+  "sourceSha256": "47c4401801e582c85d231353317314bb5dc4310b8fec9f10416def3a35a21ad9",
+  "columns": 4,
+  "rows": 2,
+  "anchors": [
+    [
+      170,
+      445
+    ],
+    [
+      164,
+      445
+    ],
+    [
+      158,
+      445
+    ],
+    [
+      177,
+      445
+    ],
+    [
+      170,
+      378
+    ],
+    [
+      170,
+      381
+    ],
+    [
+      170,
+      381
+    ],
+    [
+      170,
+      381
+    ]
+  ],
+  "targetAnchor": [
+    256,
+    336
+  ],
+  "scale": 0.7,
+  "outputFrameSize": [
+    512,
+    384
+  ],
+  "alphaThreshold": 128,
+  "bottomTolerance": 4
+}

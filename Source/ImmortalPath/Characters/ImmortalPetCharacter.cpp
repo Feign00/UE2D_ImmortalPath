@@ -2,6 +2,7 @@
 
 #include "ImmortalPetCharacter.h"
 #include "ImmortalAnimationPlayback.h"
+#include "ImmortalBattleSpritePlacement.h"
 
 #include "../Combat/AutoAttackTarget.h"
 #include "ImmortalPlayerCharacter.h"
@@ -82,6 +83,11 @@ void AImmortalPetCharacter::Tick(const float DeltaSeconds)
 	{
 		return;
 	}
+	if (ActiveDefinition.FootAnchorMode == EImmortalPetFootAnchorMode::PlayerBattleLane)
+	{
+		// One-shots and owner-death poses must remain on the visual battle lane too.
+		ImmortalBattleSpritePlacement::AlignToReferenceFootPlane(*this, *Player);
+	}
 
 	if (Player->IsDead())
 	{
@@ -99,6 +105,11 @@ void AImmortalPetCharacter::Tick(const float DeltaSeconds)
 
 	UpdateFollowAndCombat(DeltaSeconds);
 	UpdateLocomotionAnimation();
+	if (ActiveDefinition.FootAnchorMode == EImmortalPetFootAnchorMode::PlayerBattleLane)
+	{
+		// Follow recovery may teleport the actor; reapply only its sprite placement.
+		ImmortalBattleSpritePlacement::AlignToReferenceFootPlane(*this, *Player);
+	}
 }
 
 bool AImmortalPetCharacter::InitializeForPlayer(
@@ -134,6 +145,10 @@ bool AImmortalPetCharacter::InitializeForPlayer(
 		false,
 		nullptr,
 		ETeleportType::TeleportPhysics);
+	if (ActiveDefinition.FootAnchorMode == EImmortalPetFootAnchorMode::PlayerBattleLane)
+	{
+		ImmortalBattleSpritePlacement::AlignToReferenceFootPlane(*this, *InPlayer);
+	}
 	if (InPlayer->IsDead())
 	{
 		EnterOwnerDeathState();
@@ -177,18 +192,21 @@ void AImmortalPetCharacter::RefreshFromPersistentState()
 		FMath::Max(ActiveDefinition.MovementSpeed, 1.0f);
 	if (UPaperFlipbookComponent* SpriteComponent = GetSprite())
 	{
-		SpriteComponent->SetRelativeLocation(
-			BaseSpriteRelativeLocation
-				// The TBH camera sits on the positive-Y side of the 2D plane.
-				// Keep the pet in front of opaque tile-map layers and lift the
-				// supplied Fox/Dog pivots slightly above the walk surface.
-				+ FVector(0.0f, 160.0f, 34.0f));
+		// The TBH camera sits on the positive-Y side of the 2D plane.
+		FVector SpriteLocation = BaseSpriteRelativeLocation + FVector(0.0f, 160.0f, 0.0f);
+		SpriteLocation.Z = ActiveDefinition.GetSpriteRelativeZ(
+			BaseSpriteRelativeLocation.Z, GetCapsuleComponent()->GetUnscaledCapsuleHalfHeight());
+		SpriteComponent->SetRelativeLocation(SpriteLocation);
 		SpriteComponent->SetRelativeScale3D(
 			FVector(
 				FMath::Max(ActiveDefinition.VisualScale, 0.1f)));
 		SpriteComponent->SetSpriteColor(
 			ActiveDefinition.DisplayColor);
 		SpriteComponent->SetTranslucentSortPriority(15);
+	}
+	if (ActiveDefinition.FootAnchorMode == EImmortalPetFootAnchorMode::PlayerBattleLane)
+	{
+		ImmortalBattleSpritePlacement::AlignToReferenceFootPlane(*this, *Player);
 	}
 
 	bRuntimeDefinitionValid = true;
@@ -555,25 +573,27 @@ void AImmortalPetCharacter::BeginAttack(AActor* Target)
 
 	const float AnimationDuration =
 		GetAnimationDuration(AttackFlipbook, 0.60f);
-	const float MaximumWindup = FMath::Max(
-		FMath::Min(AnimationDuration * 0.80f, 0.45f),
-		0.05f);
-	const float AttackWindup = FMath::Clamp(
-		AnimationDuration * 0.45f,
-		0.05f,
-		MaximumWindup);
-	GetWorldTimerManager().SetTimer(
-		AttackWindupTimerHandle,
-		this,
-		&AImmortalPetCharacter::ResolveAttack,
-		AttackWindup,
-		false);
+	const float AttackWindup = ActiveDefinition.GetAttackContactDelay(AnimationDuration);
+	if (AttackWindup > 0.0f)
+	{
+		// Preserve legacy contact-before-finish timer ordering during long frames.
+		GetWorldTimerManager().SetTimer(
+			AttackWindupTimerHandle,
+			this,
+			&AImmortalPetCharacter::ResolveAttack,
+			AttackWindup,
+			false);
+	}
 	GetWorldTimerManager().SetTimer(
 		AttackFinishTimerHandle,
 		this,
 		&AImmortalPetCharacter::FinishAttack,
 		FMath::Max(AnimationDuration, AttackWindup + 0.01f),
 		false);
+	if (AttackWindup <= 0.0f)
+	{
+		ResolveAttack();
+	}
 }
 
 void AImmortalPetCharacter::ResolveAttack()

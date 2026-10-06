@@ -2,6 +2,7 @@
 
 #include "ImmortalMonsterCharacter.h"
 #include "ImmortalAnimationPlayback.h"
+#include "ImmortalBattleSpritePlacement.h"
 
 #include "../Drops/ImmortalEquipmentDrop.h"
 #include "../Drops/ImmortalMaterialDrop.h"
@@ -55,7 +56,7 @@ void AImmortalMonsterCharacter::BeginPlay()
 	bDead = false;
 	NextAttackTime = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0f;
 	GetCharacterMovement()->MaxWalkSpeed = FMath::Max(MovementSpeed, 0.0f);
-	HealthBarComponent->SetRelativeLocation(FVector(0.0f, VisualDepthOffset, HealthBarHeight));
+	SetHealthBarPresentationHeight();
 	if (UImmortalMonsterHealthWidget* HealthWidget = Cast<UImmortalMonsterHealthWidget>(HealthBarComponent->GetUserWidgetObject()))
 	{
 		HealthWidget->InitializeForMonster(this);
@@ -76,6 +77,7 @@ void AImmortalMonsterCharacter::BeginPlay()
 		AcquireCombatTarget();
 	}
 
+	UpdateBattleSpritePlacement();
 	UpdateLocomotionAnimation();
 }
 
@@ -95,6 +97,41 @@ void AImmortalMonsterCharacter::Tick(const float DeltaSeconds)
 		UpdateAutoCombat(DeltaSeconds);
 	}
 	UpdateLocomotionAnimation();
+	UpdateBattleSpritePlacement();
+}
+
+void AImmortalMonsterCharacter::SetHealthBarPresentationHeight(const float ExtraHeight)
+{
+	HealthBarPresentationExtraHeight = ExtraHeight;
+	if (HealthBarComponent)
+	{
+		HealthBarComponent->SetRelativeLocation(
+			FVector(0.0f, VisualDepthOffset, HealthBarHeight + ExtraHeight));
+	}
+	UpdateBattleSpritePlacement();
+}
+
+void AImmortalMonsterCharacter::UpdateBattleSpritePlacement()
+{
+	if (!bAlignSpriteToPlayerLane)
+	{
+		return;
+	}
+	const AImmortalPlayerCharacter* Player = Cast<AImmortalPlayerCharacter>(
+		UGameplayStatics::GetPlayerPawn(this, 0));
+	if (!Player || !ImmortalBattleSpritePlacement::AlignToReferenceFootPlane(*this, *Player))
+	{
+		return;
+	}
+	if (HealthBarComponent)
+	{
+		// Rebuild from the configured baseline, not last frame's adjusted value.
+		FVector Location = GetRootComponent()->GetComponentTransform().TransformPosition(
+			FVector(0.0f, VisualDepthOffset, HealthBarHeight + HealthBarPresentationExtraHeight));
+		Location.Y = Player->GetSprite()->GetComponentLocation().Y;
+		Location.Z += ImmortalBattleSpritePlacement::GetReferenceGroundOffset(*Player);
+		HealthBarComponent->SetWorldLocation(Location);
+	}
 }
 
 float AImmortalMonsterCharacter::TakeDamage(
@@ -287,7 +324,7 @@ void AImmortalMonsterCharacter::ConfigureAsMapBoss(const FName MapId, const int3
 	if (HealthBarComponent)
 	{
 		HealthBarComponent->SetDrawSize(FVector2D(384.0f, 44.0f));
-		HealthBarComponent->SetRelativeLocation(FVector(0.0f, VisualDepthOffset, HealthBarHeight + 35.0f));
+		SetHealthBarPresentationHeight(35.0f);
 	}
 
 	BP_OnBossPhaseChanged(CurrentBossPhase);
@@ -349,8 +386,7 @@ void AImmortalMonsterCharacter::ConfigureAsWorldBoss(
 	if (HealthBarComponent)
 	{
 		HealthBarComponent->SetDrawSize(FVector2D(460.0f, 48.0f));
-		HealthBarComponent->SetRelativeLocation(
-			FVector(0.0f, VisualDepthOffset, HealthBarHeight + 45.0f));
+		SetHealthBarPresentationHeight(45.0f);
 	}
 
 	BP_OnBossPhaseChanged(CurrentBossPhase);
@@ -527,14 +563,12 @@ void AImmortalMonsterCharacter::ConfigureForEndlessFloor(
 	if (HealthBarComponent && bIsBoss)
 	{
 		HealthBarComponent->SetDrawSize(FVector2D(410.0f, 46.0f));
-		HealthBarComponent->SetRelativeLocation(
-			FVector(0.0f, VisualDepthOffset, HealthBarHeight + 38.0f));
+		SetHealthBarPresentationHeight(38.0f);
 	}
 	else if (HealthBarComponent && bIsEndlessElite)
 	{
 		HealthBarComponent->SetDrawSize(FVector2D(300.0f, 36.0f));
-		HealthBarComponent->SetRelativeLocation(
-			FVector(0.0f, VisualDepthOffset, HealthBarHeight + 15.0f));
+		SetHealthBarPresentationHeight(15.0f);
 	}
 
 	if (bIsBoss)
