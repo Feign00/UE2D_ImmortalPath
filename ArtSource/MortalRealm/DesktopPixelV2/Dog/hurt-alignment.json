@@ -1,0 +1,13 @@
+{
+  "source": "sources/hurt-regrid-v1.png",
+  "sourceSha256": "f6ddee3904892a9da7cde73e63565190ad30306d1b7036d99c4c3109b78e2cb1",
+  "columns": 4,
+  "rows": 2,
+  "anchors": [[200,447],[188,447],[200,449],[219,447],[183,401],[195,403],[200,403],[202,403]],
+  "targetAnchor": [256,336],
+  "scale": 0.7,
+  "outputFrameSize": [512,384],
+  "alphaThreshold": 128,
+  "bottomTolerance": 2,
+  "anchorReview": "Manual projected torso-root floor anchor from planted paw soles. The rightward recoil, bent-knee compression and subsequent recovery are preserved; tail height is not mistaken for a foot anchor. Bounds were diagnostic only."
+}

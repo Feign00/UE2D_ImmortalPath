@@ -14,6 +14,7 @@ public class ImmortalPathEditor : ModuleRules
 			"CoreUObject",
 			"Engine",
 			"UnrealEd",
+			"BlueprintGraph",
 			"AssetTools",
 			"AssetRegistry",
 			"Paper2D",

@@ -1,0 +1,13 @@
+{
+  "source": "sources/attack-regrid-v1.png",
+  "sourceSha256": "51d0f491be944bc655a8cd0facecf254f454e101381000da0ee4a75b35c5bdb3",
+  "columns": 4,
+  "rows": 2,
+  "anchors": [[200,448],[204,448],[225,450],[238,450],[200,419],[202,417],[197,420],[193,420]],
+  "targetAnchor": [256,336],
+  "scale": 0.7,
+  "outputFrameSize": [512,384],
+  "alphaThreshold": 128,
+  "bottomTolerance": 2,
+  "anchorReview": "Manual floor anchors beneath the torso root. Planted fore/hind paw soles define the support plane through crouch, bite contact at frame 3, follow-through and recovery; horizontal authored bite extension is preserved. Bounds were diagnostic only."
+}

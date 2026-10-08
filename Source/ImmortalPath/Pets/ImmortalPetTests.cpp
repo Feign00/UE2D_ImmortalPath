@@ -121,38 +121,43 @@ bool FImmortalPetDesktopFoxPresentationTest::RunTest(const FString& Parameters)
 		return false;
 	}
 	TestTrue(TEXT("Hound remains valid"), Hound.IsValid());
-	TestTrue(TEXT("Hound retains legacy sprite anchoring"),
-		Hound.FootAnchorMode == EImmortalPetFootAnchorMode::LegacyOffset);
-	TestEqual(TEXT("Hound keeps its legacy anchor offset"),
-		Hound.GetSpriteRelativeZ(17.0f, 34.0f), 51.0f);
-	TestEqual(TEXT("Hound keeps legacy attack timing selection"), Hound.AttackContactSeconds, -1.0f);
-	TestTrue(TEXT("Hound keeps the existing stationary-pose fallback"), Hound.IdleFlipbook.IsNull());
-	TestEqual(TEXT("Hound keeps its old scale"), Hound.VisualScale, 0.55f);
-	TestTrue(TEXT("Hound keeps its old tint"),
-		Hound.DisplayColor == FLinearColor(0.86f, 0.70f, 0.42f, 1.0f));
+	TestTrue(TEXT("Hound follows the same actual player visual lane"),
+		Hound.FootAnchorMode == EImmortalPetFootAnchorMode::PlayerBattleLane);
+	TestEqual(TEXT("Hound uses its own authored contact timing"), Hound.AttackContactSeconds, 0.25f);
+	TestFalse(TEXT("Hound has a real Idle clip rather than a frozen Move pose"), Hound.IdleFlipbook.IsNull());
+	TestEqual(TEXT("Hound uses the readable pet scene scale"), Hound.VisualScale, 1.25f);
+	TestTrue(TEXT("Hound preserves authored colors"), Hound.DisplayColor == FLinearColor::White);
 	TestEqual(TEXT("Hound damage ratio is unchanged"), Hound.BaseDamageRatio, 0.26f);
 	TestEqual(TEXT("Hound attack interval is unchanged"), Hound.AttackInterval, 1.45f);
 	TestEqual(TEXT("Hound movement is unchanged"), Hound.MovementSpeed, 620.0f);
 	TestEqual(TEXT("Hound attack range is unchanged"), Hound.AttackRange, 205.0f);
-	TestEqual(TEXT("Hound move art remains unchanged"),
+	TestEqual(TEXT("Hound move art uses its own canine identity"),
 		Hound.MoveFlipbook.ToSoftObjectPath().ToString(),
-		FString(TEXT("/Game/GAME/Asset/Player/dog_move_left/dog_moveleft.dog_moveleft")));
-	TestEqual(TEXT("Hound attack art remains unchanged"),
+		FString(TEXT("/Game/GAME/Asset/Monsters/desktop_pixel_v2/dog/FB_Dog_Pixel_Move.FB_Dog_Pixel_Move")));
+	TestEqual(TEXT("Hound attack art uses its own canine identity"),
 		Hound.AttackFlipbook.ToSoftObjectPath().ToString(),
-		FString(TEXT("/Game/GAME/Asset/Player/dog_attcak/dogattack.dogattack")));
-	TestEqual(TEXT("Hound hurt art remains unchanged"),
+		FString(TEXT("/Game/GAME/Asset/Monsters/desktop_pixel_v2/dog/FB_Dog_Pixel_Attack.FB_Dog_Pixel_Attack")));
+	TestEqual(TEXT("Hound hurt art uses its own canine identity"),
 		Hound.HurtFlipbook.ToSoftObjectPath().ToString(),
-		FString(TEXT("/Game/GAME/Asset/Player/doghurt/doghurt.doghurt")));
-	TestEqual(TEXT("Hound death art remains unchanged"),
+		FString(TEXT("/Game/GAME/Asset/Monsters/desktop_pixel_v2/dog/FB_Dog_Pixel_Hurt.FB_Dog_Pixel_Hurt")));
+	TestEqual(TEXT("Hound death art uses its own canine identity"),
 		Hound.DeathFlipbook.ToSoftObjectPath().ToString(),
-		FString(TEXT("/Game/GAME/Asset/Player/dog_death/death_dog.death_dog")));
+		FString(TEXT("/Game/GAME/Asset/Monsters/desktop_pixel_v2/dog/FB_Dog_Pixel_Death.FB_Dog_Pixel_Death")));
+	// Keep compatibility coverage independent of either current catalog's art.
+	FImmortalPetDefinition Legacy = Hound;
+	Legacy.FootAnchorMode = EImmortalPetFootAnchorMode::LegacyOffset;
+	Legacy.AttackContactSeconds = -1.0f;
+	Legacy.IdleFlipbook.Reset();
+	TestTrue(TEXT("Legacy presentation definitions remain valid"), Legacy.IsValid());
+	TestEqual(TEXT("Legacy definitions retain their anchor offset"),
+		Legacy.GetSpriteRelativeZ(17.0f, 34.0f), 51.0f);
 	const float LegacyDurations[] = { 0.01f, 0.03f, 0.10f, 0.60f, 1.0f, 2.0f };
 	for (const float Duration : LegacyDurations)
 	{
 		const float OldMaximumWindup = FMath::Max(FMath::Min(Duration * 0.80f, 0.45f), 0.05f);
 		const float OldContact = FMath::Clamp(Duration * 0.45f, 0.05f, OldMaximumWindup);
-		TestEqual(TEXT("Hound attack timing preserves the exact legacy formula"),
-			Hound.GetAttackContactDelay(Duration), OldContact);
+		TestEqual(TEXT("Legacy definitions preserve the exact old attack formula"),
+			Legacy.GetAttackContactDelay(Duration), OldContact);
 	}
 	return true;
 }

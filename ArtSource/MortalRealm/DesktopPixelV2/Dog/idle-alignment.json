@@ -1,0 +1,13 @@
+{
+  "source": "sources/idle-regrid-v1.png",
+  "sourceSha256": "354f5139fd0c34be7da9ce22c25c4f8a2153127113bdd508be3ee9ab2a395ddc",
+  "columns": 4,
+  "rows": 2,
+  "anchors": [[200,446],[194,446],[194,446],[200,445],[200,420],[194,420],[194,420],[200,420]],
+  "targetAnchor": [256,336],
+  "scale": 0.7,
+  "outputFrameSize": [512,384],
+  "alphaThreshold": 128,
+  "bottomTolerance": 2,
+  "anchorReview": "Manual ground-plane projection beneath the torso root, using the visible planted paw soles. First-row source soles are y=445/446 and second-row soles y=932. Bounds were diagnostic, not inferred anatomical anchors."
+}

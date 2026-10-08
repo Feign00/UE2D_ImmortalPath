@@ -139,9 +139,9 @@ bool FImmortalDesktopPixelFoxBindingsTest::RunTest(const FString& Parameters)
 	FImmortalPetDefinition DogPet;
 	if (TestTrue(TEXT("SpiritHound remains available"), UImmortalPetLibrary::GetPetDefinition(TEXT("SpiritHound"), DogPet)))
 	{
-		TestTrue(TEXT("Dog remains on the original dog Move"), DogPet.MoveFlipbook.ToSoftObjectPath().ToString().Contains(TEXT("dog_move_left")));
-		TestTrue(TEXT("Dog keeps legacy anchoring"), DogPet.FootAnchorMode == EImmortalPetFootAnchorMode::LegacyOffset);
-		TestTrue(TEXT("Dog keeps legacy contact timing"), DogPet.AttackContactSeconds < 0.0f);
+		TestFalse(TEXT("Fox family cannot replace the canine identity"),
+			DogPet.MoveFlipbook.ToSoftObjectPath().ToString().Contains(TEXT("/desktop_pixel_v2/fox/")));
+		TestTrue(TEXT("Canine definition remains valid after independent art updates"), DogPet.IsValid());
 	}
 	return true;
 }

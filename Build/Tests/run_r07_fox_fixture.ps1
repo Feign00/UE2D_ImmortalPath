@@ -24,7 +24,7 @@ $Log = Join-Path $RunDirectory 'R07Fox.log'
 $Arguments = @(('"' + $Project + '"'), '/Game/GAME/Maps/NewMap', '-game', '-dx11',
     '-windowed', '-ResX=1920', '-ResY=320', '-unattended', '-nop4', '-nosplash', '-nosound',
     ('-UserDir="' + $RunDirectory + '"'), ('-abslog="' + $Log + '"'),
-    '-ImmortalTestPet=Fox', '-ImmortalTestStage=1')
+    '-ImmortalTestPet=Fox', '-ImmortalTestStage=1', '-FixedSeed')
 if ($LogMonsterRanges) {
     $Arguments += '-ExecCmds="GetAll ImmortalMonsterCharacter AttackRange"'
 }

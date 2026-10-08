@@ -1,0 +1,206 @@
+{
+  "sourceSha256": "e9e77ec74c99cb12d299328ea34dc9cd50e944da25f96477399c635d67153f94",
+  "settings": {
+    "source": "sources/move-regrid-v1.png",
+    "sourceSha256": "e9e77ec74c99cb12d299328ea34dc9cd50e944da25f96477399c635d67153f94",
+    "columns": 4,
+    "rows": 2,
+    "anchors": [
+      [
+        200,
+        450
+      ],
+      [
+        204,
+        450
+      ],
+      [
+        216,
+        450
+      ],
+      [
+        224,
+        450
+      ],
+      [
+        200,
+        415
+      ],
+      [
+        204,
+        420
+      ],
+      [
+        212,
+        415
+      ],
+      [
+        219,
+        420
+      ]
+    ],
+    "targetAnchor": [
+      256,
+      336
+    ],
+    "scale": 0.7,
+    "outputFrameSize": [
+      512,
+      384
+    ],
+    "alphaThreshold": 128,
+    "bottomTolerance": 2,
+    "anchorReview": "Manual torso-root projection onto the support plane, following each planted paw rather than the lifted swing leg. The authored alternating contact poses and natural body motion remain; no per-frame resizing. Bounds were diagnostic only."
+  },
+  "report": {
+    "width": 2048,
+    "height": 768,
+    "columns": 4,
+    "rows": 2,
+    "cellWidth": 512,
+    "cellHeight": 384,
+    "alphaThreshold": 128,
+    "bottomTolerance": 2,
+    "frames": [
+      {
+        "frame": 0,
+        "clear": 169611,
+        "partial": 0,
+        "opaque": 26997,
+        "solid": 26997,
+        "maxAlpha": 255,
+        "bounds": {
+          "left": 124,
+          "top": 118,
+          "right": 388,
+          "bottom": 336
+        },
+        "touchesCellEdge": false,
+        "maskedSha256": "6d0551e584f24293f80cb3cfbe9b592021e0315eafad7a43c4d78f937b8f3f4a",
+        "sha256": "6d0551e584f24293f80cb3cfbe9b592021e0315eafad7a43c4d78f937b8f3f4a"
+      },
+      {
+        "frame": 1,
+        "clear": 169905,
+        "partial": 0,
+        "opaque": 26703,
+        "solid": 26703,
+        "maxAlpha": 255,
+        "bounds": {
+          "left": 118,
+          "top": 115,
+          "right": 383,
+          "bottom": 336
+        },
+        "touchesCellEdge": false,
+        "maskedSha256": "8a4ba6584a9dbb7a45a2c6182710ea1ed8a1bcacd457101773ba2320a1aab61d",
+        "sha256": "8a4ba6584a9dbb7a45a2c6182710ea1ed8a1bcacd457101773ba2320a1aab61d"
+      },
+      {
+        "frame": 2,
+        "clear": 169577,
+        "partial": 0,
+        "opaque": 27031,
+        "solid": 27031,
+        "maxAlpha": 255,
+        "bounds": {
+          "left": 111,
+          "top": 116,
+          "right": 379,
+          "bottom": 336
+        },
+        "touchesCellEdge": false,
+        "maskedSha256": "48a04df8ed03bf8e1c2ac8af9d7f7d9b4b937a2b8cd40aa9949c7cadba85a85c",
+        "sha256": "48a04df8ed03bf8e1c2ac8af9d7f7d9b4b937a2b8cd40aa9949c7cadba85a85c"
+      },
+      {
+        "frame": 3,
+        "clear": 168590,
+        "partial": 0,
+        "opaque": 28018,
+        "solid": 28018,
+        "maxAlpha": 255,
+        "bounds": {
+          "left": 105,
+          "top": 111,
+          "right": 378,
+          "bottom": 336
+        },
+        "touchesCellEdge": false,
+        "maskedSha256": "4541de82af0bc5f5b345cbe9fc38f32d232d46dbad57618d1b0176e918745d07",
+        "sha256": "4541de82af0bc5f5b345cbe9fc38f32d232d46dbad57618d1b0176e918745d07"
+      },
+      {
+        "frame": 4,
+        "clear": 169600,
+        "partial": 0,
+        "opaque": 27008,
+        "solid": 27008,
+        "maxAlpha": 255,
+        "bounds": {
+          "left": 123,
+          "top": 118,
+          "right": 390,
+          "bottom": 336
+        },
+        "touchesCellEdge": false,
+        "maskedSha256": "433e83124cd7d1da479604a8edc72135765e808eb2ba228f017d254adbd250e5",
+        "sha256": "433e83124cd7d1da479604a8edc72135765e808eb2ba228f017d254adbd250e5"
+      },
+      {
+        "frame": 5,
+        "clear": 169655,
+        "partial": 0,
+        "opaque": 26953,
+        "solid": 26953,
+        "maxAlpha": 255,
+        "bounds": {
+          "left": 118,
+          "top": 115,
+          "right": 388,
+          "bottom": 336
+        },
+        "touchesCellEdge": false,
+        "maskedSha256": "c3ef09b7f8096112724d2d1cee34b1e69f30ee45e16df68870aaa5e556f11851",
+        "sha256": "c3ef09b7f8096112724d2d1cee34b1e69f30ee45e16df68870aaa5e556f11851"
+      },
+      {
+        "frame": 6,
+        "clear": 170082,
+        "partial": 0,
+        "opaque": 26526,
+        "solid": 26526,
+        "maxAlpha": 255,
+        "bounds": {
+          "left": 113,
+          "top": 117,
+          "right": 373,
+          "bottom": 336
+        },
+        "touchesCellEdge": false,
+        "maskedSha256": "dc96ae43f9650ffa1fab595730c645c12ac915fac6b46d32386d6e569e4e31cb",
+        "sha256": "dc96ae43f9650ffa1fab595730c645c12ac915fac6b46d32386d6e569e4e31cb"
+      },
+      {
+        "frame": 7,
+        "clear": 169252,
+        "partial": 0,
+        "opaque": 27356,
+        "solid": 27356,
+        "maxAlpha": 255,
+        "bounds": {
+          "left": 108,
+          "top": 116,
+          "right": 377,
+          "bottom": 336
+        },
+        "touchesCellEdge": false,
+        "maskedSha256": "b889ad37e47db55ec0cc7ee78b59d5b343550cfc95ebf81f8497cdb3c4a7e3f7",
+        "sha256": "b889ad37e47db55ec0cc7ee78b59d5b343550cfc95ebf81f8497cdb3c4a7e3f7"
+      }
+    ],
+    "silhouetteBottomSpread": 0,
+    "warnings": [],
+    "note": "Bounds are not anatomical foot anchors. Human visual/animation review is required."
+  }
+}

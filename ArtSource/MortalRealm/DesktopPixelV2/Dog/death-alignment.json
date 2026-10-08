@@ -1,0 +1,13 @@
+{
+  "source": "sources/death-regrid-v1.png",
+  "sourceSha256": "85cc315bf16c7db9d83a871c115177a268cb1a7dfae6b52fcc702ade2b7b9afb",
+  "columns": 4,
+  "rows": 2,
+  "anchors": [[183,432],[183,432],[188,427],[202,430],[193,365],[196,362],[198,361],[198,361]],
+  "targetAnchor": [256,336],
+  "scale": 0.7,
+  "outputFrameSize": [512,384],
+  "alphaThreshold": 128,
+  "bottomTolerance": 4,
+  "anchorReview": "Manually tracked torso-root projection onto the supporting ground: paw-supported crouch, elbow/chest contact, then the side-lying body/contact plane. The root is not chosen from tail-tip or top-of-silhouette bounds. Final frame remains fully side-lying."
+}

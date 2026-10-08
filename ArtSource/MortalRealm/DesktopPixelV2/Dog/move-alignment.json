@@ -1,0 +1,13 @@
+{
+  "source": "sources/move-regrid-v1.png",
+  "sourceSha256": "e9e77ec74c99cb12d299328ea34dc9cd50e944da25f96477399c635d67153f94",
+  "columns": 4,
+  "rows": 2,
+  "anchors": [[200,450],[204,450],[216,450],[224,450],[200,415],[204,420],[212,415],[219,420]],
+  "targetAnchor": [256,336],
+  "scale": 0.7,
+  "outputFrameSize": [512,384],
+  "alphaThreshold": 128,
+  "bottomTolerance": 2,
+  "anchorReview": "Manual torso-root projection onto the support plane, following each planted paw rather than the lifted swing leg. The authored alternating contact poses and natural body motion remain; no per-frame resizing. Bounds were diagnostic only."
+}

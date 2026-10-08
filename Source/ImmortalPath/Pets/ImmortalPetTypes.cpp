@@ -150,12 +150,15 @@ namespace
 					0.08f,
 					620.0f,
 					135.0f,
-					0.55f,
-					FLinearColor(0.86f, 0.70f, 0.42f, 1.0f),
-					TEXT("/Game/GAME/Asset/Player/dog_move_left/dog_moveleft.dog_moveleft"),
-					TEXT("/Game/GAME/Asset/Player/dog_attcak/dogattack.dogattack"),
-					TEXT("/Game/GAME/Asset/Player/doghurt/doghurt.doghurt"),
-					TEXT("/Game/GAME/Asset/Player/dog_death/death_dog.death_dog"))
+					1.25f,
+					FLinearColor::White,
+					TEXT("/Game/GAME/Asset/Monsters/desktop_pixel_v2/dog/FB_Dog_Pixel_Move.FB_Dog_Pixel_Move"),
+					TEXT("/Game/GAME/Asset/Monsters/desktop_pixel_v2/dog/FB_Dog_Pixel_Attack.FB_Dog_Pixel_Attack"),
+					TEXT("/Game/GAME/Asset/Monsters/desktop_pixel_v2/dog/FB_Dog_Pixel_Hurt.FB_Dog_Pixel_Hurt"),
+					TEXT("/Game/GAME/Asset/Monsters/desktop_pixel_v2/dog/FB_Dog_Pixel_Death.FB_Dog_Pixel_Death"),
+					TEXT("/Game/GAME/Asset/Monsters/desktop_pixel_v2/dog/FB_Dog_Pixel_Idle.FB_Dog_Pixel_Idle"),
+					EImmortalPetFootAnchorMode::PlayerBattleLane,
+					0.25f)
 			}
 		};
 		return Catalog;

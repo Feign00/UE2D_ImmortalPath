@@ -69,6 +69,15 @@ AImmortalMonsterSpawner::AImmortalMonsterSpawner()
 		DefaultAlternateMonsterClass = DogMonsterFinder.Class;
 		DefaultBossMonsterClass = DogMonsterFinder.Class;
 	}
+
+	// Ordinary dogs use the new foot-pivot animation set. Keep the legacy dog
+	// class as the Boss fallback until the separate Boss art stage is validated.
+	static ConstructorHelpers::FClassFinder<AImmortalMonsterCharacter> DesktopDogMonsterFinder(
+		TEXT("/Game/GAME/BP_DesktopDogMonster"));
+	if (DesktopDogMonsterFinder.Succeeded())
+	{
+		DefaultAlternateMonsterClass = DesktopDogMonsterFinder.Class;
+	}
 }
 
 void AImmortalMonsterSpawner::BeginPlay()
