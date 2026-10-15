@@ -6,6 +6,7 @@
 #include "ImmortalFoxAnimationFixture.h"
 #include "ImmortalDogAnimationFixture.h"
 #include "ImmortalQingyunBossAnimationFixture.h"
+#include "ImmortalQingyunBossWalkingFixture.h"
 #include "../UI/ImmortalDesktopPanelLayout.h"
 
 #include "../Combat/AutoAttackTarget.h"
@@ -426,7 +427,8 @@ void AImmortalPlayerCharacter::BeginPlay()
 	const bool bFoxFixturePreflight = ImmortalFoxAnimationFixture::CheckPreflightIfRequested();
 	const bool bDogFixturePreflight = ImmortalDogAnimationFixture::CheckPreflightIfRequested();
 	const bool bBossFixturePreflight = ImmortalQingyunBossAnimationFixture::CheckPreflightIfRequested();
-	if (!bFoxFixturePreflight || !bDogFixturePreflight || !bBossFixturePreflight)
+	const bool bBossWalkingPreflight = ImmortalQingyunBossWalkingFixture::CheckPreflightIfRequested();
+	if (!bFoxFixturePreflight || !bDogFixturePreflight || !bBossFixturePreflight || !bBossWalkingPreflight)
 	{
 		// Refused fixtures must not create an EndPlay fallback save either.
 		bSaveRecoveryRequired = true;
@@ -5025,6 +5027,7 @@ void AImmortalPlayerCharacter::BeginPlay()
 	ImmortalFoxAnimationFixture::StartIfRequested(*this);
 	ImmortalDogAnimationFixture::StartIfRequested(*this);
 	ImmortalQingyunBossAnimationFixture::StartIfRequested(*this);
+	ImmortalQingyunBossWalkingFixture::StartIfRequested(*this);
 	RunPixelPlayerIntegrationFixture();
 	RunHighSpeedCombatFixture();
 	RunDesktopPanelFixture();

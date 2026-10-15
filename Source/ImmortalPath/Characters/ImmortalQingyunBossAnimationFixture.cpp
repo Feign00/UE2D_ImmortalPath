@@ -36,7 +36,7 @@ namespace ImmortalQingyunBossFixturePrivate
 	bool SafeDirectory(FString& Directory)
 	{
 		int32 Modes = 0;
-		for (const TCHAR* Mode : {Flag, TEXT("ImmortalTestFoxArt"), TEXT("ImmortalTestFoxWalking"),
+		for (const TCHAR* Mode : {Flag, TEXT("ImmortalTestQingyunBossWalking"), TEXT("ImmortalTestFoxArt"), TEXT("ImmortalTestFoxWalking"),
 			TEXT("ImmortalTestDogArt"), TEXT("ImmortalTestDogWalking")})
 			Modes += static_cast<int32>(FParse::Param(FCommandLine::Get(), Mode));
 		int32 Stage = 0;

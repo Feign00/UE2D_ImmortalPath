@@ -78,3 +78,50 @@ boss 正常/FailAttempt2：一次原子写、掉落实体 0→7、10→11；fina
 - Run01 实际血条压尾，基线 185→275，重绑定、两目标重建、完整 83 项重跑并截图复验。死亡测试还补入攻击前 HP/真实起点/触点前致命时刻，防止事后仅比 HP 的假通过；启动脚本默认 600 秒限时，仅终止该次创建的进程并保留失败证据。
 
 本批源截图的洋红色键底是合成前证据，不是退出粉屏复现，也不证明原生透明桌面；R11 的前景合成、多 DPI/多屏、长时运行与 R12 Shipping/Cook 仍未完成。Boss 技能/转阶段的专属动画、剩余真实演员与旧特效尚需逐部分处理，正式射程 320 与完整视觉触及问题未在此重新平衡。人界美术完成前不扩展灵界/仙界玩法，独立飞升动画保留。只同步本批源码/正式素材/配置/文档，不上传个人存档、缓存、日志、截图、构建产物，法宝在制改动原样保留。
+
+## 2026-10-15 补验：真实地图 Boss 自然 Walking
+
+本节补足上文明确未覆盖的自然接地移动，不改写 10/13～14 的历史受控验收。只增加非 Shipping 的只读观察夹具、隔离预检与启动脚本 Walking 模式；不修改正式演员、蓝图、数值、存档格式或美术资产。**本补验通过，R07 整项仍未完成。**
+
+### 观察方式与保护
+
+- 使用真实 `NewMap`、青云第 10 关、`FixedSeed` 与全新独立 `UserDir`。由原地图 Spawner 自然创建专用九尾 Boss，自动战斗保持开启；不主动生成替代演员，不传送、不改移动模式/碰撞/地面/摄像机/属性，不强制动作、阶段或死亡。
+- 从早期初始化开始按游戏时间每 0.05 秒观察，共 18 秒；前两秒标为 settling 但不丢弃。按同一演员分别记录 Move、Idle、攻击/受击、实际接地、血量与可见性；消失或被销毁不能冒充死亡，血量变化也不推断玩家/宠物伤害来源。
+- 接地要求 Walking/NavWalking、`IsMovingOnGround` 和真实可行走 floor 同时成立。除胶囊底加玩家脚底偏移的独立公式外，稳定后另比对双方实际胶囊底与 Sprite 脚点，防止共同漂浮仍被相对公式判对。
+- Move/Battle 截图排队后至少隔一帧，实际请求前再次检查同一存活 Boss 的当前动作和双方完整视口边界，Move 还须保持接地移动；三张截图错帧串行，不用后续其他动作截图补足缺失状态。
+- 仅接受 Walking 标志、精确 `ImmortalTestStage=10`、`FixedSeed` 与 `Saved/Automation/QingyunBossWalking` 的新子目录。其他 `ImmortalTest*`、禁自动战斗、混合夹具、目录内既有 `.sav` 或 Walking 截图均拒绝。预检在 Spawner 读档前和 Player 初始化前接入，单进程缓存一次结果，避免本次合法新建存档被第二次检查误认成旧残留。
+- 启动脚本默认仍为 Controlled；Walking 必须有唯一 PASS、至少 16 个实际检查、0 FAIL、准确 3 张指定截图与进程退出 0。默认受控模式仍核对其原 12 张截图，不把退出 0 单独当成功。
+
+可复跑命令（每次更换 RunName）：
+
+```powershell
+& Build/Tests/run_r07_qingyun_boss_fixture.ps1 -Mode Walking -RunName FreshWalkingRun -TimeoutSeconds 300
+& Build/Tests/run_r07_qingyun_boss_fixture.ps1 -RunName FreshControlledRun -TimeoutSeconds 300
+```
+
+### 最终源码验证
+
+| 项目 | 结果与本地证据 |
+| --- | --- |
+| Development Editor | Attempt4，5 actions，30.71 秒，编译/链接成功；`Saved/Automation/QingyunBossWalking/Build/EditorAttempt4_20261015.log` |
+| Development Game | Attempt3，4 actions，44.94 秒，编译/链接成功；同目录 `GameAttempt3_20261015.log` |
+| 完整 `ImmortalPath.` | 83 成功、0 测试警告、0 失败、0 未运行，进程退出 0；`Saved/TestReports/R07QingyunBossWalking20261015_02/index.json` |
+| 自然 Walking 最终 Run03 | 16 检查、0 失败、唯一 PASS、3/3 源截图、进程退出 0；`Saved/Automation/QingyunBossWalking/Natural_20261015_Run03` |
+| 原受控 Boss 回归 Run02 | 227 检查、0 失败、唯一 PASS、12/12 源截图、进程退出 0；`Saved/Automation/QingyunBossArt/WalkingRegression_20261015_Run02` |
+| 5 组负向启动 | WrongUserDir、MixedModes、DisabledBattle、GrantedResources、WrongStage 全部在初始化前拒绝，每组 1 条拒绝、0 玩家加载/保存、0 `.sav`；`QingyunBossWalking/Negative_20261015_02`，根外目录案例在相邻 `QingyunBossWalkingRejected` 下 |
+| 残留文件拒绝 | `Residual_20261015_01/RefusedAfterFix.log`：1 条拒绝、0 加载/保存/断言，退出 0；原 43 字节人工假档摘要不变、未生成新档 |
+| 脚本及差异审查 | PowerShell 语法、差异空白检查通过；独立只读审查未发现交付阻断 |
+
+Run03 同一真实 Boss 共 360 次样本全部为 grounded Walking，最长连续接地 360；Move 102 次、89 次播放推进、6 个不同姿势，真实朝玩家位移 445.429 UE；Idle 20 次、15 次推进、5 个姿势。Attack 18 次、Hurt 220 次，Death 0 次；没有自然击杀/通关/阶段三证明。Boss 血量下降采样 27 次，玩家下降 1 次，观察尾段玩家 91.348 HP；不据此区分各伤害来源。实际 BP 玩家射程 450、Boss 射程 320，未按原生头文件默认值误判或调整平衡。
+
+双方完整同屏 345 次、表现对齐 360 次、脚线和景深最大误差均为 0；稳定后共同接地 321 次，实际胶囊底/脚点差均为 0；视觉比例保持 2.7，无非预期移动模式或累计缩放。最终三张 1707×320 源截图已逐张复核，九尾、脚底和抬高的血条可见；近战彼此遮挡不等于裁切，也不证明完整咬击视觉触及。洋红源视口仍不证明原生透明桌面合成、退出粉屏、多 DPI/显示器或 Shipping。
+
+负向测试前后对正式 22 个 SaveGames 文件和 3 个新旧 BP 共 25 项逐一比对摘要；最终又核对正式主档和三项 BP，均与上文摘要一致。全部运行只写独立测试目录；不提交本地日志、截图、假档或构建产物，法宝在制文件保留。
+
+### 失败保留与下一优先部分
+
+- Editor Attempt1 的 UE 5.7 非 const `GetFlipbook()` 调用错误已修复，不改引擎。自然 Run01 虽有真实画面但 16 检查中 10 失败：回调清理自身 timer 时销毁唯一强引用，聚合证据提前失效。将 `Sample` 改为值传 `TSharedRef` 持有完整回调生命周期，保留全部断言；Run02 通过，后续预检时序修正后最终 Run03 再通过。失败日志均保留。
+- 残留假档首次拒绝测试真实退出 3：Spawner 早于 Player 读档，尚未到原玩家侧预检即进入引擎解析并触发 FName 长度断言。将本夹具预检前移到 Spawner 最前并缓存后，同一 43 字节原样假档被提前拒绝，未再读入，最终全部测试重跑。
+- **新增 R01 高优先补漏，尚未修复：** 普通无夹具标志启动的通用读取函数，对至少 32 字节的畸形存档仍先调用 `LoadGameFromMemory`，后做类型/EOF 检查；错误 magic 的引擎古老格式回退可把随机字节解释为超长类名。本次只解决 Walking 的拒绝时序，不解决通用解析安全。下一独立部分应先建立隔离子进程复现及有边界的头部/属性流检查，覆盖主档、备份、恢复和保存前读取，保持合法旧档迁移及禁止异常自动覆盖，再继续剩余 Boss 美术。
+
+R07 尚余其他实际演员/Boss、专属技能与转阶段表现、旧战斗特效；R08 地图装饰、R11 原生桌面及 R12 发行验收仍按原边界保留。原飞升动画与战斗不提供修为的设计不变。

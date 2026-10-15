@@ -4,6 +4,7 @@
 
 #include "../Characters/ImmortalMonsterCharacter.h"
 #include "../Characters/ImmortalPlayerCharacter.h"
+#include "../Characters/ImmortalQingyunBossWalkingFixture.h"
 #include "../Drops/ImmortalEquipmentDrop.h"
 #include "../Drops/ImmortalMaterialDrop.h"
 #include "../Drops/ImmortalSpiritStoneDrop.h"
@@ -103,6 +104,11 @@ TSubclassOf<AImmortalMonsterCharacter> AImmortalMonsterSpawner::ResolveMapBossMo
 
 void AImmortalMonsterSpawner::BeginPlay()
 {
+	if (!ImmortalQingyunBossWalkingFixture::CheckPreflightIfRequested())
+	{
+		bSaveLoadBlocked = true;
+		return;
+	}
 	Super::BeginPlay();
 	if (!QingyunMountainBackgroundSprite
 		&& !QingyunMountainBackgroundAsset.IsNull())

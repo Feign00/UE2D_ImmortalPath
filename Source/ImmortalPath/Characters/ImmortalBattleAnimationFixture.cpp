@@ -49,7 +49,8 @@ namespace
 			+ static_cast<int32>(FParse::Param(FCommandLine::Get(), TEXT("ImmortalTestFoxWalking")))
 			+ static_cast<int32>(FParse::Param(FCommandLine::Get(), TEXT("ImmortalTestDogArt")))
 			+ static_cast<int32>(FParse::Param(FCommandLine::Get(), TEXT("ImmortalTestDogWalking")))
-			+ static_cast<int32>(FParse::Param(FCommandLine::Get(), TEXT("ImmortalTestQingyunBossArt")));
+			+ static_cast<int32>(FParse::Param(FCommandLine::Get(), TEXT("ImmortalTestQingyunBossArt")))
+			+ static_cast<int32>(FParse::Param(FCommandLine::Get(), TEXT("ImmortalTestQingyunBossWalking")));
 		if (RequestedModes != 1 || bFlying == bWalking || (bWalking ? bDisabled : !bDisabled)) return false;
 		FString Root = FPaths::ConvertRelativePathToFull(FPaths::Combine(
 			FPaths::ProjectDir(), Config.UserDirectoryRoot));
