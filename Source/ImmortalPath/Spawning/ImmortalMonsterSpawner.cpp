@@ -78,6 +78,27 @@ AImmortalMonsterSpawner::AImmortalMonsterSpawner()
 	{
 		DefaultAlternateMonsterClass = DesktopDogMonsterFinder.Class;
 	}
+
+	// Load the fixed dependency at native CDO startup, like the ordinary dog.
+	// Do not change the global Boss fallback or serialize an inherited soft path
+	// that an existing spawner Blueprint has never explicitly saved.
+	static ConstructorHelpers::FClassFinder<AImmortalMonsterCharacter> QingyunBossFinder(
+		TEXT("/Game/GAME/BP_DesktopQingyunBoss"));
+	if (QingyunBossFinder.Succeeded())
+	{
+		DefaultQingyunBossMonsterClass = QingyunBossFinder.Class;
+	}
+}
+
+TSubclassOf<AImmortalMonsterCharacter> AImmortalMonsterSpawner::ResolveMapBossMonsterClass(
+	const FName MapId) const
+{
+	if (BossMonsterClass) { return BossMonsterClass; }
+	if (MapId == UImmortalMapLibrary::GetQingyunMountainId() && DefaultQingyunBossMonsterClass)
+	{
+		return DefaultQingyunBossMonsterClass;
+	}
+	return DefaultBossMonsterClass ? DefaultBossMonsterClass : MonsterClass;
 }
 
 void AImmortalMonsterSpawner::BeginPlay()
@@ -2025,9 +2046,9 @@ AImmortalMonsterCharacter* AImmortalMonsterSpawner::SpawnConfiguredMonster(
 
 	const TSubclassOf<AImmortalMonsterCharacter> EffectiveAlternateClass =
 		AlternateMonsterClass ? AlternateMonsterClass : DefaultAlternateMonsterClass;
-	const TSubclassOf<AImmortalMonsterCharacter> EffectiveBossClass = BossMonsterClass
-		? BossMonsterClass
-		: (DefaultBossMonsterClass ? DefaultBossMonsterClass : MonsterClass);
+	const TSubclassOf<AImmortalMonsterCharacter> EffectiveBossClass = bSpawnBoss
+		? ResolveMapBossMonsterClass(MapSystemState.ActiveMapId)
+		: nullptr;
 	const TSubclassOf<AImmortalMonsterCharacter> ClassToSpawn = bSpawnBoss
 		? EffectiveBossClass
 		: (EffectiveAlternateClass && FMath::RandBool() ? EffectiveAlternateClass : MonsterClass);

@@ -1,0 +1,9 @@
+{
+  "sources":[
+    {"path":"sources/attack-regrid-v3.png","sha256":"29e3caf5e6889e1caadba0c793611777280895c875ffc078bcfd1ea96eaa7d61"},
+    {"path":"sources/attack-frame1-regrid-v4.png","sha256":"13ecc9d0a9e30fba561f8a7cb8540e44f691f66a8938bc03a7f4f66db09bec71"}
+  ],
+  "columns":4,"rows":2,"cellWidth":512,"cellHeight":512,
+  "frameMap":[{"source":0,"frame":0},{"source":1,"frame":1},{"source":0,"frame":2},{"source":0,"frame":3},{"source":0,"frame":4},{"source":0,"frame":5},{"source":0,"frame":6},{"source":0,"frame":7}],
+  "reviewNote":"Seven individually reviewed v3 poses plus one independently AI-corrected nine-tail windup frame1; contact remains frame4 at12FPS/.35s."
+}

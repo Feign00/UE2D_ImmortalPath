@@ -1,0 +1,8 @@
+{
+  "source":"sources/death-regrid-v1.png",
+  "sourceSha256":"86b9b904c3ac8c390e5cb567e1b2b1d2655157ae237e255d95746efc517db565",
+  "columns":4,"rows":2,
+  "anchors":[[153,369],[156,353],[170,316],[173,293],[175,297],[165,258],[163,234],[171,230]],
+  "targetAnchor":[256,336],"scale":0.7,"alphaThreshold":128,"outputFrameSize":[512,384],"bottomTolerance":0,
+  "reviewNote":"Source body root column+180 and manually confirmed support/body contact line. Single whole-clip scale; no per-frame resizing."
+}

@@ -1,0 +1,8 @@
+{
+  "source":"sources/hurt-regrid-v1.png",
+  "sourceSha256":"4dd06ea27d0b512d5cc89a174570b9aa4508500702ca137f4281faad09e984e3",
+  "columns":4,"rows":2,
+  "anchors":[[164,366],[138,372],[136,368],[163,373],[154,369],[153,372],[163,371],[171,371]],
+  "targetAnchor":[256,336],"scale":0.7,"alphaThreshold":128,"outputFrameSize":[512,384],
+  "reviewNote":"Single whole-clip scale. Source body root x=column+180, load-bearing hind-paw line. All8poses9tails. Runtime cadence pending, oldHurt7/15s preserved by FPS120/7."
+}

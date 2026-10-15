@@ -1,0 +1,9 @@
+{
+  "source":"sources/attack-assembled-v1.png",
+  "sourceSha256":"9ed32735fc7a081ca8a0810ab38bc98e79eaa50b5b9defe0ab7042636be87cce",
+  "columns":4,"rows":2,
+  "anchors":[[153,372],[256,441],[161,361],[181,376],[173,346],[131,335],[129,349],[149,354]],
+  "targetAnchor":[256,336],"scale":0.7,"alphaThreshold":128,
+  "outputFrameSize":[512,384],
+  "reviewNote":"Manual torso-root and planted support-paw anchors; retain frame4 bite contact. Frame1 resolution normalized over entire1254px canvas, not by actor bounds. Single whole-clip scale."
+}

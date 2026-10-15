@@ -1,0 +1,9 @@
+{
+  "source":"sources/death-original-v1.png",
+  "sourceSha256":"023652a8db64b010cd2d0381b255af5800c738fbd6e5395412af3db8ade15eae",
+  "columns":4,"rows":2,"outputFrameSize":[512,512],"alphaThreshold":128,
+  "sourceRects":[[27,124,375,375],[408,141,377,359],[778,178,384,322],[1159,205,377,299],[5,656,409,303],[399,693,397,264],[785,719,384,240],[1161,723,375,236]],
+  "componentSeeds":[[[211,129]],[[603,146]],[[974,183]],[[1356,210]],[[271,661]],[[651,698],[719,730]],[[928,724]],[[1375,728]]],
+  "reviewedPhysicalTailCount":[9,9,9,9,9,9,9,9],
+  "reviewNote":"Progressive irreversible collapse; eight9-tail poses, including frame5 one-pixel island. All source visible components retained. Frame3->4 small near-side roll must be reviewed at10FPS in game."
+}

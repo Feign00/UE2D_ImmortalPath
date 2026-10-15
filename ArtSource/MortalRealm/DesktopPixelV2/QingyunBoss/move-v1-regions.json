@@ -1,0 +1,9 @@
+{
+  "source": "sources/move-original-v1.png",
+  "sourceSha256": "f320e9f4010c539a7dcfc08c4a3ef474895560b576ff93b20b5ef42f7c5cf529",
+  "columns": 4, "rows": 2, "outputFrameSize": [512,512], "alphaThreshold": 128,
+  "sourceRects": [[30,107,366,378],[413,110,366,378],[796,108,359,380],[1170,96,358,391],[30,601,366,371],[413,601,364,371],[786,602,376,370],[1172,599,358,373]],
+  "componentSeeds": [[[221,112]],[[594,115]],[[1027,113]],[[1402,101]],[[214,606]],[[581,606]],[[976,607]],[[1341,604]]],
+  "reviewedPreparedBodyFootAnchors": [[151,372],[152,372],[153,374],[163,385],[151,365],[152,365],[163,364],[161,367]],
+  "review": "Eight complete components and nine visible tails in all eight frames. No visible source pixel discarded. Near hind paw does not swing in this revision; frames3..6 await authored gait correction and this raw set is NOT runtime-approved. The torso root, not tail bounds or changing paw-span centre, defines the horizontal anchor."
+}

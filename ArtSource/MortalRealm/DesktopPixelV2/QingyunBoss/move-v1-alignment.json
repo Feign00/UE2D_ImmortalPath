@@ -1,0 +1,12 @@
+{
+  "source": "sources/move-assembled-v1.png",
+  "sourceSha256": "0effd51e7b3e7e65dd9f6a4e49c4772650447e61783a12ee644e26af8ef3a4ca",
+  "columns":4,
+  "rows":2,
+  "anchors":[[151,372],[152,372],[153,374],[163,379],[151,364],[151,365],[163,371],[161,367]],
+  "targetAnchor":[256,336],
+  "scale":0.7,
+  "alphaThreshold":128,
+  "outputFrameSize":[512,384],
+  "reviewNote":"Same body-root x181 per original source column, authored support line; single whole-clip scale. Frames0,1,2,7 from v1, frames3..6 from v2."
+}

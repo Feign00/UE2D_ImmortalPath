@@ -1,0 +1,9 @@
+{
+  "sources":[
+    {"path":"sources/idle-regrid-v2.png","sha256":"b2e455dd69de21d0bb747463a830b11a2ee9f7f9c5b5a02aa9d24fc744256ef1"},
+    {"path":"sources/idle-frame3-regrid-v5.png","sha256":"a6c16c6e9c0285aa99226cfe92598834fa7d477f74318d0cb145f2b4997a8078"}
+  ],
+  "columns":4,"rows":2,"cellWidth":512,"cellHeight":512,
+  "frameMap":[{"source":0,"frame":0},{"source":0,"frame":1},{"source":0,"frame":2},{"source":1,"frame":3},{"source":0,"frame":4},{"source":0,"frame":5},{"source":0,"frame":6},{"source":0,"frame":7}],
+  "reviewNote":"Seven individually reviewed v2 poses plus one independently AI-corrected nine-tail frame3; no duplicated frames or procedural drawing."
+}

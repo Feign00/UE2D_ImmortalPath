@@ -1,0 +1,11 @@
+{
+  "source": "sources/move-original-v2.png",
+  "sourceSha256": "d664f708e061b779c46a366cd18fab089b59beb575786a10afb715c5ca0c947a",
+  "columns": 4,
+  "rows": 2,
+  "outputFrameSize": [512,512],
+  "alphaThreshold": 128,
+  "sourceRects": [[30,108,366,379],[413,110,367,379],[796,108,357,381],[1170,102,357,385],[30,603,371,370],[414,603,363,371],[786,600,376,377],[1173,600,356,374]],
+  "componentSeeds": [[[222,113]],[[596,115]],[[1030,113]],[[1403,107]],[[216,608]],[[586,608]],[[970,605]],[[1340,605]]],
+  "reviewNote": "All source components retained. Only frames3..6 selected for final clip: nine tails and real near hind-leg lift, forward swing, plant and push. Retain v1 frames0,1,2,7."
+}

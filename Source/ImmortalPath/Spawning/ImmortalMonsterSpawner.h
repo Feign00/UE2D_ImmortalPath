@@ -32,6 +32,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Immortal Path|Spawning")
 	AImmortalMonsterCharacter* SpawnMonster();
 
+	/** Explicit overrides win; only the authored Qingyun map gate uses the new skin. */
+	TSubclassOf<AImmortalMonsterCharacter> ResolveMapBossMonsterClass(FName MapId) const;
+
 	UFUNCTION(BlueprintPure, Category = "Immortal Path|Spawning")
 	int32 GetAliveMonsterCount() const;
 
@@ -316,6 +319,10 @@ private:
 
 	UPROPERTY(Transient)
 	TSubclassOf<AImmortalMonsterCharacter> DefaultBossMonsterClass;
+
+	/** Constructor-loaded startup dependency; only Qingyun map gates use this fallback. */
+	UPROPERTY(Transient)
+	TSubclassOf<AImmortalMonsterCharacter> DefaultQingyunBossMonsterClass;
 
 	/** Cook-visible soft reference; missing source art safely falls back to the legacy TileMap. */
 	UPROPERTY(EditDefaultsOnly, Category = "Immortal Path|Maps")

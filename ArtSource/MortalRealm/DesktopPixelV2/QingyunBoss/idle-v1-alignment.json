@@ -1,0 +1,9 @@
+{
+  "source":"sources/idle-assembled-v1.png",
+  "sourceSha256":"4db7a49827a575f73daf56776e59bfd342dfab41de3bea3aa58a9c7d53f9df20",
+  "columns":4,"rows":2,
+  "anchors":[[149,368],[140,374],[137,389],[256,441],[143,371],[140,371],[145,369],[140,372]],
+  "targetAnchor":[256,336],"scale":0.7,"alphaThreshold":128,
+  "outputFrameSize":[512,384],
+  "reviewNote":"Manual torso-root and support-paw anchors; frame3's fixed1254-to512 canvas normalization has a441px foot baseline. Single whole-clip scale, never bbox fit."
+}

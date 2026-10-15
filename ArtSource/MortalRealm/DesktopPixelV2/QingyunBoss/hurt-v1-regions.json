@@ -1,0 +1,9 @@
+{
+  "source":"sources/hurt-original-v1.png",
+  "sourceSha256":"5ba2aacaa923c87dcae6435f07e2ba066917842b63985960a57a981097e2a1cc",
+  "columns":4,"rows":2,"outputFrameSize":[512,512],"alphaThreshold":128,
+  "sourceRects":[[16,88,379,372],[426,82,351,378],[812,87,335,374],[1169,81,360,379],[26,575,372,375],[411,572,366,378],[785,573,371,377],[1161,573,368,377]],
+  "componentSeeds":[[[262,93]],[[657,87]],[[1015,92]],[[1405,86]],[[268,580]],[[646,577]],[[961,578]],[[1336,578]]],
+  "reviewedPhysicalTailCount":[9,9,9,9,9,9,9,9],
+  "reviewNote":"All eight complete components retained. Left-facing torso; head turns away from left-side hit in frames1..4 then recovers. Cadence acceptance requires runtime, including0->1 and4->5."
+}

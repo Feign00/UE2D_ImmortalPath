@@ -319,7 +319,8 @@ void AImmortalMonsterCharacter::ConfigureAsMapBoss(const FName MapId, const int3
 		SpriteComponent->SetRelativeScale3D(
 			SpriteComponent->GetRelativeScale3D() * FMath::Max(BossVisualScaleMultiplier, 1.0f));
 		SpriteComponent->SetTranslucentSortPriority(VisualSortPriority + 2);
-		SpriteComponent->SetSpriteColor(MapDefinition.BossColor);
+		SpriteComponent->SetSpriteColor(
+			bPreserveAuthoredMapBossPalette ? FLinearColor::White : MapDefinition.BossColor);
 	}
 	if (HealthBarComponent)
 	{

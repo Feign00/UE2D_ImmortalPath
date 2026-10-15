@@ -1,0 +1,205 @@
+{
+  "sourceSha256": "9ed32735fc7a081ca8a0810ab38bc98e79eaa50b5b9defe0ab7042636be87cce",
+  "settings": {
+    "source": "sources/attack-assembled-v1.png",
+    "sourceSha256": "9ed32735fc7a081ca8a0810ab38bc98e79eaa50b5b9defe0ab7042636be87cce",
+    "columns": 4,
+    "rows": 2,
+    "anchors": [
+      [
+        153,
+        372
+      ],
+      [
+        256,
+        441
+      ],
+      [
+        161,
+        361
+      ],
+      [
+        181,
+        376
+      ],
+      [
+        173,
+        346
+      ],
+      [
+        131,
+        335
+      ],
+      [
+        129,
+        349
+      ],
+      [
+        149,
+        354
+      ]
+    ],
+    "targetAnchor": [
+      256,
+      336
+    ],
+    "scale": 0.7,
+    "alphaThreshold": 128,
+    "outputFrameSize": [
+      512,
+      384
+    ],
+    "reviewNote": "Manual torso-root and planted support-paw anchors; retain frame4 bite contact. Frame1 resolution normalized over entire1254px canvas, not by actor bounds. Single whole-clip scale."
+  },
+  "report": {
+    "width": 2048,
+    "height": 768,
+    "columns": 4,
+    "rows": 2,
+    "cellWidth": 512,
+    "cellHeight": 384,
+    "alphaThreshold": 128,
+    "bottomTolerance": 2,
+    "frames": [
+      {
+        "frame": 0,
+        "clear": 159263,
+        "partial": 0,
+        "opaque": 37345,
+        "solid": 37345,
+        "maxAlpha": 255,
+        "bounds": {
+          "left": 153,
+          "top": 79,
+          "right": 401,
+          "bottom": 336
+        },
+        "touchesCellEdge": false,
+        "maskedSha256": "a6f5d2b8b9a90199e79ea06c868bdee349da1103babcef176f19ee4205a15d32",
+        "sha256": "a6f5d2b8b9a90199e79ea06c868bdee349da1103babcef176f19ee4205a15d32"
+      },
+      {
+        "frame": 1,
+        "clear": 161438,
+        "partial": 0,
+        "opaque": 35170,
+        "solid": 35170,
+        "maxAlpha": 255,
+        "bounds": {
+          "left": 141,
+          "top": 87,
+          "right": 406,
+          "bottom": 336
+        },
+        "touchesCellEdge": false,
+        "maskedSha256": "d47b312fff0b156239e4c0181d3323abdcbefa6ace28ce55049ebd09653cb03f",
+        "sha256": "d47b312fff0b156239e4c0181d3323abdcbefa6ace28ce55049ebd09653cb03f"
+      },
+      {
+        "frame": 2,
+        "clear": 162346,
+        "partial": 0,
+        "opaque": 34262,
+        "solid": 34262,
+        "maxAlpha": 255,
+        "bounds": {
+          "left": 147,
+          "top": 87,
+          "right": 393,
+          "bottom": 336
+        },
+        "touchesCellEdge": false,
+        "maskedSha256": "6afbd225aae8dd68c495d5c8c91dcb5912f769623461f1ede894bb2dc51c8fde",
+        "sha256": "6afbd225aae8dd68c495d5c8c91dcb5912f769623461f1ede894bb2dc51c8fde"
+      },
+      {
+        "frame": 3,
+        "clear": 160980,
+        "partial": 0,
+        "opaque": 35628,
+        "solid": 35628,
+        "maxAlpha": 255,
+        "bounds": {
+          "left": 133,
+          "top": 76,
+          "right": 396,
+          "bottom": 336
+        },
+        "touchesCellEdge": false,
+        "maskedSha256": "6f11438d4204c7f1bc6203bcdefa841be6a463ec7ce872799878369bb8fbe527",
+        "sha256": "6f11438d4204c7f1bc6203bcdefa841be6a463ec7ce872799878369bb8fbe527"
+      },
+      {
+        "frame": 4,
+        "clear": 160379,
+        "partial": 0,
+        "opaque": 36229,
+        "solid": 36229,
+        "maxAlpha": 255,
+        "bounds": {
+          "left": 139,
+          "top": 97,
+          "right": 434,
+          "bottom": 336
+        },
+        "touchesCellEdge": false,
+        "maskedSha256": "9dab443688520c43f15204227ab096357bdfbc7de60d2c11f2b389bcc652f1d8",
+        "sha256": "9dab443688520c43f15204227ab096357bdfbc7de60d2c11f2b389bcc652f1d8"
+      },
+      {
+        "frame": 5,
+        "clear": 164114,
+        "partial": 0,
+        "opaque": 32494,
+        "solid": 32494,
+        "maxAlpha": 255,
+        "bounds": {
+          "left": 168,
+          "top": 105,
+          "right": 434,
+          "bottom": 336
+        },
+        "touchesCellEdge": false,
+        "maskedSha256": "69f94705e28aeb5238314dbad16e6793282c65d37ec2f17fdd387813c4bd69c9",
+        "sha256": "69f94705e28aeb5238314dbad16e6793282c65d37ec2f17fdd387813c4bd69c9"
+      },
+      {
+        "frame": 6,
+        "clear": 162570,
+        "partial": 0,
+        "opaque": 34038,
+        "solid": 34038,
+        "maxAlpha": 255,
+        "bounds": {
+          "left": 169,
+          "top": 95,
+          "right": 410,
+          "bottom": 336
+        },
+        "touchesCellEdge": false,
+        "maskedSha256": "805bff511cc60e19f522a8fceafb50fa5559a9bd2ed9076620ea29c890e964e6",
+        "sha256": "805bff511cc60e19f522a8fceafb50fa5559a9bd2ed9076620ea29c890e964e6"
+      },
+      {
+        "frame": 7,
+        "clear": 160940,
+        "partial": 0,
+        "opaque": 35668,
+        "solid": 35668,
+        "maxAlpha": 255,
+        "bounds": {
+          "left": 155,
+          "top": 92,
+          "right": 394,
+          "bottom": 336
+        },
+        "touchesCellEdge": false,
+        "maskedSha256": "14f37da04f73dfb2ddf2df8f50cca25872f72afadf3696740f1f51511b612ed6",
+        "sha256": "14f37da04f73dfb2ddf2df8f50cca25872f72afadf3696740f1f51511b612ed6"
+      }
+    ],
+    "silhouetteBottomSpread": 0,
+    "warnings": [],
+    "note": "Bounds are not anatomical foot anchors. Human visual/animation review is required."
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "sources": [
+    {"path":"sources/move-regrid-v1.png","sha256":"88a4c641c31a8fcfbf2c818c7722736805ec10598dc67e342d3d56521ac33bbb"},
+    {"path":"sources/move-regrid-v2.png","sha256":"e5112748ac88512ba4ad45dcbd0a001aa6fadffe850eeed64c1b4d244a0aaeda"}
+  ],
+  "columns": 4,
+  "rows": 2,
+  "cellWidth": 512,
+  "cellHeight": 512,
+  "frameMap": [{"source":0,"frame":0},{"source":0,"frame":1},{"source":0,"frame":2},{"source":1,"frame":3},{"source":1,"frame":4},{"source":1,"frame":5},{"source":1,"frame":6},{"source":0,"frame":7}],
+  "reviewNote": "Manual frame provenance: no repeated frames or interpolation. Full-loop continuity is separately reviewed after alignment."
+}

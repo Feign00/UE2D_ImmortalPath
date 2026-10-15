@@ -1,0 +1,205 @@
+{
+  "sourceSha256": "4dd06ea27d0b512d5cc89a174570b9aa4508500702ca137f4281faad09e984e3",
+  "settings": {
+    "source": "sources/hurt-regrid-v1.png",
+    "sourceSha256": "4dd06ea27d0b512d5cc89a174570b9aa4508500702ca137f4281faad09e984e3",
+    "columns": 4,
+    "rows": 2,
+    "anchors": [
+      [
+        164,
+        366
+      ],
+      [
+        138,
+        372
+      ],
+      [
+        136,
+        368
+      ],
+      [
+        163,
+        373
+      ],
+      [
+        154,
+        369
+      ],
+      [
+        153,
+        372
+      ],
+      [
+        163,
+        371
+      ],
+      [
+        171,
+        371
+      ]
+    ],
+    "targetAnchor": [
+      256,
+      336
+    ],
+    "scale": 0.7,
+    "alphaThreshold": 128,
+    "outputFrameSize": [
+      512,
+      384
+    ],
+    "reviewNote": "Single whole-clip scale. Source body root x=column+180, load-bearing hind-paw line. All8poses9tails. Runtime cadence pending, oldHurt7/15s preserved by FPS120/7."
+  },
+  "report": {
+    "width": 2048,
+    "height": 768,
+    "columns": 4,
+    "rows": 2,
+    "cellWidth": 512,
+    "cellHeight": 384,
+    "alphaThreshold": 128,
+    "bottomTolerance": 2,
+    "frames": [
+      {
+        "frame": 0,
+        "clear": 158110,
+        "partial": 0,
+        "opaque": 38498,
+        "solid": 38498,
+        "maxAlpha": 255,
+        "bounds": {
+          "left": 145,
+          "top": 83,
+          "right": 402,
+          "bottom": 336
+        },
+        "touchesCellEdge": false,
+        "maskedSha256": "962d3f9f2015272a35612b1155695db1a0aaf649bb7b805d386d63b53a9c8764",
+        "sha256": "962d3f9f2015272a35612b1155695db1a0aaf649bb7b805d386d63b53a9c8764"
+      },
+      {
+        "frame": 1,
+        "clear": 158464,
+        "partial": 0,
+        "opaque": 38144,
+        "solid": 38144,
+        "maxAlpha": 255,
+        "bounds": {
+          "left": 163,
+          "top": 79,
+          "right": 401,
+          "bottom": 336
+        },
+        "touchesCellEdge": false,
+        "maskedSha256": "a8848ca8aad70b78e51402ebb4c4128f51d36392536b65c823c45cde2002d19e",
+        "sha256": "a8848ca8aad70b78e51402ebb4c4128f51d36392536b65c823c45cde2002d19e"
+      },
+      {
+        "frame": 2,
+        "clear": 159731,
+        "partial": 0,
+        "opaque": 36877,
+        "solid": 36877,
+        "maxAlpha": 255,
+        "bounds": {
+          "left": 164,
+          "top": 82,
+          "right": 391,
+          "bottom": 336
+        },
+        "touchesCellEdge": false,
+        "maskedSha256": "62698ceb6b9dea67074a837493990c60919f134255106291ca4ed64f3549ee56",
+        "sha256": "62698ceb6b9dea67074a837493990c60919f134255106291ca4ed64f3549ee56"
+      },
+      {
+        "frame": 3,
+        "clear": 157078,
+        "partial": 0,
+        "opaque": 39530,
+        "solid": 39530,
+        "maxAlpha": 255,
+        "bounds": {
+          "left": 146,
+          "top": 79,
+          "right": 390,
+          "bottom": 336
+        },
+        "touchesCellEdge": false,
+        "maskedSha256": "af13c785b72ab0063e4bb8c5f99c118cc6367714a04d52107aab31ae96b8feea",
+        "sha256": "af13c785b72ab0063e4bb8c5f99c118cc6367714a04d52107aab31ae96b8feea"
+      },
+      {
+        "frame": 4,
+        "clear": 156819,
+        "partial": 0,
+        "opaque": 39789,
+        "solid": 39789,
+        "maxAlpha": 255,
+        "bounds": {
+          "left": 152,
+          "top": 81,
+          "right": 404,
+          "bottom": 336
+        },
+        "touchesCellEdge": false,
+        "maskedSha256": "0d92b318080a60de078908508528168c10174bd995ce918f2b1a40b770301c4f",
+        "sha256": "0d92b318080a60de078908508528168c10174bd995ce918f2b1a40b770301c4f"
+      },
+      {
+        "frame": 5,
+        "clear": 157364,
+        "partial": 0,
+        "opaque": 39244,
+        "solid": 39244,
+        "maxAlpha": 255,
+        "bounds": {
+          "left": 153,
+          "top": 79,
+          "right": 401,
+          "bottom": 336
+        },
+        "touchesCellEdge": false,
+        "maskedSha256": "7603d4e9a45c3c72a3626051208e19a1e5acd9117ff8b6e692621543d1f3dbae",
+        "sha256": "7603d4e9a45c3c72a3626051208e19a1e5acd9117ff8b6e692621543d1f3dbae"
+      },
+      {
+        "frame": 6,
+        "clear": 156665,
+        "partial": 0,
+        "opaque": 39943,
+        "solid": 39943,
+        "maxAlpha": 255,
+        "bounds": {
+          "left": 146,
+          "top": 80,
+          "right": 397,
+          "bottom": 336
+        },
+        "touchesCellEdge": false,
+        "maskedSha256": "cea4baa35df408ff2f3b93128c189004caa4685d1821f0d4c919570bc33fc478",
+        "sha256": "cea4baa35df408ff2f3b93128c189004caa4685d1821f0d4c919570bc33fc478"
+      },
+      {
+        "frame": 7,
+        "clear": 157283,
+        "partial": 0,
+        "opaque": 39325,
+        "solid": 39325,
+        "maxAlpha": 255,
+        "bounds": {
+          "left": 140,
+          "top": 80,
+          "right": 390,
+          "bottom": 336
+        },
+        "touchesCellEdge": false,
+        "maskedSha256": "a8a1c7b956367459edd22c74cc4b38051635c6adc4ae0c7e7c915c9db080ca14",
+        "sha256": "a8a1c7b956367459edd22c74cc4b38051635c6adc4ae0c7e7c915c9db080ca14"
+      }
+    ],
+    "silhouetteBottomSpread": 0,
+    "warnings": [],
+    "note": "Bounds are not anatomical foot anchors. Human visual/animation review is required."
+  }
+}

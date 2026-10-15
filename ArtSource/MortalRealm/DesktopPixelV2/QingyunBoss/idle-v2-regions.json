@@ -1,0 +1,9 @@
+{
+  "source": "sources/idle-original-v2.png",
+  "sourceSha256": "3464f2cd3d15ccc0548628012113a0ad92ff0ca100f85501adfbfd1622fee938",
+  "columns": 4, "rows": 2, "outputFrameSize": [512,512], "alphaThreshold": 128,
+  "sourceRects": [[32,119,358,374],[423,114,360,380],[809,99,356,395],[1197,69,334,426],[37,598,358,377],[425,598,355,377],[801,600,369,375],[1191,597,343,378]],
+  "componentSeeds": [[[229,124]],[[600,119]],[[992,104]],[[1400,74]],[[217,603]],[[590,603],[540,753]],[[987,605]],[[1357,602],[1300,706]]],
+  "reviewedPreparedBodyFootAnchors": [[149,368],[140,374],[137,389],[133,420],[143,371],[140,371],[145,369],[140,372]],
+  "review": "Explicit complete component ownership, including 1/2px diagonal outline islands. No component discarded. Frames 0,1,2,4,5,6,7 have nine visible tails; frame3 has only eight and must be replaced by an independently authored corrected frame before runtime use. Anchors are manually reviewed torso roots over the load-bearing paw baseline, not tail bounds centres."
+}

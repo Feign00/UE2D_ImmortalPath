@@ -215,6 +215,10 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Immortal Path|Monster|Animation")
 	bool bAlignSpriteToPlayerLane = false;
 
+	/** Opt-in for authored map Boss skins; legacy map/world/endless tinting is unchanged. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Immortal Path|Monster|Animation")
+	bool bPreserveAuthoredMapBossPalette = false;
+
 	/** Keeps monster artwork in front of the tile map when translucent sprite materials are used. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Immortal Path|Monster|Animation")
 	int32 VisualSortPriority = 10;

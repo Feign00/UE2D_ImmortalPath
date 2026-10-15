@@ -5,6 +5,7 @@
 #include "ImmortalPixelAnimationPreview.h"
 #include "ImmortalFoxAnimationFixture.h"
 #include "ImmortalDogAnimationFixture.h"
+#include "ImmortalQingyunBossAnimationFixture.h"
 #include "../UI/ImmortalDesktopPanelLayout.h"
 
 #include "../Combat/AutoAttackTarget.h"
@@ -424,7 +425,8 @@ void AImmortalPlayerCharacter::BeginPlay()
 {
 	const bool bFoxFixturePreflight = ImmortalFoxAnimationFixture::CheckPreflightIfRequested();
 	const bool bDogFixturePreflight = ImmortalDogAnimationFixture::CheckPreflightIfRequested();
-	if (!bFoxFixturePreflight || !bDogFixturePreflight)
+	const bool bBossFixturePreflight = ImmortalQingyunBossAnimationFixture::CheckPreflightIfRequested();
+	if (!bFoxFixturePreflight || !bDogFixturePreflight || !bBossFixturePreflight)
 	{
 		// Refused fixtures must not create an EndPlay fallback save either.
 		bSaveRecoveryRequired = true;
@@ -5022,6 +5024,7 @@ void AImmortalPlayerCharacter::BeginPlay()
 	ImmortalPixelAnimationPreview::StartIfRequested(*this);
 	ImmortalFoxAnimationFixture::StartIfRequested(*this);
 	ImmortalDogAnimationFixture::StartIfRequested(*this);
+	ImmortalQingyunBossAnimationFixture::StartIfRequested(*this);
 	RunPixelPlayerIntegrationFixture();
 	RunHighSpeedCombatFixture();
 	RunDesktopPanelFixture();

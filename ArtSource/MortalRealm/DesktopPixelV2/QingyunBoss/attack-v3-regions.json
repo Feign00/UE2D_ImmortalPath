@@ -1,0 +1,10 @@
+{
+  "source":"sources/attack-original-v3.png",
+  "sourceSha256":"643369bf7c7f816aa4403cad715b3bfe321989e8364f74d8bcedaf89c760c5ef",
+  "columns":4,"rows":2,"outputFrameSize":[512,512],"alphaThreshold":128,
+  "sourceRects":[[28,113,366,378],[397,127,388,365],[788,124,363,367],[1152,109,384,382],[8,602,434,352],[434,611,391,341],[820,603,355,355],[1184,599,352,360]],
+  "componentSeeds":[[[255,118],[202,140]],[[621,132]],[[994,129],[943,337]],[[1392,114]],[[264,607],[350,631],[218,739]],[[646,616],[585,736]],[[1015,608],[946,727]],[[1390,604]]],
+  "visibleTailTipCounts":[9,10,9,9,9,9,9,9],
+  "individuallyApprovedFrameCandidates":[0,2,3,4,5,6,7],
+  "reviewNote":"All14 components retained; frame1 rejected for10tails, will be replaced by individually edited9-tail pose. Source clipping repaired vs v2; selected contactframe4 stretched open bite."
+}
