@@ -1,14 +1,14 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "ImmortalPathSaveGame.h"
+#include "ImmortalSaveHeaderValidation.h"
+#include "ImmortalSavePayloadValidation.h"
 
 #include "Kismet/GameplayStatics.h"
 #include "Misc/CommandLine.h"
 #include "Misc/Parse.h"
 #include "PlatformFeatures.h"
 #include "SaveGameSystem.h"
-#include "Serialization/MemoryReader.h"
-#include "Serialization/ObjectAndNameAsStringProxyArchive.h"
 
 namespace
 {
@@ -35,19 +35,19 @@ namespace
 
 	UImmortalPathSaveGame* ReadValidatedSaveBytes(const TArray<uint8>& Bytes)
 	{
-		// The engine's LoadGameFromMemory can return an object after a partial
-		// property stream. Verify that its archive actually reaches a clean end.
-		if (Bytes.Num() < 32) return nullptr;
-		UImmortalPathSaveGame* Loaded = Cast<UImmortalPathSaveGame>(
-			UGameplayStatics::LoadGameFromMemory(Bytes));
-		if (!Loaded) return nullptr;
-		FMemoryReader Reader = UGameplayStatics::StripSaveGameHeader(Bytes);
-		if (Reader.IsError()) return nullptr;
-		UImmortalPathSaveGame* Probe = NewObject<UImmortalPathSaveGame>();
-		FObjectAndNameAsStringProxyArchive Archive(Reader, true);
-		Probe->Serialize(Archive);
-		return !Reader.IsError() && Reader.Tell() == Reader.TotalSize()
-			? Loaded : nullptr;
+		// Validate all lengths, tags and container budgets before any input name
+		// is interned or a reflected value is allocated. Never hand untrusted
+		// bytes to the engine's permissive header/property deserializers.
+		ImmortalSaveValidation::FHeader Header;
+		if (!ImmortalSaveValidation::ReadHeader(Bytes, Header)) return nullptr;
+		FString Reason;
+		if (!ImmortalSaveValidation::ReadPayload(Bytes, Header, nullptr, &Reason))
+		{
+			UE_LOG(LogTemp, Verbose, TEXT("Bounded save payload rejected: %s"), *Reason);
+			return nullptr;
+		}
+		UImmortalPathSaveGame* Loaded = NewObject<UImmortalPathSaveGame>();
+		return ImmortalSaveValidation::ReadPayload(Bytes, Header, Loaded) ? Loaded : nullptr;
 	}
 
 	UImmortalPathSaveGame* ReadValidatedSlot(
@@ -355,6 +355,19 @@ bool UImmortalPathSaveGame::SaveToDisk(const FString& SlotName)
 		return false;
 	}
 #endif
+	// Apply the same supported-format and resource limits to our own output
+	// before touching either generation. This also makes a future unsupported
+	// persistent type fail safely instead of writing a snapshot we cannot read.
+	TArray<uint8> SnapshotBytes;
+	ImmortalSaveValidation::FHeader SnapshotHeader;
+	if (!UGameplayStatics::SaveGameToMemory(this, SnapshotBytes)
+		|| !ImmortalSaveValidation::ReadHeader(SnapshotBytes, SnapshotHeader)
+		|| !ImmortalSaveValidation::ReadPayload(SnapshotBytes, SnapshotHeader))
+	{
+		UE_LOG(LogTemp, Error,
+			TEXT("Save refused: generated snapshot is outside supported format or resource limits: %s"), *TargetSlot);
+		return false;
+	}
 	const ISaveGameSystem::ESaveExistsResult Exists = GetSlotExistence(TargetSlot);
 	if (Exists == ISaveGameSystem::ESaveExistsResult::OK)
 	{
@@ -411,7 +424,7 @@ bool UImmortalPathSaveGame::SaveToDisk(const FString& SlotName)
 			*TargetSlot);
 		return false;
 	}
-	const bool bSaved = UGameplayStatics::SaveGameToSlot(this, TargetSlot, SaveUserIndex);
+	const bool bSaved = UGameplayStatics::SaveDataToSlot(SnapshotBytes, TargetSlot, SaveUserIndex);
 	if (!bSaved)
 	{
 		UE_LOG(LogTemp, Error, TEXT("Failed to write save slot: %s"), *TargetSlot);
